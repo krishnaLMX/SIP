@@ -264,6 +264,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       Navigator.pushReplacementNamed(context, AppRouter.home);
     } else {
       _otpController.clear();
+      //this is for testing purpose
+      Navigator.pushReplacementNamed(context, AppRouter.mpin);
     }
   }
 }

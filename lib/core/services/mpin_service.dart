@@ -83,6 +83,7 @@ class MpinNotifier extends StateNotifier<MpinState> {
   }
 
   Future<bool> setMpin() async {
+    if (state.isLoading) return false;
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _mpinService.setMpin(state.mpin);
