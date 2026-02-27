@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/animations.dart';
+import '../../routes/app_router.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,20 +18,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor:
+          isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
+      endDrawer: _buildSideMenu(context),
       body: Stack(
         children: [
-          // Midnight Background
-          Positioned.fill(
-            child: Container(
-              color: isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
-            ),
-          ),
-
           SafeArea(
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                _buildAppBar(isDark),
+                _buildAppBar(context, isDark),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -47,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         _buildSectionHeader('Exquisite Performance', isDark),
                         SizedBox(height: 24.h),
                         _buildGrowthChart(isDark),
-                        SizedBox(height: 100.h), // Extra space for navigation
+                        SizedBox(height: 120.h),
                       ],
                     ),
                   ),
@@ -55,19 +52,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-
           _buildBottomNav(isDark),
         ],
       ),
     );
   }
 
-  Widget _buildAppBar(bool isDark) {
+  Widget _buildAppBar(BuildContext context, bool isDark) {
     return SliverAppBar(
       floating: true,
       backgroundColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
+      automaticallyImplyLeading: false,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -91,23 +88,175 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       actions: [
-        Container(
-          margin: EdgeInsets.only(right: 24.w),
-          height: 44.w,
-          width: 44.w,
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withOpacity(0.04)
-                : Colors.black.withOpacity(0.04),
-            shape: BoxShape.circle,
-            border: Border.all(
-                color: isDark ? Colors.white12 : Colors.black12, width: 1),
+        Builder(
+          builder: (context) => GestureDetector(
+            onTap: () => Scaffold.of(context).openEndDrawer(),
+            child: Container(
+              margin: EdgeInsets.only(right: 24.w),
+              height: 44.w,
+              width: 44.w,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withOpacity(0.04)
+                    : Colors.black.withOpacity(0.04),
+                shape: BoxShape.circle,
+                border: Border.all(
+                    color: isDark ? Colors.white12 : Colors.black12, width: 1),
+              ),
+              child: Icon(Icons.menu_rounded,
+                  size: 22.sp, color: isDark ? Colors.white : Colors.black87),
+            ),
           ),
-          child: Icon(Icons.notifications_outlined,
-              size: 22.sp, color: isDark ? Colors.white : Colors.black87),
         ),
       ],
     );
+  }
+
+  Widget _buildSideMenu(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Drawer(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(30),
+          bottomLeft: Radius.circular(30),
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            SizedBox(height: 40.h),
+            _buildDrawerHeader(isDark),
+            SizedBox(height: 40.h),
+            _buildMenuItem(
+              context,
+              icon: Icons.person_outline_rounded,
+              title: 'My Profile',
+              subtitle: 'KYC & Settings',
+              route: AppRouter.profile,
+            ),
+            _buildMenuItem(
+              context,
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Statements',
+              subtitle: 'Reports & Tax',
+              route: AppRouter.statements,
+            ),
+            _buildMenuItem(
+              context,
+              icon: Icons.card_giftcard_outlined,
+              title: 'Refer & Earn',
+              subtitle: 'Win Gold Rewards',
+              route: AppRouter.referral,
+            ),
+            const Spacer(),
+            _buildMenuItem(
+              context,
+              icon: Icons.help_outline_rounded,
+              title: 'Support',
+              subtitle: '24/7 Assistance',
+              route: AppRouter.support,
+            ),
+            _buildMenuItem(
+              context,
+              icon: Icons.logout_rounded,
+              title: 'Logout',
+              subtitle: 'Secure Sign out',
+              onTap: () => _handleLogout(context),
+              isDestructive: true,
+            ),
+            SizedBox(height: 20.h),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerHeader(bool isDark) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 24.w),
+      child: Row(
+        children: [
+          Container(
+            width: 60.w,
+            height: 60.w,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [AppTheme.arcticBlue, AppTheme.electricCyan]),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.person, color: Colors.white, size: 30.sp),
+          ),
+          SizedBox(width: 16.w),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Alexander West',
+                style: GoogleFonts.outfit(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+              ),
+              Text(
+                'Verified Member',
+                style: GoogleFonts.outfit(
+                  fontSize: 13.sp,
+                  color: AppTheme.electricCyan,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    String? route,
+    VoidCallback? onTap,
+    bool isDestructive = false,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ListTile(
+      contentPadding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 8.h),
+      leading: Icon(
+        icon,
+        color: isDestructive
+            ? Colors.redAccent
+            : (isDark ? Colors.white70 : Colors.black54),
+        size: 26.sp,
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.outfit(
+          fontSize: 16.sp,
+          fontWeight: FontWeight.w700,
+          color: isDestructive
+              ? Colors.redAccent
+              : (isDark ? Colors.white : Colors.black),
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: GoogleFonts.outfit(
+          fontSize: 12.sp,
+          color: isDark ? Colors.white38 : Colors.black38,
+        ),
+      ),
+      onTap: onTap ?? () => Navigator.pushNamed(context, route!),
+    );
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    Navigator.pushNamedAndRemoveUntil(
+        context, AppRouter.login, (route) => false);
   }
 
   Widget _buildPortfolioCard(bool isDark) {

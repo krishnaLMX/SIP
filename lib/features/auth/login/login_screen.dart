@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -209,6 +210,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             child: TextField(
                               controller: _mobileController,
                               keyboardType: TextInputType.phone,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
                               maxLength: 10,
                               style: GoogleFonts.outfit(
                                 fontSize: 22.sp,
@@ -315,6 +319,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           'otpSessionId': authData?['otpSessionId'] ?? '',
         },
       );
+    } else {
+      // this is for testing purpose
+      Navigator.pushNamed(context, AppRouter.otp, arguments: {
+        'mobile': '9876543210',
+        'otpSessionId': '123456',
+      });
     }
   }
 }

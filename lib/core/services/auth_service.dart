@@ -112,6 +112,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier(this._authService) : super(AuthState());
 
   Future<bool> sendOtp(String mobile, String countryCode) async {
+    if (state.isLoading) return false;
     state = state.copyWith(isLoading: true, error: null);
     try {
       final data =
@@ -126,6 +127,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<bool> verifyOtp(String mobile, String otp, String otpSessionId) async {
+    if (state.isLoading) return false;
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _authService.verifyOtp(
