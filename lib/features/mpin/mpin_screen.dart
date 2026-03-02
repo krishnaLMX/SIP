@@ -184,7 +184,11 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                             child: Column(
                               children: [
                                 Text(
+<<<<<<< HEAD
                                   AppConstants.mpinTitle,
+=======
+                                  'SECURE YOUR VAULT',
+>>>>>>> parent of 388af03 (Register page and Mpin settings page configure)
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.outfit(
                                     fontSize: 26.sp,
@@ -197,7 +201,11 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                 ),
                                 SizedBox(height: 8.h),
                                 Text(
+<<<<<<< HEAD
                                   AppConstants.mpinSubtitle,
+=======
+                                  'Create your 4-digit signature to authorize encrypted transactions.',
+>>>>>>> parent of 388af03 (Register page and Mpin settings page configure)
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.outfit(
                                     fontSize: 14.sp,
