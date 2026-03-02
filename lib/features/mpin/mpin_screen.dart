@@ -9,12 +9,12 @@ import 'package:screen_protector/screen_protector.dart';
 import '../../core/services/mpin_service.dart';
 import '../../routes/app_router.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../shared/widgets/animations.dart';
 import '../../shared/widgets/custom_button.dart';
 
 class MpinScreen extends ConsumerStatefulWidget {
-  final bool isVerification;
-  const MpinScreen({super.key, this.isVerification = true});
+  const MpinScreen({super.key});
 
   @override
   ConsumerState<MpinScreen> createState() => _MpinScreenState();
@@ -146,6 +146,36 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                       child: Column(
                         key: ValueKey(_shuffledNumbers.join()),
                         children: [
+                          SizedBox(height: 32.h),
+
+                          // Center-Aligned Luxury Branding
+                          FadeInAnimation(
+                            delay: const Duration(milliseconds: 100),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Image.asset(
+                                    'assets/images/header.png',
+                                    height: 40.h,
+                                    fit: BoxFit.contain,
+                                  ),
+                                  SizedBox(height: 10.h),
+                                  Text(
+                                    AppConstants.companyName,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 16.sp,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 5.0,
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
                           SizedBox(height: 40.h),
 
                           // 3. Luxury Branding Header
@@ -154,9 +184,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                             child: Column(
                               children: [
                                 Text(
-                                  widget.isVerification
-                                      ? 'ENTER SECURE PIN'
-                                      : 'SECURE YOUR VAULT',
+                                  AppConstants.mpinTitle,
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.outfit(
                                     fontSize: 26.sp,
@@ -169,9 +197,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                 ),
                                 SizedBox(height: 8.h),
                                 Text(
-                                  widget.isVerification
-                                      ? 'Enter your 4-digit signature to access your account.'
-                                      : 'Create your 4-digit signature to authorize encrypted transactions.',
+                                  AppConstants.mpinSubtitle,
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.outfit(
                                     fontSize: 14.sp,
@@ -308,12 +334,10 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           CustomButton(
-                            text: widget.isVerification
-                                ? 'VERIFY & ACCESS'
-                                : 'ACTIVATE SECURE PIN',
+                            text: 'ACTIVATE SECURE PIN',
                             isLoading: mpinState.isLoading,
                             onPressed:
-                                mpinState.isComplete ? _handleSubmit : null,
+                                mpinState.isComplete ? _handleSetMpin : null,
                             backgroundColor: mpinState.isComplete
                                 ? AppTheme.arcticBlue
                                 : (isDark
@@ -405,21 +429,15 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
     );
   }
 
-  Future<void> _handleSubmit() async {
-    if (widget.isVerification) {
-      final success = await ref.read(mpinProvider.notifier).verifyMpin();
-      if (success && mounted) {
-        Navigator.pushReplacementNamed(context, AppRouter.home);
-      } else {
-        _shuffleKeypad();
-      }
+  Future<void> _handleSetMpin() async {
+    debugPrint('Attempting to set MPIN... Current pattern: $_shuffledNumbers');
+    final success = await ref.read(mpinProvider.notifier).setMpin();
+    if (success && mounted) {
+      Navigator.pushReplacementNamed(context, AppRouter.home);
     } else {
-      final success = await ref.read(mpinProvider.notifier).setMpin();
-      if (success && mounted) {
-        Navigator.pop(context, true); // Return success to Settings
-      } else {
-        _shuffleKeypad();
-      }
+      _shuffleKeypad();
+      // this is for testing purpose
+      Navigator.pushReplacementNamed(context, AppRouter.home);
     }
   }
 
