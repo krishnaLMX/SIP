@@ -26,22 +26,4 @@ class SecureStorageService {
   static Future<void> clearAll() async {
     await _storage.deleteAll();
   }
-
-  static Future<void> saveMpin(String mpin) async {
-    await _storage.write(key: AppConfig.keyMpin, value: mpin);
-  }
-
-  static Future<String?> getMpin() async {
-    return await _storage.read(key: AppConfig.keyMpin);
-  }
-
-  static Future<void> setMpinEnabled(bool enabled) async {
-    await _storage.write(
-        key: AppConfig.keyIsMpinEnabled, value: enabled.toString());
-  }
-
-  static Future<bool> isMpinEnabled() async {
-    final val = await _storage.read(key: AppConfig.keyIsMpinEnabled);
-    return val == 'true';
-  }
 }

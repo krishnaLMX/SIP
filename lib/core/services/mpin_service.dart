@@ -1,23 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/security/secure_storage_service.dart';
+import '../network/api_client.dart';
 
 // --- SERVICE LAYER ---
 
 class MpinService {
-  /// Sets the MPIN locally in secure storage.
+  final ApiClient _apiClient = ApiClient();
+
+  /// Sets the MPIN on the server. Never stored locally.
   Future<void> setMpin(String mpin) async {
-    // Mocking server sync
-    await Future.delayed(const Duration(seconds: 1));
-    await SecureStorageService.saveMpin(mpin);
-    await SecureStorageService.setMpinEnabled(true);
+    await _apiClient.post(
+      '/auth/set-mpin',
+      data: {'mpin': mpin},
+    );
   }
 
-  /// Verifies the MPIN from secure storage.
+  /// Verifies the MPIN with the server.
   Future<bool> verifyMpin(String mpin) async {
-    // Mocking server validation
-    await Future.delayed(const Duration(seconds: 1));
-    final savedMpin = await SecureStorageService.getMpin();
-    return savedMpin == mpin;
+    final response = await _apiClient.post(
+      '/auth/verify-mpin',
+      data: {'mpin': mpin},
+    );
+    return response.statusCode == 200;
   }
 }
 
@@ -90,34 +93,6 @@ class MpinNotifier extends StateNotifier<MpinState> {
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to set security PIN. Try again.',
-      );
-      return false;
-    }
-  }
-
-  Future<bool> verifyMpin() async {
-    if (state.isLoading) return false;
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final isValid = await _mpinService.verifyMpin(state.mpin);
-      if (isValid) {
-        state = state.copyWith(isLoading: false);
-        return true;
-      } else {
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Incorrect PIN. Verification failed.',
-          mpin: '',
-          isComplete: false,
-        );
-        return false;
-      }
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Technical error. Please try again.',
-        mpin: '',
-        isComplete: false,
       );
       return false;
     }
