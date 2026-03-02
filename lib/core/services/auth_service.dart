@@ -54,16 +54,12 @@ class AuthService {
     return response.data;
   }
 
-  Future<Map<String, dynamic>> verifyOtp({
+  Future<void> verifyOtp({
     required String mobile,
     required String otp,
     required String otpSessionId,
   }) async {
     final deviceId = await _getDeviceId();
-
-    // Mocking response for demonstration
-    // If mobile ends with '0', assume new user
-    bool isRegistered = !mobile.endsWith('0');
 
     final response = await _apiClient.post(
       '/auth/verify-otp',
@@ -75,59 +71,17 @@ class AuthService {
       },
     );
 
-    final data = response.data ?? {};
-    data['isRegistered'] = isRegistered;
+    if (response.data != null) {
+      final accessToken = response.data['accessToken'];
+      final refreshToken = response.data['refreshToken'];
 
-    if (data['accessToken'] != null) {
-      await SecureStorageService.saveToken(data['accessToken']);
+      if (accessToken != null) {
+        await SecureStorageService.saveToken(accessToken);
+      }
+      if (refreshToken != null) {
+        await SecureStorageService.saveRefreshToken(refreshToken);
+      }
     }
-    if (data['refreshToken'] != null) {
-      await SecureStorageService.saveRefreshToken(data['refreshToken']);
-    }
-
-    return data;
-  }
-
-  Future<void> register({
-    required String mobile,
-    required String name,
-    required int age,
-  }) async {
-    await _apiClient.post(
-      '/auth/register',
-      data: {
-        'mobile': mobile,
-        'name': name,
-        'age': age,
-      },
-    );
-  }
-
-  Future<void> setPin({
-    required String mobile,
-    required String pin,
-  }) async {
-    await _apiClient.post(
-      '/auth/set-pin',
-      data: {
-        'mobile': mobile,
-        'pin': pin,
-      },
-    );
-  }
-
-  Future<bool> verifyPin({
-    required String mobile,
-    required String pin,
-  }) async {
-    final response = await _apiClient.post(
-      '/auth/verify-pin',
-      data: {
-        'mobile': mobile,
-        'pin': pin,
-      },
-    );
-    return response.statusCode == 200;
   }
 }
 

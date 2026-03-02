@@ -22,8 +22,4 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(AppConfig.keyHasSeenOnboarding, true);
   }
-
-  static Future<bool> isMpinEnabled() async {
-    return await SecureStorageService.isMpinEnabled();
-  }
 }

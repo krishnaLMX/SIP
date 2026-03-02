@@ -8,8 +8,6 @@ class AppConfig {
   static const String keyAccessToken = 'access_token';
   static const String keyRefreshToken = 'refresh_token';
   static const String keyMobileNumber = 'mobile_number';
-  static const String keyIsMpinEnabled = 'is_mpin_enabled';
-  static const String keyMpin = 'mpin';
 
   // Network Config
   static const int connectTimeout = 30000;
