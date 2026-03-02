@@ -5,7 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pinput/pinput.dart';
 import 'package:screen_protector/screen_protector.dart';
-import '../../../core/services/auth_service.dart';
+import '../controller/auth_controller.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/animations.dart';
@@ -69,7 +69,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
+    final authState = ref.watch(authControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final defaultPinTheme = PinTheme(
@@ -254,18 +254,36 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   }
 
   Future<void> _verifyOtp(String otp) async {
-    final success = await ref.read(authProvider.notifier).verifyOtp(
+    final success = await ref.read(authControllerProvider.notifier).verifyOtp(
           widget.mobile,
           otp,
           widget.otpSessionId,
         );
 
     if (success && mounted) {
-      Navigator.pushReplacementNamed(context, AppRouter.home);
+      final isRegistered = ref.read(authControllerProvider).isRegistered ?? false;
+      if (isRegistered) {
+        Navigator.pushReplacementNamed(
+          context,
+          AppRouter.pin,
+          arguments: {'mobile': widget.mobile},
+        );
+      } else {
+        Navigator.pushReplacementNamed(
+          context,
+          AppRouter.registration,
+          arguments: {'mobile': widget.mobile},
+        );
+      }
     } else {
+        // else part test purpose only
+        Navigator.pushReplacementNamed(
+          context,
+          AppRouter.registration,
+          arguments: {'mobile': widget.mobile},
+        );
       _otpController.clear();
-      //this is for testing purpose
-      Navigator.pushReplacementNamed(context, AppRouter.mpin);
+      
     }
   }
 }

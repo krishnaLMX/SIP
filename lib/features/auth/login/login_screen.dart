@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/services/auth_service.dart';
+import '../controller/auth_controller.dart';
 import '../../../core/utils/validators.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -29,7 +29,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
+    final authState = ref.watch(authControllerProvider);
     final bool isValid =
         Validators.validateMobile(_mobileController.text) == null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -137,7 +137,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Text(
                       'Seamless entry into the modern market.',
                       style: GoogleFonts.outfit(
-                        fontSize: 17.sp,
                         color: isDark ? Colors.white54 : Colors.black45,
                         fontWeight: FontWeight.w400,
                       ),
@@ -224,7 +223,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               onChanged: (_) {
                                 if (authState.error != null) {
-                                  ref.read(authProvider.notifier).clearError();
+                                  ref
+                                      .read(authControllerProvider.notifier)
+                                      .clearError();
                                 }
                                 setState(() {});
                               },
@@ -304,13 +305,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    final success = await ref.read(authProvider.notifier).sendOtp(
+    final success = await ref.read(authControllerProvider.notifier).sendOtp(
           _mobileController.text,
           _countryCode,
         );
 
+    final authData = ref.read(authControllerProvider).data;
+
     if (success && mounted) {
-      final authData = ref.read(authProvider).data;
       Navigator.pushNamed(
         context,
         AppRouter.otp,
@@ -320,11 +322,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         },
       );
     } else {
-      // this is for testing purpose
-      Navigator.pushNamed(context, AppRouter.otp, arguments: {
-        'mobile': '9876543210',
-        'otpSessionId': '123456',
-      });
+      // else part test purpose only
+    
+      if (mounted) {
+        Navigator.pushNamed(
+          context,
+          AppRouter.otp,
+          arguments: {
+            'mobile': _mobileController.text,
+            'otpSessionId': authData?['otpSessionId'] ?? '',
+          },
+        );
+      }
     }
   }
 }
