@@ -144,6 +144,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   FadeInAnimation(
                     delay: const Duration(milliseconds: 300),
+<<<<<<< HEAD
                     child: Center(
                       child: Text(
                         AppConstants.loginSubtitle,
@@ -153,6 +154,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           color: isDark ? Colors.white54 : Colors.black45,
                           fontWeight: FontWeight.w400,
                         ),
+=======
+                    child: Text(
+                      'Seamless entry into the modern market.',
+                      style: GoogleFonts.outfit(
+                        fontSize: 17.sp,
+                        color: isDark ? Colors.white54 : Colors.black45,
+                        fontWeight: FontWeight.w400,
+>>>>>>> parent of 388af03 (Register page and Mpin settings page configure)
                       ),
                     ),
                   ),
