@@ -13,7 +13,8 @@ import '../../shared/widgets/animations.dart';
 import '../../shared/widgets/custom_button.dart';
 
 class MpinScreen extends ConsumerStatefulWidget {
-  const MpinScreen({super.key});
+  final bool isVerification;
+  const MpinScreen({super.key, this.isVerification = true});
 
   @override
   ConsumerState<MpinScreen> createState() => _MpinScreenState();
@@ -153,7 +154,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                             child: Column(
                               children: [
                                 Text(
-                                  'SECURE YOUR VAULT',
+                                  widget.isVerification
+                                      ? 'ENTER SECURE PIN'
+                                      : 'SECURE YOUR VAULT',
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.outfit(
                                     fontSize: 26.sp,
@@ -166,7 +169,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                 ),
                                 SizedBox(height: 8.h),
                                 Text(
-                                  'Create your 4-digit signature to authorize encrypted transactions.',
+                                  widget.isVerification
+                                      ? 'Enter your 4-digit signature to access your account.'
+                                      : 'Create your 4-digit signature to authorize encrypted transactions.',
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.outfit(
                                     fontSize: 14.sp,
@@ -303,10 +308,12 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           CustomButton(
-                            text: 'ACTIVATE SECURE PIN',
+                            text: widget.isVerification
+                                ? 'VERIFY & ACCESS'
+                                : 'ACTIVATE SECURE PIN',
                             isLoading: mpinState.isLoading,
                             onPressed:
-                                mpinState.isComplete ? _handleSetMpin : null,
+                                mpinState.isComplete ? _handleSubmit : null,
                             backgroundColor: mpinState.isComplete
                                 ? AppTheme.arcticBlue
                                 : (isDark
@@ -398,15 +405,21 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
     );
   }
 
-  Future<void> _handleSetMpin() async {
-    debugPrint('Attempting to set MPIN... Current pattern: $_shuffledNumbers');
-    final success = await ref.read(mpinProvider.notifier).setMpin();
-    if (success && mounted) {
-      Navigator.pushReplacementNamed(context, AppRouter.home);
+  Future<void> _handleSubmit() async {
+    if (widget.isVerification) {
+      final success = await ref.read(mpinProvider.notifier).verifyMpin();
+      if (success && mounted) {
+        Navigator.pushReplacementNamed(context, AppRouter.home);
+      } else {
+        _shuffleKeypad();
+      }
     } else {
-      _shuffleKeypad();
-      // this is for testing purpose
-      Navigator.pushReplacementNamed(context, AppRouter.home);
+      final success = await ref.read(mpinProvider.notifier).setMpin();
+      if (success && mounted) {
+        Navigator.pop(context, true); // Return success to Settings
+      } else {
+        _shuffleKeypad();
+      }
     }
   }
 

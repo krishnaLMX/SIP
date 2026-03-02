@@ -137,9 +137,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             _buildMenuItem(
               context,
-              icon: Icons.account_balance_wallet_outlined,
-              title: 'Statements',
-              subtitle: 'Reports & Tax',
+              icon: Icons.history_rounded,
+              title: 'Order Tracking',
+              subtitle: 'Track Your Gold',
               route: AppRouter.statements,
             ),
             _buildMenuItem(
@@ -148,6 +148,13 @@ class _HomeScreenState extends State<HomeScreen> {
               title: 'Refer & Earn',
               subtitle: 'Win Gold Rewards',
               route: AppRouter.referral,
+            ),
+            _buildMenuItem(
+              context,
+              icon: Icons.settings_outlined,
+              title: 'Settings',
+              subtitle: 'MPIN & Security',
+              route: AppRouter.settings,
             ),
             const Spacer(),
             _buildMenuItem(
