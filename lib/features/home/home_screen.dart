@@ -1,11 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/animations.dart';
 import '../../routes/app_router.dart';
-import '../../core/constants/app_constants.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                _buildPremiumHeader(context, isDark),
+                _buildAppBar(context, isDark),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -60,14 +58,57 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPremiumHeader(BuildContext context, bool isDark) {
-    return SliverPersistentHeader(
-      pinned: true,
-      delegate: PremiumHomeHeader(
-        expandedHeight: 180.h,
-        statusBarHeight: MediaQuery.of(context).padding.top,
-        isDark: isDark,
+  Widget _buildAppBar(BuildContext context, bool isDark) {
+    return SliverAppBar(
+      floating: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: false,
+      automaticallyImplyLeading: false,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Welcome back,',
+            style: GoogleFonts.outfit(
+              fontSize: 14.sp,
+              color: isDark ? Colors.white38 : Colors.black38,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          Text(
+            'Lord Alexander',
+            style: GoogleFonts.outfit(
+              fontSize: 22.sp,
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
       ),
+      actions: [
+        Builder(
+          builder: (context) => GestureDetector(
+            onTap: () => Scaffold.of(context).openEndDrawer(),
+            child: Container(
+              margin: EdgeInsets.only(right: 24.w),
+              height: 44.w,
+              width: 44.w,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withOpacity(0.04)
+                    : Colors.black.withOpacity(0.04),
+                shape: BoxShape.circle,
+                border: Border.all(
+                    color: isDark ? Colors.white12 : Colors.black12, width: 1),
+              ),
+              child: Icon(Icons.menu_rounded,
+                  size: 22.sp, color: isDark ? Colors.white : Colors.black87),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -96,9 +137,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             _buildMenuItem(
               context,
-              icon: Icons.account_balance_wallet_outlined,
-              title: 'Statements',
-              subtitle: 'Reports & Tax',
+              icon: Icons.history_rounded,
+              title: 'Order Tracking',
+              subtitle: 'Track Your Gold',
               route: AppRouter.statements,
             ),
             _buildMenuItem(
@@ -107,6 +148,13 @@ class _HomeScreenState extends State<HomeScreen> {
               title: 'Refer & Earn',
               subtitle: 'Win Gold Rewards',
               route: AppRouter.referral,
+            ),
+            _buildMenuItem(
+              context,
+              icon: Icons.settings_outlined,
+              title: 'Settings',
+              subtitle: 'MPIN & Security',
+              route: AppRouter.settings,
             ),
             const Spacer(),
             _buildMenuItem(
@@ -498,282 +546,6 @@ class _HomeScreenState extends State<HomeScreen> {
             : (isDark ? Colors.white38 : Colors.black38),
         size: 24.sp,
       ),
-    );
-  }
-}
-
-class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
-  final double expandedHeight;
-  final double statusBarHeight;
-  final bool isDark;
-
-  PremiumHomeHeader({
-    required this.expandedHeight,
-    required this.statusBarHeight,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final double percent = shrinkOffset / expandedHeight;
-    final double opacity = (1 - percent).clamp(0.0, 1.0);
-    final double reverseOpacity = percent.clamp(0.0, 1.0);
-
-    return Stack(
-      children: [
-        // 1. Background Liquid Gold Aura
-        Positioned.fill(
-          child: Opacity(
-            opacity: opacity,
-            child: const LiquidGoldAura(),
-          ),
-        ),
-
-        // 2. Glassmorphic Surface (Visible on scroll)
-        Positioned.fill(
-          child: Opacity(
-            opacity: reverseOpacity,
-            child: ClipRRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  color: isDark
-                      ? const Color(0xFF020617).withOpacity(0.8)
-                      : Colors.white.withOpacity(0.8),
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // 3. Animated Branding Content
-        SafeArea(
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 20.w),
-            child: Stack(
-              children: [
-                // Centered Hero Logo
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Transform.translate(
-                        offset: Offset(0, -10.h * percent),
-                        child: Transform.scale(
-                          scale: (1 - (percent * 0.35)).clamp(0.65, 1.0),
-                          child: Hero(
-                            tag: 'header_logo',
-                            child: Image.asset(
-                              'assets/images/header.png',
-                              height: 52.h,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      Opacity(
-                        opacity: (1 - (percent * 2)).clamp(0.0, 1.0),
-                        child: Text(
-                          AppConstants.companyName,
-                          style: GoogleFonts.outfit(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 8.0,
-                            color:
-                                isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Left: Profile Info (Morphs into View)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Opacity(
-                    opacity: reverseOpacity,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(2.r),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppTheme.arcticBlue.withOpacity(0.3),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: CircleAvatar(
-                            radius: 16.r,
-                            backgroundColor: isDark
-                                ? Colors.white.withOpacity(0.05)
-                                : Colors.black.withOpacity(0.05),
-                            child: Text(
-                              'A',
-                              style: GoogleFonts.outfit(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.arcticBlue,
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 10.w),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'START GOLD',
-                              style: GoogleFonts.outfit(
-                                fontSize: 11.sp,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.5,
-                                color: isDark ? Colors.white : Colors.black,
-                              ),
-                            ),
-                            Text(
-                              'Welcome, Krishna',
-                              style: GoogleFonts.outfit(
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white54 : Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Right: Action Icons (Menu & Notifications)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Builder(
-                        builder: (context) => GestureDetector(
-                          onTap: () => Scaffold.of(context).openEndDrawer(),
-                          child: _buildActionIcon(Icons.menu_rounded, isDark),
-                        ),
-                      ),
-                      SizedBox(width: 10.w),
-                      _buildActionIcon(
-                          Icons.notifications_none_rounded, isDark),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionIcon(IconData icon, bool isDark) {
-    return Container(
-      padding: EdgeInsets.all(8.r),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withOpacity(0.05)
-            : Colors.black.withOpacity(0.04),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: isDark ? Colors.white10 : Colors.black12,
-        ),
-      ),
-      child: Icon(
-        icon,
-        size: 20.sp,
-        color: isDark ? Colors.white70 : Colors.black87,
-      ),
-    );
-  }
-
-  @override
-  double get maxExtent => expandedHeight;
-
-  @override
-  double get minExtent => statusBarHeight + 70.h;
-
-  @override
-  bool shouldRebuild(SliverPersistentHeaderDelegate oldDelegate) => true;
-}
-
-class LiquidGoldAura extends StatefulWidget {
-  const LiquidGoldAura({super.key});
-
-  @override
-  State<LiquidGoldAura> createState() => _LiquidGoldAuraState();
-}
-
-class _LiquidGoldAuraState extends State<LiquidGoldAura>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0, -0.2),
-                  radius: 0.8 + (_controller.value * 0.2),
-                  colors: [
-                    AppTheme.arcticBlue
-                        .withOpacity(0.12 * (1 - _controller.value)),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-            // Floating Sparkle Particles (Simulated)
-            ...List.generate(5, (index) {
-              return Positioned(
-                left: (20 + (index * 60)).w,
-                top: (40 + (index * 20)).h,
-                child: Opacity(
-                  opacity: (0.1 + (_controller.value * 0.1)).clamp(0, 1),
-                  child: Container(
-                    width: 2.r,
-                    height: 2.r,
-                    decoration: const BoxDecoration(
-                      color: AppTheme.arcticBlue,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ],
-        );
-      },
     );
   }
 }

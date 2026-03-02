@@ -3,13 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/services/auth_service.dart';
+import '../controller/auth_controller.dart';
 import '../../../core/utils/validators.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/animations.dart';
 import '../../../shared/theme/app_theme.dart';
-import '../../../core/constants/app_constants.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -30,7 +29,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
+    final authState = ref.watch(authControllerProvider);
     final bool isValid =
         Validators.validateMobile(_mobileController.text) == null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -88,54 +87,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(height: 32.h),
+                  SizedBox(height: 40.h),
 
-                  // Center-Aligned Luxury Branding
+                  // Label Accessory
                   FadeInAnimation(
                     delay: const Duration(milliseconds: 100),
-                    child: Center(
-                      child: Column(
-                        children: [
-                          Image.asset(
-                            'assets/images/header.png',
-                            height: 48.h,
-                            fit: BoxFit.contain,
-                          ),
-                          SizedBox(height: 12.h),
-                          Text(
-                            AppConstants.companyName,
-                            style: GoogleFonts.outfit(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 6.0,
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF0F172A),
-                            ),
-                          ),
-                          SizedBox(height: 12.h),
-                        ],
+                    child: Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
+                      decoration: BoxDecoration(
+                        color: AppTheme.arcticBlue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(100.r),
+                        border: Border.all(
+                            color: AppTheme.arcticBlue.withOpacity(0.2)),
+                      ),
+                      child: Text(
+                        'Secure Gate',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.arcticBlue,
+                          letterSpacing: 1.2,
+                        ),
                       ),
                     ),
                   ),
 
-                  SizedBox(height: 42.h),
+                  SizedBox(height: 28.h),
 
-                  // Center-Aligned Bold Title
+                  // Bold Premium Title
                   FadeInAnimation(
                     delay: const Duration(milliseconds: 200),
-                    child: Center(
-                      child: Text(
-                        AppConstants.loginTitle,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(
-                          fontSize: 42.sp,
-                          fontWeight: FontWeight.w900,
-                          color:
-                              isDark ? Colors.white : const Color(0xFF0F172A),
-                          height: 1.05,
-                          letterSpacing: -1.5,
-                        ),
+                    child: Text(
+                      'Access Your\nFinancial Hub',
+                      style: GoogleFonts.outfit(
+                        fontSize: 42.sp,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        height: 1.05,
+                        letterSpacing: -1.5,
                       ),
                     ),
                   ),
@@ -144,24 +134,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   FadeInAnimation(
                     delay: const Duration(milliseconds: 300),
-<<<<<<< HEAD
-                    child: Center(
-                      child: Text(
-                        AppConstants.loginSubtitle,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(
-                          fontSize: 17.sp,
-                          color: isDark ? Colors.white54 : Colors.black45,
-                          fontWeight: FontWeight.w400,
-                        ),
-=======
                     child: Text(
                       'Seamless entry into the modern market.',
                       style: GoogleFonts.outfit(
-                        fontSize: 17.sp,
                         color: isDark ? Colors.white54 : Colors.black45,
                         fontWeight: FontWeight.w400,
->>>>>>> parent of 388af03 (Register page and Mpin settings page configure)
                       ),
                     ),
                   ),
@@ -246,7 +223,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               onChanged: (_) {
                                 if (authState.error != null) {
-                                  ref.read(authProvider.notifier).clearError();
+                                  ref
+                                      .read(authControllerProvider.notifier)
+                                      .clearError();
                                 }
                                 setState(() {});
                               },
@@ -326,13 +305,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    final success = await ref.read(authProvider.notifier).sendOtp(
+    final success = await ref.read(authControllerProvider.notifier).sendOtp(
           _mobileController.text,
           _countryCode,
         );
 
+    final authData = ref.read(authControllerProvider).data;
+
     if (success && mounted) {
-      final authData = ref.read(authProvider).data;
       Navigator.pushNamed(
         context,
         AppRouter.otp,
@@ -342,11 +322,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         },
       );
     } else {
-      // this is for testing purpose
-      Navigator.pushNamed(context, AppRouter.otp, arguments: {
-        'mobile': '9876543210',
-        'otpSessionId': '123456',
-      });
+      // else part test purpose only
+    
+      if (mounted) {
+        Navigator.pushNamed(
+          context,
+          AppRouter.otp,
+          arguments: {
+            'mobile': _mobileController.text,
+            'otpSessionId': authData?['otpSessionId'] ?? '',
+          },
+        );
+      }
     }
   }
 }
