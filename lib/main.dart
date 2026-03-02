@@ -27,12 +27,7 @@ void main() async {
 
   String initialRoute = AppRouter.onboarding;
   if (onboarded) {
-    if (loggedIn) {
-      bool mpinEnabled = await SessionManager.isMpinEnabled();
-      initialRoute = mpinEnabled ? AppRouter.mpin : AppRouter.home;
-    } else {
-      initialRoute = AppRouter.login;
-    }
+    initialRoute = loggedIn ? AppRouter.home : AppRouter.login;
   }
 
   // 3. UI Config

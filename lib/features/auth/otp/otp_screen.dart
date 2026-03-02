@@ -5,11 +5,12 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pinput/pinput.dart';
 import 'package:screen_protector/screen_protector.dart';
-import '../controller/auth_controller.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/animations.dart';
 import '../../../shared/theme/app_theme.dart';
+import '../../../core/constants/app_constants.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
   final String mobile;
@@ -69,7 +70,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authControllerProvider);
+    final authState = ref.watch(authProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final defaultPinTheme = PinTheme(
@@ -112,18 +113,52 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     onPressed: () => Navigator.pop(context),
                   ),
 
-                  SizedBox(height: 32.h),
+                  SizedBox(height: 12.h),
 
+                  // Center-Aligned Luxury Branding
                   FadeInAnimation(
                     delay: const Duration(milliseconds: 100),
-                    child: Text(
-                      'Verify Your\nIdentity',
-                      style: GoogleFonts.outfit(
-                        fontSize: 42.sp,
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        height: 1.05,
-                        letterSpacing: -1.5,
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Image.asset(
+                            'assets/images/header.png',
+                            height: 36.h,
+                            fit: BoxFit.contain,
+                          ),
+                          SizedBox(height: 8.h),
+                          Text(
+                            AppConstants.companyName,
+                            style: GoogleFonts.outfit(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 4.0,
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: 48.h),
+
+                  FadeInAnimation(
+                    delay: const Duration(milliseconds: 200),
+                    child: Center(
+                      child: Text(
+                        AppConstants.otpTitle,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.outfit(
+                          fontSize: 42.sp,
+                          fontWeight: FontWeight.w900,
+                          color:
+                              isDark ? Colors.white : const Color(0xFF0F172A),
+                          height: 1.05,
+                          letterSpacing: -1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -131,19 +166,24 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   SizedBox(height: 16.h),
 
                   FadeInAnimation(
-                    delay: const Duration(milliseconds: 200),
-                    child: RichText(
-                      text: TextSpan(
-                        style: GoogleFonts.outfit(
-                          fontSize: 17.sp,
-                          color: isDark ? Colors.white54 : Colors.black45,
-                          fontWeight: FontWeight.w400,
-                        ),
+                    delay: const Duration(milliseconds: 300),
+                    child: Center(
+                      child: Column(
                         children: [
-                          const TextSpan(text: 'Security code dispatched to '),
-                          TextSpan(
-                            text: widget.mobile,
-                            style: TextStyle(
+                          Text(
+                            AppConstants.otpSubtitle,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.outfit(
+                              fontSize: 15.sp,
+                              color: isDark ? Colors.white54 : Colors.black45,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            widget.mobile,
+                            style: GoogleFonts.outfit(
+                              fontSize: 17.sp,
                               color: AppTheme.arcticBlue,
                               fontWeight: FontWeight.w800,
                             ),
@@ -254,36 +294,18 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   }
 
   Future<void> _verifyOtp(String otp) async {
-    final success = await ref.read(authControllerProvider.notifier).verifyOtp(
+    final success = await ref.read(authProvider.notifier).verifyOtp(
           widget.mobile,
           otp,
           widget.otpSessionId,
         );
 
     if (success && mounted) {
-      final isRegistered = ref.read(authControllerProvider).isRegistered ?? false;
-      if (isRegistered) {
-        Navigator.pushReplacementNamed(
-          context,
-          AppRouter.pin,
-          arguments: {'mobile': widget.mobile},
-        );
-      } else {
-        Navigator.pushReplacementNamed(
-          context,
-          AppRouter.registration,
-          arguments: {'mobile': widget.mobile},
-        );
-      }
+      Navigator.pushReplacementNamed(context, AppRouter.home);
     } else {
-        // else part test purpose only
-        Navigator.pushReplacementNamed(
-          context,
-          AppRouter.registration,
-          arguments: {'mobile': widget.mobile},
-        );
       _otpController.clear();
-      
+      //this is for testing purpose
+      Navigator.pushReplacementNamed(context, AppRouter.mpin);
     }
   }
 }
