@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:screen_protector/screen_protector.dart';
 import '../../core/services/mpin_service.dart';
 import '../../routes/app_router.dart';
+import '../../core/security/secure_storage_service.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../shared/widgets/animations.dart';
@@ -22,6 +24,8 @@ class MpinScreen extends ConsumerStatefulWidget {
 
 class _MpinScreenState extends ConsumerState<MpinScreen>
     with WidgetsBindingObserver {
+  bool _isMpinEnabledCount = false;
+  bool _isLoadingStatus = true;
   List<String> _shuffledNumbers = [
     '1',
     '2',
@@ -39,8 +43,22 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    Future.microtask(() {
+      ref.read(mpinProvider.notifier).clear();
+    });
+    _loadMpinStatus();
     _shuffleKeypad();
     _secureScreen();
+  }
+
+  Future<void> _loadMpinStatus() async {
+    final enabled = await SecureStorageService.isMpinEnabled();
+    if (mounted) {
+      setState(() {
+        _isMpinEnabledCount = enabled;
+        _isLoadingStatus = false;
+      });
+    }
   }
 
   @override
@@ -69,7 +87,14 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       '8',
       '9'
     ];
-    digits.shuffle();
+    // Use Random.secure() for banking-grade security
+    final random = Random.secure();
+    for (var i = digits.length - 1; i > 0; i--) {
+      final j = random.nextInt(i + 1);
+      final temp = digits[i];
+      digits[i] = digits[j];
+      digits[j] = temp;
+    }
     if (mounted) {
       setState(() {
         _shuffledNumbers = List.from(digits);
@@ -101,6 +126,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingStatus) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     final mpinState = ref.watch(mpinProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -334,10 +362,14 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           CustomButton(
-                            text: 'ACTIVATE SECURE PIN',
+                            text: _isMpinEnabledCount
+                                ? 'UNLOCK APP'
+                                : 'ACTIVATE SECURE PIN',
                             isLoading: mpinState.isLoading,
                             onPressed:
-                                mpinState.isComplete ? _handleSetMpin : null,
+                                (mpinState.isComplete && !mpinState.isLocked)
+                                    ? _handleAction
+                                    : null,
                             backgroundColor: mpinState.isComplete
                                 ? AppTheme.arcticBlue
                                 : (isDark
@@ -429,16 +461,86 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
     );
   }
 
-  Future<void> _handleSetMpin() async {
-    debugPrint('Attempting to set MPIN... Current pattern: $_shuffledNumbers');
-    final success = await ref.read(mpinProvider.notifier).setMpin();
-    if (success && mounted) {
-      Navigator.pushReplacementNamed(context, AppRouter.home);
+  Future<void> _handleAction() async {
+    final mpinEnabled = await SecureStorageService.isMpinEnabled();
+
+    if (mpinEnabled) {
+      // UNLOCK MODE
+      final success = await ref.read(mpinProvider.notifier).verifyMpin();
+      if (success && mounted) {
+        final args = ModalRoute.of(context)!.settings.arguments
+                as Map<String, dynamic>? ??
+            {};
+        final String? type = args['type'];
+
+        if (type == 'authorize_withdrawal') {
+          _showSuccessDialog();
+        } else {
+          Navigator.pushReplacementNamed(context, AppRouter.home);
+        }
+      } else {
+        _shuffleKeypad();
+      }
     } else {
-      _shuffleKeypad();
-      // this is for testing purpose
-      Navigator.pushReplacementNamed(context, AppRouter.home);
+      // SETUP MODE
+      final success = await ref.read(mpinProvider.notifier).setMpin();
+      if (success && mounted) {
+        await SecureStorageService.setMpinEnabled(true);
+        Navigator.pop(context, true); // Return success to Settings
+      } else {
+        _shuffleKeypad();
+      }
     }
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(height: 16.h),
+            Container(
+              padding: EdgeInsets.all(16.r),
+              decoration: BoxDecoration(
+                  color: Colors.greenAccent.withOpacity(0.1),
+                  shape: BoxShape.circle),
+              child: Icon(Icons.check_circle_rounded,
+                  color: Colors.greenAccent[400], size: 48.sp),
+            ),
+            SizedBox(height: 24.h),
+            Text('Withdrawal Successful',
+                style: GoogleFonts.outfit(
+                    fontSize: 20.sp, fontWeight: FontWeight.w900)),
+            SizedBox(height: 12.h),
+            Text(
+                'Your funds will be credited to your account within 24-48 hours.',
+                textAlign: TextAlign.center,
+                style:
+                    GoogleFonts.outfit(fontSize: 14.sp, color: Colors.black54)),
+            SizedBox(height: 32.h),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                    context, AppRouter.home, (route) => false),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.arcticBlue,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.r)),
+                ),
+                child: const Text('BACK TO HOME',
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildNumRow(List<String> numbers) {
@@ -452,7 +554,10 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTapDown: (_) => HapticFeedback.lightImpact(),
-      onTap: () => ref.read(mpinProvider.notifier).addKey(number),
+      onTap: () {
+        ref.read(mpinProvider.notifier).addKey(number);
+        _shuffleKeypad();
+      },
       behavior: HitTestBehavior.opaque,
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 1.0, end: 1.0),

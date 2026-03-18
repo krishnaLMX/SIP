@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../shared/theme/app_theme.dart';
-import '../../shared/widgets/animations.dart';
-import '../../shared/widgets/custom_button.dart';
+import 'package:sip/shared/theme/app_theme.dart';
+import 'package:sip/shared/widgets/animations.dart';
+import 'package:sip/shared/widgets/custom_button.dart';
+import 'package:sip/features/kyc/providers/kyc_provider.dart';
+import 'package:sip/features/kyc/models/kyc_step.dart';
 
-class KycScreen extends StatefulWidget {
+class KycScreen extends ConsumerWidget {
   const KycScreen({super.key});
 
   @override
-  State<KycScreen> createState() => _KycScreenState();
-}
-
-class _KycScreenState extends State<KycScreen> {
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final kycState = ref.watch(kycStepsProvider);
 
     return Scaffold(
       body: Stack(
@@ -71,41 +70,33 @@ class _KycScreenState extends State<KycScreen> {
 
                   SizedBox(height: 48.h),
 
-                  // Verification List
+                  // Verification List (Dynamic)
                   Expanded(
-                    child: ListView(
+                    child: ListView.builder(
                       physics: const BouncingScrollPhysics(),
-                      children: [
-                        _buildKycStep(
-                          'PAN Card Verification',
-                          'Essential for tax compliance and regulatory protocols.',
-                          Icons.credit_card_rounded,
-                          isDark,
-                          true, // Completed
-                        ),
-                        SizedBox(height: 24.h),
-                        _buildKycStep(
-                          'Identity Proof',
-                          'Submit Aadhaar or Passport for identity confirmation.',
-                          Icons.person_pin_outlined,
-                          isDark,
-                          false, // Pending
-                        ),
-                        SizedBox(height: 24.h),
-                        _buildKycStep(
-                          'Wealth Declaration',
-                          'Self-declaration of income for high-limit accounts.',
-                          Icons.monetization_on_outlined,
-                          isDark,
-                          false, // Pending
-                        ),
-                      ],
+                      itemCount: kycState.steps.length,
+                      itemBuilder: (context, index) {
+                        final step = kycState.steps[index];
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: 24.h),
+                          child: _buildKycStep(context, step, isDark),
+                        );
+                      },
                     ),
                   ),
 
                   CustomButton(
                     text: 'Commence Verification',
-                    onPressed: () {},
+                    onPressed: kycState.steps.isEmpty
+                        ? null
+                        : () {
+                            // Navigate to the first pending step
+                            final firstPending = kycState.steps.firstWhere(
+                              (s) => s.status == KycStatus.pending,
+                              orElse: () => kycState.steps.first,
+                            );
+                            Navigator.pushNamed(context, firstPending.route);
+                          },
                     backgroundColor: AppTheme.arcticBlue,
                   ),
 
@@ -119,79 +110,84 @@ class _KycScreenState extends State<KycScreen> {
     );
   }
 
-  Widget _buildKycStep(
-      String title, String desc, IconData icon, bool isDark, bool isCompleted) {
+  Widget _buildKycStep(BuildContext context, KycStep step, bool isDark) {
+    final isCompleted = step.status == KycStatus.verified;
+
     return FadeInAnimation(
       delay: const Duration(milliseconds: 300),
-      child: Container(
-        padding: EdgeInsets.all(24.w),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withOpacity(0.04)
-              : Colors.black.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(24.r),
-          border: Border.all(
-            color: isCompleted
-                ? AppTheme.arcticBlue.withOpacity(0.3)
-                : (isDark ? Colors.white12 : Colors.black12),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: EdgeInsets.all(12.w),
-              decoration: BoxDecoration(
-                color: isCompleted
-                    ? AppTheme.arcticBlue.withOpacity(0.1)
-                    : (isDark ? Colors.white10 : Colors.black12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                color: isCompleted
-                    ? AppTheme.arcticBlue
-                    : (isDark ? Colors.white24 : Colors.black26),
-                size: 24.sp,
-              ),
+      child: GestureDetector(
+        onTap: () => Navigator.pushNamed(context, step.route),
+        child: Container(
+          padding: EdgeInsets.all(24.w),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.black.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(24.r),
+            border: Border.all(
+              color: isCompleted
+                  ? AppTheme.arcticBlue.withValues(alpha: 0.3)
+                  : (isDark ? Colors.white12 : Colors.black12),
+              width: 1,
             ),
-            SizedBox(width: 20.w),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: GoogleFonts.outfit(
-                            fontSize: 18.sp,
-                            fontWeight: FontWeight.w700,
-                            color:
-                                isDark ? Colors.white : const Color(0xFF0F172A),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: isCompleted
+                      ? AppTheme.arcticBlue.withValues(alpha: 0.1)
+                      : (isDark ? Colors.white10 : Colors.black12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  step.icon,
+                  color: isCompleted
+                      ? AppTheme.arcticBlue
+                      : (isDark ? Colors.white24 : Colors.black26),
+                  size: 24.sp,
+                ),
+              ),
+              SizedBox(width: 20.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            step.title,
+                            style: GoogleFonts.outfit(
+                              fontSize: 18.sp,
+                              fontWeight: FontWeight.w700,
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
+                            ),
                           ),
                         ),
-                      ),
-                      if (isCompleted)
-                        Icon(Icons.check_circle_rounded,
-                            color: AppTheme.arcticBlue, size: 20.sp),
-                    ],
-                  ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    desc,
-                    style: GoogleFonts.outfit(
-                      fontSize: 14.sp,
-                      color: isDark ? Colors.white38 : Colors.black38,
-                      height: 1.4,
+                        if (isCompleted)
+                          Icon(Icons.check_circle_rounded,
+                              color: AppTheme.arcticBlue, size: 20.sp),
+                      ],
                     ),
-                  ),
-                ],
+                    SizedBox(height: 8.h),
+                    Text(
+                      step.description,
+                      style: GoogleFonts.outfit(
+                        fontSize: 14.sp,
+                        color: isDark ? Colors.white38 : Colors.black38,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

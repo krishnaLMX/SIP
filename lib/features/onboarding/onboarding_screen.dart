@@ -1,108 +1,129 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/security/session_manager.dart';
+import '../../core/services/content_service.dart';
 import '../../routes/app_router.dart';
 import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/animations.dart';
 import '../../shared/theme/app_theme.dart';
 
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  final List<OnboardingModel> _pages = [
-    OnboardingModel(
-      title: 'Artisanal Security',
-      description:
-          'Your wealth, protected by the most advanced digital vault system.',
-      image:
-          'file:///C:/Users/admin/.gemini/antigravity/brain/ef876d95-299c-4dcc-8e4f-15ccc4594d12/diamond_necklace_onboarding_1772104068669.png',
-    ),
-    OnboardingModel(
-      title: 'Digital Gold Rush',
-      description: 'Liquidate and grow your jewelry portfolio in a few taps.',
-      image:
-          'file:///C:/Users/admin/.gemini/antigravity/brain/ef876d95-299c-4dcc-8e4f-15ccc4594d12/gold_ring_onboarding_1772104089487.png',
-    ),
-    OnboardingModel(
-      title: 'Elite Prosperity',
-      description:
-          'Exquisite investment opportunities curated for the modern elite.',
-      image:
-          'file:///C:/Users/admin/.gemini/antigravity/brain/ef876d95-299c-4dcc-8e4f-15ccc4594d12/pearl_earrings_onboarding_1772104110146.png',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final onboardingAsync = ref.watch(onboardingContentProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: Stack(
-        children: [
-          PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) => setState(() => _currentPage = index),
-            itemCount: _pages.length,
-            itemBuilder: (context, index) {
-              return OnboardingPage(data: _pages[index]);
-            },
-          ),
-
-          // Navigation & Progress Layer
-          Positioned(
-            bottom: 60.h,
-            left: 24.w,
-            right: 24.w,
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    _pages.length,
-                    (index) => buildDot(index, isDark),
+      body: onboardingAsync.when(
+        data: (slides) {
+          final pages = slides.isNotEmpty
+              ? slides
+                  .map((slide) => OnboardingModel(
+                        title: slide['title'] ?? '',
+                        description: slide['desc'] ?? '',
+                        image: slide['image'] ?? '',
+                      ))
+                  .toList()
+              : [
+                  OnboardingModel(
+                    title: 'Artisanal Security',
+                    description:
+                        'Your wealth, protected by the most advanced digital vault system.',
+                    image: 'https://cdn.gold.com/slides/1.png',
                   ),
+                ];
+
+          return Stack(
+            children: [
+              PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) => setState(() => _currentPage = index),
+                itemCount: pages.length,
+                itemBuilder: (context, index) {
+                  return OnboardingPage(data: pages[index]);
+                },
+              ),
+
+              // Navigation & Progress Layer
+              Positioned(
+                bottom: 60.h,
+                left: 24.w,
+                right: 24.w,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        pages.length,
+                        (index) => buildDot(index, pages.length, isDark),
+                      ),
+                    ),
+                    SizedBox(height: 48.h),
+                    CustomButton(
+                      text: _currentPage == pages.length - 1
+                          ? 'Begin Your Legacy'
+                          : 'Advance Forward',
+                      backgroundColor: AppTheme.arcticBlue,
+                      onPressed: () async {
+                        if (_currentPage == pages.length - 1) {
+                          await SessionManager.setOnboardingSeen();
+                          if (mounted) {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              AppRouter.login,
+                            );
+                          }
+                        } else {
+                          _pageController.nextPage(
+                            duration: const Duration(milliseconds: 600),
+                            curve: Curves.fastOutSlowIn,
+                          );
+                        }
+                      },
+                    ),
+                  ],
                 ),
-                SizedBox(height: 48.h),
-                CustomButton(
-                  text: _currentPage == _pages.length - 1
-                      ? 'Begin Your Legacy'
-                      : 'Advance Forward',
-                  backgroundColor: AppTheme.arcticBlue,
-                  onPressed: () async {
-                    if (_currentPage == _pages.length - 1) {
-                      await SessionManager.setOnboardingSeen();
-                      if (mounted) {
-                        Navigator.pushReplacementNamed(
-                          context,
-                          AppRouter.login,
-                        );
-                      }
-                    } else {
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.fastOutSlowIn,
-                      );
-                    }
-                  },
-                ),
-              ],
-            ),
+              ),
+            ],
+          );
+        },
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: AppTheme.arcticBlue),
+        ),
+        error: (err, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 60),
+              SizedBox(height: 16.h),
+              Text(
+                'Failed to load content',
+                style: GoogleFonts.outfit(color: Colors.white, fontSize: 18.sp),
+              ),
+              TextButton(
+                onPressed: () => ref.refresh(onboardingContentProvider),
+                child: const Text('Retry'),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget buildDot(int index, bool isDark) {
+  Widget buildDot(int index, int total, bool isDark) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: EdgeInsets.only(right: 12.w),

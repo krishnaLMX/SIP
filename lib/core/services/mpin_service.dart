@@ -9,7 +9,7 @@ class MpinService {
   /// Sets the MPIN on the server. Never stored locally.
   Future<void> setMpin(String mpin) async {
     await _apiClient.post(
-      '/auth/set-mpin',
+      'mpin/create',
       data: {'mpin': mpin},
     );
   }
@@ -17,10 +17,16 @@ class MpinService {
   /// Verifies the MPIN with the server.
   Future<bool> verifyMpin(String mpin) async {
     final response = await _apiClient.post(
-      '/auth/verify-mpin',
+      'mpin/validate',
       data: {'mpin': mpin},
     );
     return response.statusCode == 200;
+  }
+
+  /// Checks if the user already has an MPIN set on the backend.
+  Future<bool> hasMpinSet() async {
+    final response = await _apiClient.post('auth/has-mpin');
+    return response.data['hasMpin'] ?? false;
   }
 }
 
@@ -34,11 +40,16 @@ class MpinState {
   final bool isLoading;
   final String? error;
 
+  final int failedAttempts;
+  final bool isLocked;
+
   MpinState({
     this.mpin = '',
     this.isComplete = false,
     this.isLoading = false,
     this.error,
+    this.failedAttempts = 0,
+    this.isLocked = false,
   });
 
   MpinState copyWith({
@@ -46,12 +57,16 @@ class MpinState {
     bool? isComplete,
     bool? isLoading,
     String? error,
+    int? failedAttempts,
+    bool? isLocked,
   }) {
     return MpinState(
       mpin: mpin ?? this.mpin,
       isComplete: isComplete ?? this.isComplete,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
+      failedAttempts: failedAttempts ?? this.failedAttempts,
+      isLocked: isLocked ?? this.isLocked,
     );
   }
 }
@@ -93,6 +108,38 @@ class MpinNotifier extends StateNotifier<MpinState> {
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to set security PIN. Try again.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> verifyMpin() async {
+    if (state.isLoading || state.isLocked) return false;
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final success = await _mpinService.verifyMpin(state.mpin);
+      if (success) {
+        state = state.copyWith(isLoading: false, failedAttempts: 0);
+        return true;
+      } else {
+        final newAttempts = state.failedAttempts + 1;
+        final isLocked = newAttempts >= 5;
+        state = state.copyWith(
+          isLoading: false,
+          mpin: '',
+          isComplete: false,
+          failedAttempts: newAttempts,
+          isLocked: isLocked,
+          error: isLocked
+              ? 'ACCOUNT LOCKED: Too many failed attempts. Contact support.'
+              : 'Invalid PIN. $newAttempts/5 attempts used.',
+        );
+        return false;
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Validation failed. Check your connection.',
       );
       return false;
     }

@@ -1,6 +1,4 @@
 import 'secure_storage_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../config/app_config.dart';
 
 class SessionManager {
   static Future<bool> isAuthenticated() async {
@@ -9,17 +7,15 @@ class SessionManager {
   }
 
   static Future<void> logout() async {
-    await SecureStorageService.clearAll();
-    // Keep onboarding status, only clear session data
+    await SecureStorageService.logout();
   }
 
   static Future<bool> hasSeenOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(AppConfig.keyHasSeenOnboarding) ?? false;
+    final value = await SecureStorageService.getOnboardingSeen();
+    return value == true;
   }
 
   static Future<void> setOnboardingSeen() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(AppConfig.keyHasSeenOnboarding, true);
+    await SecureStorageService.setOnboardingSeen(true);
   }
 }

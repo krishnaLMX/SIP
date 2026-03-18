@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../network/api_client.dart';
 import '../security/secure_storage_service.dart';
 
@@ -13,6 +16,10 @@ class AuthService {
 
   Future<String> _getDeviceId() async {
     try {
+      if (kIsWeb) {
+        final webInfo = await _deviceInfo.webBrowserInfo;
+        return webInfo.userAgent ?? 'web_browser';
+      }
       if (Platform.isAndroid) {
         final androidInfo = await _deviceInfo.androidInfo;
         return androidInfo.id;
@@ -24,6 +31,13 @@ class AuthService {
       return 'placeholder_id';
     }
     return 'placeholder_id';
+  }
+
+  String _getDeviceType() {
+    if (kIsWeb) return 'web';
+    if (Platform.isAndroid) return 'android';
+    if (Platform.isIOS) return 'ios';
+    return 'other';
   }
 
   Future<String> _getAppVersion() async {
@@ -38,50 +52,106 @@ class AuthService {
   Future<Map<String, dynamic>> sendOtp({
     required String mobile,
     required String countryCode,
+    String type = 'LOGIN',
   }) async {
-    final deviceId = await _getDeviceId();
     final appVersion = await _getAppVersion();
 
     final response = await _apiClient.post(
-      '/auth/send-otp',
+      'users/auth/generate-otp',
       data: {
         'mobile': mobile,
-        'countryCode': countryCode,
-        'deviceId': deviceId,
+        'country_code': countryCode,
+        'type': type,
+        'device_id': await _getDeviceId(),
+        'device_type': _getDeviceType(),
         'appVersion': appVersion,
       },
     );
     return response.data;
   }
 
-  Future<void> verifyOtp({
+  Future<Map<String, dynamic>> verifyOtp({
     required String mobile,
     required String otp,
-    required String otpSessionId,
+    required String otpReferenceId,
   }) async {
-    final deviceId = await _getDeviceId();
-
     final response = await _apiClient.post(
-      '/auth/verify-otp',
+      'users/auth/verify-otp',
       data: {
         'mobile': mobile,
         'otp': otp,
-        'otpSessionId': otpSessionId,
-        'deviceId': deviceId,
+        'otp_reference_id': otpReferenceId,
       },
     );
-
-    if (response.data != null) {
-      final accessToken = response.data['accessToken'];
-      final refreshToken = response.data['refreshToken'];
-
+    // Save tokens if present
+    if (response.data != null && response.data['data'] != null) {
+      final data = response.data['data'];
+      final accessToken = data['access_token'];
+      final refreshToken = data['refresh_token'];
       if (accessToken != null) {
         await SecureStorageService.saveToken(accessToken);
       }
       if (refreshToken != null) {
         await SecureStorageService.saveRefreshToken(refreshToken);
       }
+      if (data['mpin_enabled'] != null) {
+        await SecureStorageService.setMpinEnabled(data['mpin_enabled'] == true);
+      }
+      if (data['user']?['id_customer'] != null) {
+        await SecureStorageService.saveCustomerId(
+            data['user']['id_customer'].toString());
+      }
+      if (mobile.isNotEmpty) {
+        await SecureStorageService.saveMobile(mobile);
+      }
     }
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> register({
+    required String mobile,
+    required String fullName,
+    required String email,
+    required String tempToken,
+  }) async {
+    final deviceId = await _getDeviceId();
+    final deviceType = _getDeviceType();
+
+    final response = await _apiClient.post(
+      'users/auth/register',
+      data: {
+        'mobile': mobile,
+        'full_name': fullName,
+        'email': email,
+        'temp_token': tempToken,
+        'device_id': await deviceId,
+        'device_type': deviceType,
+      },
+    );
+    // Save tokens if present
+    if (response.data != null && response.data['data'] != null) {
+      final data = response.data['data'];
+      final accessToken = data['access_token'];
+      final refreshToken = data['refresh_token'];
+      if (accessToken != null) {
+        await SecureStorageService.saveToken(accessToken);
+      }
+      if (refreshToken != null) {
+        await SecureStorageService.saveRefreshToken(refreshToken);
+      }
+      if (data['user']?['id_customer'] != null) {
+        await SecureStorageService.saveCustomerId(
+            data['user']['id_customer'].toString());
+      }
+      if (mobile.isNotEmpty) {
+        await SecureStorageService.saveMobile(mobile);
+      }
+    }
+    return response.data ?? {};
+  }
+
+  Future<void> logout() async {
+    await SecureStorageService.logout();
   }
 }
 
@@ -92,16 +162,32 @@ final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 class AuthState {
   final bool isLoading;
   final String? error;
-  final Map<String, dynamic>? data;
+  final Map<String, dynamic>? data; // Transient result data
+  final Map<String, dynamic>? sessionData; // Persistent user/session data
+  final bool? isRegistered;
 
-  AuthState({this.isLoading = false, this.error, this.data});
+  AuthState({
+    this.isLoading = false,
+    this.error,
+    this.data,
+    this.sessionData,
+    this.isRegistered,
+  });
 
-  AuthState copyWith(
-      {bool? isLoading, String? error, Map<String, dynamic>? data}) {
+  AuthState copyWith({
+    bool? isLoading,
+    String? error,
+    bool clearError = false,
+    Map<String, dynamic>? data,
+    Map<String, dynamic>? sessionData,
+    bool? isRegistered,
+  }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
+      error: clearError ? null : (error ?? this.error),
       data: data ?? this.data,
+      sessionData: sessionData ?? this.sessionData,
+      isRegistered: isRegistered ?? this.isRegistered,
     );
   }
 }
@@ -109,43 +195,196 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
 
-  AuthNotifier(this._authService) : super(AuthState());
+  AuthNotifier(this._authService) : super(AuthState()) {
+    _rehydrate();
+  }
 
-  Future<bool> sendOtp(String mobile, String countryCode) async {
+  Future<void> _rehydrate() async {
+    final customerId = await SecureStorageService.getCustomerId();
+    final mobile = await SecureStorageService.getMobile();
+
+    if (customerId != null || mobile != null) {
+      final Map<String, dynamic> data = {
+        'mobile': mobile ?? '',
+        'user': {
+          'id_customer': customerId ?? '',
+        }
+      };
+      state = state.copyWith(sessionData: data, isRegistered: true);
+    }
+  }
+
+  Future<bool> sendOtp(String mobile, String countryCode,
+      {String type = 'LOGIN'}) async {
     if (state.isLoading) return false;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final data =
-          await _authService.sendOtp(mobile: mobile, countryCode: countryCode);
-      state = state.copyWith(isLoading: false, data: data);
-      return true;
-    } catch (e) {
-      state = state.copyWith(
-          isLoading: false, error: 'Failed to send OTP. Please try again.');
+      final data = await _authService.sendOtp(
+          mobile: mobile, countryCode: countryCode, type: type);
+
+      if (data['success'] == true) {
+        state = state.copyWith(isLoading: false, data: data['data']);
+        return true;
+      } else {
+        // Handle error field if present (nested structure)
+        String? errorMessage;
+        if (data['error'] != null && data['error']['message'] != null) {
+          final msg = data['error']['message'];
+          if (msg is Map) {
+            errorMessage = msg.values.first.toString();
+          } else {
+            errorMessage = msg.toString();
+          }
+        }
+        errorMessage ??=
+            data['message'] ?? 'Failed to send OTP. Please try again.';
+        state = state.copyWith(isLoading: false, error: errorMessage);
+        return false;
+      }
+    } catch (e, stack) {
+      debugPrint('AUTH ERROR: $e\n$stack');
+      String errorMessage = 'Connection error. Please check your internet.';
+      if (e is DioException) {
+        if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout) {
+          errorMessage = 'Server timeout. Please try again later.';
+        } else if (e.response?.data != null) {
+          final respData = e.response?.data;
+          if (respData['error'] != null &&
+              respData['error']['message'] != null) {
+            final msg = respData['error']['message'];
+            if (msg is Map) {
+              errorMessage = msg.values.first.toString();
+              if (errorMessage.startsWith('[')) {
+                // Remove brackets if it's a list toString
+                errorMessage =
+                    errorMessage.replaceAll('[', '').replaceAll(']', '');
+              }
+            } else {
+              errorMessage = msg.toString();
+            }
+          } else {
+            errorMessage = respData['message'] ??
+                'Server unreachable [${e.response?.statusCode ?? 'No Connection'}]';
+          }
+        } else {
+          errorMessage = 'Server unreachable [No Data]';
+        }
+      } else {
+        errorMessage = 'Internal Error: ${e.toString()}';
+      }
+      state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     }
   }
 
-  Future<bool> verifyOtp(String mobile, String otp, String otpSessionId) async {
+  Future<bool> verifyOtp(
+      String mobile, String otp, String otpReferenceId) async {
     if (state.isLoading) return false;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      await _authService.verifyOtp(
+      final data = await _authService.verifyOtp(
         mobile: mobile,
         otp: otp,
-        otpSessionId: otpSessionId,
+        otpReferenceId: otpReferenceId,
       );
-      state = state.copyWith(isLoading: false);
-      return true;
+
+      if (data['success'] == true) {
+        state = state.copyWith(
+          isLoading: false,
+          isRegistered: !(data['data']?['is_new_user'] ?? false),
+          sessionData: data['data'],
+          data: data['data'],
+        );
+        return true;
+      } else {
+        String? errorMessage;
+        if (data['error'] != null && data['error']['message'] != null) {
+          final msg = data['error']['message'];
+          if (msg is Map) {
+            errorMessage = msg.values.first
+                .toString()
+                .replaceAll('[', '')
+                .replaceAll(']', '');
+          } else {
+            errorMessage = msg.toString();
+          }
+        }
+        errorMessage ??=
+            data['message'] ?? 'Invalid or expired OTP. Please try again.';
+        state = state.copyWith(isLoading: false, error: errorMessage);
+        return false;
+      }
     } catch (e) {
-      state = state.copyWith(
-          isLoading: false, error: 'Invalid or expired OTP. Please try again.');
+      String errorMessage = 'Verification failed. Please try again.';
+      if (e is DioException) {
+        if (e.response?.data != null) {
+          final respData = e.response?.data;
+          if (respData['error'] != null &&
+              respData['error']['message'] != null) {
+            final msg = respData['error']['message'];
+            if (msg is Map) {
+              errorMessage = msg.values.first
+                  .toString()
+                  .replaceAll('[', '')
+                  .replaceAll(']', '');
+            } else {
+              errorMessage = msg.toString();
+            }
+          } else {
+            errorMessage = respData['message'] ??
+                'Verification error [${e.response?.statusCode ?? 'No Connection'}]';
+          }
+        }
+      }
+      state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     }
+  }
+
+  Future<bool> register({
+    required String mobile,
+    required String fullName,
+    required String email,
+    required String tempToken,
+  }) async {
+    if (state.isLoading) return false;
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final data = await _authService.register(
+        mobile: mobile,
+        fullName: fullName,
+        email: email,
+        tempToken: tempToken,
+      );
+
+      if (data['success'] == true) {
+        state = state.copyWith(
+          isLoading: false,
+          isRegistered: true,
+          sessionData: data['data'],
+          data: data['data'],
+        );
+        return true;
+      } else {
+        String errorMessage = data['message'] ?? 'Registration failed.';
+        state = state.copyWith(isLoading: false, error: errorMessage);
+        return false;
+      }
+    } catch (e) {
+      state = state.copyWith(
+          isLoading: false, error: 'Registration failed. Please try again.');
+      return false;
+    }
+  }
+
+  Future<void> logout() async {
+    await _authService.logout();
+    state = AuthState();
   }
 
   void clearError() {
-    state = state.copyWith(error: null);
+    state = state.copyWith(clearError: true);
   }
 }
 

@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../auth/controller/auth_controller.dart';
 import '../../core/security/secure_storage_service.dart';
 import '../../routes/app_router.dart';
 import '../../shared/theme/app_theme.dart';
-import '../../shared/widgets/animations.dart';
+import '../../core/localization/language_provider.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _isMpinEnabled = false;
   bool _isLoading = true;
 
@@ -35,8 +37,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _toggleMpin(bool value) async {
     if (value) {
-      // Navigate to create MPIN
-      final result = await Navigator.pushNamed(context, AppRouter.mpinCreation);
+      // Get mobile from auth state
+      final authState = ref.read(authControllerProvider);
+      final mobile = authState.data?['mobile'] ?? '';
+
+      // Navigate to MPIN screen (it handles both setup and unlock based on isMpinEnabled flag)
+      // Since it's currently false, it will be in Setup mode.
+      final result = await Navigator.pushNamed(
+        context,
+        AppRouter.mpin,
+        arguments: {'mobile': mobile},
+      );
       if (result == true) {
         setState(() => _isMpinEnabled = true);
       }
@@ -45,6 +56,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await SecureStorageService.setMpinEnabled(false);
       setState(() => _isMpinEnabled = false);
     }
+  }
+
+  void _showLanguageSelector(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Consumer(builder: (context, ref, _) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          padding: EdgeInsets.all(24.w),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(ref.tr('languageSelector', fallback: 'Change Language'),
+                  style: GoogleFonts.outfit(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black,
+                  )),
+              SizedBox(height: 8.h),
+              Text(
+                ref.tr('chooseLanguagePref',
+                    fallback: 'Choose your preferred language'),
+                style: GoogleFonts.outfit(
+                  fontSize: 14.sp,
+                  color: Colors.grey,
+                ),
+              ),
+              SizedBox(height: 24.h),
+              _buildLangOption(context, 'English', 'en', isDark),
+              _buildLangOption(context, 'தமிழ் (Tamil)', 'ta', isDark),
+              _buildLangOption(context, 'తెలుగు (Telugu)', 'te', isDark),
+              SizedBox(height: 16.h),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildLangOption(
+      BuildContext context, String title, String code, bool isDark) {
+    final currentCode = ref.watch(languageProvider).currentLocale;
+    final isSelected = currentCode == code;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(title,
+          style: GoogleFonts.outfit(
+            fontSize: 16.sp,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+            color: isSelected
+                ? AppTheme.arcticBlue
+                : (isDark ? Colors.white70 : Colors.black87),
+          )),
+      trailing: isSelected
+          ? Icon(Icons.check_circle_rounded, color: AppTheme.arcticBlue)
+          : null,
+      onTap: () {
+        ref.read(languageProvider.notifier).setLanguage(code);
+        Navigator.pop(context);
+      },
+    );
   }
 
   @override
@@ -101,6 +179,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: Icon(Icons.chevron_right_rounded,
                         color: Colors.grey.shade400),
                     isDark: isDark,
+                  ),
+                  GestureDetector(
+                    onTap: () => _showLanguageSelector(context),
+                    child: _buildSettingTile(
+                      icon: Icons.language_rounded,
+                      title: ref.tr('languageTitle', fallback: 'Language'),
+                      subtitle: ref.tr('languageSubtitle',
+                          fallback: 'English / தமிழ் / తెలుగు'),
+                      trailing: Icon(Icons.chevron_right_rounded,
+                          color: Colors.grey.shade400),
+                      isDark: isDark,
+                    ),
                   ),
                   _buildSettingTile(
                     icon: Icons.dark_mode_outlined,

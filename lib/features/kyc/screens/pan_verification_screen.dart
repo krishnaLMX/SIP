@@ -1,0 +1,179 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/theme/app_theme.dart';
+import '../../../shared/widgets/animations.dart';
+import '../../../shared/widgets/custom_button.dart';
+import '../../../routes/app_router.dart';
+
+class PanVerificationScreen extends StatefulWidget {
+  const PanVerificationScreen({super.key});
+
+  @override
+  State<PanVerificationScreen> createState() => _PanVerificationScreenState();
+}
+
+class _PanVerificationScreenState extends State<PanVerificationScreen> {
+  final _panController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _panController.dispose();
+    super.dispose();
+  }
+
+  void _handleVerify() async {
+    if (_panController.text.length < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid 10-digit PAN')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(seconds: 2)); // Simulate API call
+    if (mounted) {
+      _showSuccessDialog();
+    }
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(height: 16.h),
+            Container(
+              padding: EdgeInsets.all(16.r),
+              decoration: BoxDecoration(
+                  color: Colors.greenAccent.withOpacity(0.1),
+                  shape: BoxShape.circle),
+              child: Icon(Icons.verified_user_rounded,
+                  color: Colors.greenAccent[400], size: 48.sp),
+            ),
+            SizedBox(height: 24.h),
+            Text('Verification Sent',
+                style: GoogleFonts.outfit(
+                    fontSize: 20.sp, fontWeight: FontWeight.w900)),
+            SizedBox(height: 12.h),
+            Text(
+                'We are validating your documents. You will be notified once verified.',
+                textAlign: TextAlign.center,
+                style:
+                    GoogleFonts.outfit(fontSize: 14.sp, color: Colors.black54)),
+            SizedBox(height: 32.h),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                    context, AppRouter.home, (route) => false),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.arcticBlue,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.r)),
+                ),
+                child:
+                    const Text('GOT IT', style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor:
+          isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: Text('PAN Verification',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(24.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FadeInAnimation(
+              delay: const Duration(milliseconds: 100),
+              child: Text(
+                'Enter Permanent Account\nNumber (PAN) Details',
+                style: GoogleFonts.outfit(
+                  fontSize: 24.sp,
+                  fontWeight: FontWeight.w900,
+                  height: 1.2,
+                ),
+              ),
+            ),
+            SizedBox(height: 12.h),
+            Text(
+              'Required for tax reporting on your investments.',
+              style: GoogleFonts.outfit(
+                  color: isDark ? Colors.white54 : Colors.black54),
+            ),
+            SizedBox(height: 48.h),
+            _buildInputField(
+              'PAN Number',
+              'ABCDE1234F',
+              _panController,
+              isDark,
+              TextInputType.text,
+              textCapitalization: TextCapitalization.characters,
+            ),
+            const Spacer(),
+            CustomButton(
+              text: 'VERIFY & PROCEED',
+              isLoading: _isLoading,
+              onPressed: _handleVerify,
+              backgroundColor: AppTheme.arcticBlue,
+            ),
+            SizedBox(height: 24.h),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputField(String label, String hint,
+      TextEditingController controller, bool isDark, TextInputType type,
+      {TextCapitalization textCapitalization = TextCapitalization.none}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w700, fontSize: 14.sp)),
+        SizedBox(height: 12.h),
+        TextField(
+          controller: controller,
+          keyboardType: type,
+          textCapitalization: textCapitalization,
+          style:
+              GoogleFonts.outfit(fontSize: 18.sp, fontWeight: FontWeight.w600),
+          decoration: InputDecoration(
+            hintText: hint,
+            filled: true,
+            fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16.r),
+                borderSide: BorderSide.none),
+            contentPadding: EdgeInsets.all(18.w),
+          ),
+        ),
+      ],
+    );
+  }
+}

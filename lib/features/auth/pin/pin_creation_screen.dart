@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -61,117 +62,144 @@ class _PinCreationScreenState extends ConsumerState<PinCreationScreen> {
             ),
           ),
           SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: 16.h),
-                  IconButton(
-                    icon: Icon(Icons.arrow_back_ios_new_rounded, size: 22.sp),
-                    onPressed: () {
-                      if (_isConfirming) {
-                        setState(() {
-                          _isConfirming = false;
-                          _confirmPinController.clear();
-                        });
-                      } else {
-                        Navigator.pop(context);
-                      }
-                    },
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24.w),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: MediaQuery.of(context).size.height -
+                        MediaQuery.of(context).padding.top -
+                        MediaQuery.of(context).padding.bottom,
                   ),
-                  SizedBox(height: 32.h),
-                  FadeInAnimation(
-                    delay: const Duration(milliseconds: 100),
-                    child: Text(
-                      _isConfirming ? 'Verify Your\nPIN' : 'Secure Your\nAccount',
-                      style: GoogleFonts.outfit(
-                        fontSize: 42.sp,
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        height: 1.05,
-                        letterSpacing: -1.5,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16.h),
-                  FadeInAnimation(
-                    delay: const Duration(milliseconds: 200),
-                    child: Text(
-                      _isConfirming
-                          ? 'Enter the 4-digit PIN again to confirm.'
-                          : 'Create a 4-digit PIN for quick & secure access.',
-                      style: GoogleFonts.outfit(
-                        fontSize: 17.sp,
-                        color: isDark ? Colors.white54 : Colors.black45,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 80.h),
-                  Center(
-                    child: FadeInAnimation(
-                      delay: const Duration(milliseconds: 300),
-                      child: Pinput(
-                        length: 4,
-                        controller:
-                            _isConfirming ? _confirmPinController : _pinController,
-                        obscureText: true,
-                        defaultPinTheme: defaultPinTheme,
-                        focusedPinTheme: defaultPinTheme.copyWith(
-                          decoration: defaultPinTheme.decoration!.copyWith(
-                            color: isDark
-                                ? AppTheme.arcticBlue.withOpacity(0.08)
-                                : Colors.white,
-                            border: Border.all(color: AppTheme.arcticBlue, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.arcticBlue.withOpacity(0.12),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 16.h),
+                        IconButton(
+                          icon: Icon(Icons.arrow_back_ios_new_rounded,
+                              size: 22.sp),
+                          onPressed: () {
+                            if (_isConfirming) {
+                              setState(() {
+                                _isConfirming = false;
+                                _confirmPinController.clear();
+                              });
+                            } else {
+                              Navigator.pop(context);
+                            }
+                          },
+                        ),
+                        SizedBox(height: 32.h),
+                        FadeInAnimation(
+                          delay: const Duration(milliseconds: 100),
+                          child: Text(
+                            _isConfirming
+                                ? 'Verify Your\nPIN'
+                                : 'Secure Your\nAccount',
+                            style: GoogleFonts.outfit(
+                              fontSize: 42.sp,
+                              fontWeight: FontWeight.w900,
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
+                              height: 1.05,
+                              letterSpacing: -1.5,
+                            ),
                           ),
                         ),
-                        onCompleted: (pin) {
-                          if (!_isConfirming) {
-                            setState(() => _isConfirming = true);
-                          } else {
-                            _handleSetPin();
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                  if (authState.error != null)
-                    Padding(
-                      padding: EdgeInsets.only(top: 32.h),
-                      child: Center(
-                        child: Text(authState.error!,
+                        SizedBox(height: 16.h),
+                        FadeInAnimation(
+                          delay: const Duration(milliseconds: 200),
+                          child: Text(
+                            _isConfirming
+                                ? 'Enter the 4-digit PIN again to confirm.'
+                                : 'Create a 4-digit PIN for quick & secure access.',
                             style: GoogleFonts.outfit(
-                                color: Colors.redAccent,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                  const Spacer(),
-                  FadeInAnimation(
-                    delay: const Duration(milliseconds: 400),
-                    child: CustomButton(
-                      text: _isConfirming ? 'Complete Setup' : 'Next Step',
-                      isLoading: authState.isLoading,
-                      onPressed: () {
-                        if (!_isConfirming && _pinController.text.length == 4) {
-                          setState(() => _isConfirming = true);
-                        } else if (_isConfirming &&
-                            _confirmPinController.text.length == 4) {
-                          _handleSetPin();
-                        }
-                      },
-                      backgroundColor: AppTheme.arcticBlue,
+                              fontSize: 17.sp,
+                              color: isDark ? Colors.white54 : Colors.black45,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 80.h),
+                        Center(
+                          child: FadeInAnimation(
+                            delay: const Duration(milliseconds: 300),
+                            child: Pinput(
+                              length: 4,
+                              controller: _isConfirming
+                                  ? _confirmPinController
+                                  : _pinController,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              obscureText: true,
+                              defaultPinTheme: defaultPinTheme,
+                              focusedPinTheme: defaultPinTheme.copyWith(
+                                decoration:
+                                    defaultPinTheme.decoration!.copyWith(
+                                  color: isDark
+                                      ? AppTheme.arcticBlue.withOpacity(0.08)
+                                      : Colors.white,
+                                  border: Border.all(
+                                      color: AppTheme.arcticBlue, width: 2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          AppTheme.arcticBlue.withOpacity(0.12),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              onCompleted: (pin) {
+                                if (!_isConfirming) {
+                                  setState(() => _isConfirming = true);
+                                } else {
+                                  _handleSetPin();
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                        if (authState.error != null)
+                          Padding(
+                            padding: EdgeInsets.only(top: 32.h),
+                            child: Center(
+                              child: Text(authState.error!,
+                                  style: GoogleFonts.outfit(
+                                      color: Colors.redAccent,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        const Spacer(),
+                        FadeInAnimation(
+                          delay: const Duration(milliseconds: 400),
+                          child: CustomButton(
+                            text:
+                                _isConfirming ? 'Complete Setup' : 'Next Step',
+                            isLoading: authState.isLoading,
+                            onPressed: () {
+                              if (!_isConfirming &&
+                                  _pinController.text.length == 4) {
+                                setState(() => _isConfirming = true);
+                              } else if (_isConfirming &&
+                                  _confirmPinController.text.length == 4) {
+                                _handleSetPin();
+                              }
+                            },
+                            backgroundColor: AppTheme.arcticBlue,
+                          ),
+                        ),
+                        SizedBox(height: 24.h),
+                      ],
                     ),
                   ),
-                  SizedBox(height: 24.h),
-                ],
+                ),
               ),
             ),
           ),

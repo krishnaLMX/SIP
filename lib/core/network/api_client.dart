@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import '../config/app_config.dart';
-import 'interceptors.dart';
 import '../security/certificate_pinning.dart';
+import '../security/api_interceptor.dart';
 
 class ApiClient {
   late Dio _dio;
@@ -19,8 +19,10 @@ class ApiClient {
       ),
     );
 
-    _dio.interceptors.add(AuthInterceptor());
-    CertificatePinning.setup(_dio);
+    _dio.interceptors.add(ApiSecurityInterceptor());
+    if (AppConfig.baseUrl.startsWith('https')) {
+      CertificatePinning.setup(_dio);
+    }
   }
 
   Future<Response> get(

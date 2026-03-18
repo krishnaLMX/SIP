@@ -1,6 +1,6 @@
 class AppConstants {
   static const String companyName = 'START GOLD';
-  static const String appName = 'SIP';
+  static const String appName = 'START GOLD';
 
   // Login Screen Content
   static const String loginTitle = 'Welcome Back';
@@ -16,4 +16,45 @@ class AppConstants {
   static const String mpinTitle = 'SECURE YOUR VAULT';
   static const String mpinSubtitle =
       'Create a secure 4-digit signature to authorize your gold transactions.';
+
+  // Home Screen Content
+  static const String homeWelcomeSubtitle = 'Ready to grow your wealth today?';
+  static const String welcome = 'Welcome';
+  static const String portfolioTitle = 'TOTAL PORTFOLIO';
+  static const String portfolioInvested = 'Total Invested';
+  static const String portfolioValue = 'Current Value';
+  static const String portfolioReturns = 'Total Returns';
+  static const String joinBannerTitle = 'Start Building Wealth';
+  static const String joinBannerSubtitle =
+      'Join thousands of smart investors saving in Digital Gold every day.';
+  static const String joinBannerCTA = 'Create Your First SIP';
+  static const String sectionHeaderArtisanal = 'Artisanal Curations';
+  static const String exploreAll = 'Explore All';
+  static const String lastUpdated = 'Last updated';
+  static const String instantSavingTitle = 'Instant Saving';
+
+  // Withdrawal Flow
+  static const String withdrawTitle = 'Withdraw Funds';
+  static const String sellGold = 'Sell Gold';
+  static const String sellSilver = 'Sell Silver';
+  static const String availableBalance = 'Available Balance';
+  static const String enterAmount = 'Enter Amount';
+  static const String withdrawNow = 'Withdraw Now';
+  static const String kycRequired = 'KYC Verification Required';
+  static const String kycRequiredDesc =
+      'Please complete your KYC to enable withdrawals.';
+  static const String selectBank = 'Select Bank Account / UPI';
+  static const String addUPI = 'Add New UPI ID';
+  static const String confirmWithdrawal = 'Confirm Withdrawal';
+  static const String rateLocked = 'Rate Locked for';
+  static const String seconds = 'sec';
+
+  // Withdrawal Limits
+  static const double minWithdrawalGrams = 0.001;
+  static const double maxWithdrawalGrams = 100.0;
+  static const int amountDecimalLimit = 4;
+  static const String insufficientBalance = 'Insufficient balance';
+  static const String minWithdrawalError = 'Minimum withdrawal is 0.001g';
+  static const String maxWithdrawalError = 'Maximum withdrawal is 100g';
+  static const String enterValidAmount = 'Enter a valid amount';
 }

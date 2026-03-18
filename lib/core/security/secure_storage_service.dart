@@ -23,7 +23,43 @@ class SecureStorageService {
     return await _storage.read(key: AppConfig.keyRefreshToken);
   }
 
-  static Future<void> clearAll() async {
+  static Future<bool> isMpinEnabled() async {
+    final value = await _storage.read(key: AppConfig.keyIsMpinEnabled);
+    return value == 'true';
+  }
+
+  static Future<void> setMpinEnabled(bool enabled) async {
+    await _storage.write(
+        key: AppConfig.keyIsMpinEnabled, value: enabled.toString());
+  }
+
+  static Future<bool> getOnboardingSeen() async {
+    final value = await _storage.read(key: AppConfig.keyHasSeenOnboarding);
+    return value == 'true';
+  }
+
+  static Future<void> setOnboardingSeen(bool seen) async {
+    await _storage.write(
+        key: AppConfig.keyHasSeenOnboarding, value: seen.toString());
+  }
+
+  static Future<void> saveCustomerId(String id) async {
+    await _storage.write(key: AppConfig.keyCustomerId, value: id);
+  }
+
+  static Future<String?> getCustomerId() async {
+    return await _storage.read(key: AppConfig.keyCustomerId);
+  }
+
+  static Future<void> saveMobile(String mobile) async {
+    await _storage.write(key: AppConfig.keyMobileNumber, value: mobile);
+  }
+
+  static Future<String?> getMobile() async {
+    return await _storage.read(key: AppConfig.keyMobileNumber);
+  }
+
+  static Future<void> logout() async {
     await _storage.deleteAll();
   }
 }
