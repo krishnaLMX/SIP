@@ -1,45 +1,51 @@
 class SavingConfig {
-  final double kycLimit;
   final double minAmount;
   final double maxAmount;
+  final double gst;
+  final String type; // inclusive / exclusive
+  final int sellRateLockSeconds;
+  final int buyRateLockSeconds;
 
   SavingConfig({
-    required this.kycLimit,
     required this.minAmount,
     required this.maxAmount,
+    required this.gst,
+    required this.type,
+    required this.sellRateLockSeconds,
+    required this.buyRateLockSeconds,
   });
 
   factory SavingConfig.fromJson(Map<String, dynamic> json) {
     return SavingConfig(
-      kycLimit: (json['kyc_limit'] ?? 0).toDouble(),
       minAmount: (json['min_amount'] ?? 0).toDouble(),
       maxAmount: (json['max_amount'] ?? 0).toDouble(),
+      gst: double.tryParse(json['gst']?.toString() ?? '0') ?? 0.0,
+      type: json['type'] ?? '',
+      sellRateLockSeconds: json['sell_rate_lock_seconds'] ?? 0,
+      buyRateLockSeconds: json['buy_rate_lock_seconds'] ?? 0,
     );
   }
-
-  factory SavingConfig.defaultConfig() => SavingConfig(
-        kycLimit: 50000,
-        minAmount: 10,
-        maxAmount: 200000,
-      );
 }
 
 class PaymentMethod {
   final String id;
   final String name;
   final String icon;
+  final String description;
 
   PaymentMethod({
     required this.id,
     required this.name,
     required this.icon,
+    required this.description,
   });
 
   factory PaymentMethod.fromJson(Map<String, dynamic> json) {
     return PaymentMethod(
-      id: json['id'] ?? '',
+      id: json['id']?.toString() ?? '',
       name: json['name'] ?? '',
       icon: json['icon'] ?? '',
+      description: json['description'] ?? '',
     );
   }
 }
@@ -74,24 +80,34 @@ class EligibilityResponse {
 }
 
 class PurchaseInitiateResponse {
-  final String? transactionId;
-  final String? paymentToken;
-  final double? orderAmount;
+  final String? orderId;
+  final String? sessionId;
+  final String? environment;
   final String? message;
+  final String? amountInr;
+  final String? weight;
+  final String? ratePerGram;
 
   PurchaseInitiateResponse({
-    this.transactionId,
-    this.paymentToken,
-    this.orderAmount,
+    this.orderId,
+    this.sessionId,
+    this.environment,
     this.message,
+    this.amountInr,
+    this.weight,
+    this.ratePerGram,
   });
 
   factory PurchaseInitiateResponse.fromJson(Map<String, dynamic> json) {
     return PurchaseInitiateResponse(
-      transactionId: json['transaction_id'],
-      paymentToken: json['payment_token'],
-      orderAmount: (json['order_amount'] ?? 0).toDouble(),
+      orderId: json['order_id'],
+      sessionId: json['session_id'],
+      environment: json['environment'],
       message: json['message'],
+      amountInr: json['amount_inr']?.toString(),
+      weight: json['weight']?.toString(),
+      ratePerGram: json['rate_per_gram']?.toString(),
     );
   }
 }
+

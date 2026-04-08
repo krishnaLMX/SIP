@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:dio/io.dart';
 import 'package:dio/dio.dart';
@@ -35,3 +35,4 @@ class CertificatePinning {
     }
   }
 }
+

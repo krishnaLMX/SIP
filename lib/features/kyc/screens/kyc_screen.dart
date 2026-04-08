@@ -1,13 +1,14 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:sip/shared/theme/app_theme.dart';
-import 'package:sip/features/kyc/controllers/kyc_controller.dart';
-import 'package:sip/features/kyc/models/kyc_document.dart';
-import 'package:sip/core/localization/language_provider.dart';
+import 'package:startgold/features/kyc/controllers/kyc_controller.dart';
+import 'package:startgold/features/kyc/models/kyc_document.dart';
+import 'package:startgold/shared/theme/app_theme.dart';
+import 'package:startgold/shared/widgets/app_toast.dart';
+import 'package:startgold/shared/widgets/custom_button.dart';
+import 'package:startgold/shared/widgets/gradient_header.dart';
 
 class KycScreen extends ConsumerStatefulWidget {
   final String requestFrom;
@@ -25,93 +26,160 @@ class KycScreen extends ConsumerStatefulWidget {
 
 class _KycScreenState extends ConsumerState<KycScreen> {
   final _formKey = GlobalKey<FormState>();
-  KycDocumentType? _selectedDoc;
-  final Map<String, TextEditingController> _controllers = {};
-  XFile? _frontImage;
-  XFile? _backImage;
+  final Map<String, Map<String, TextEditingController>> _docControllers = {};
+  bool _initialized = false;
 
   @override
   void dispose() {
-    for (var controller in _controllers.values) {
-      controller.dispose();
+    for (var controllers in _docControllers.values) {
+      for (var controller in controllers.values) {
+        controller.dispose();
+      }
     }
     super.dispose();
   }
 
-  void _onDocSelected(KycDocumentType doc) {
-    setState(() {
-      _selectedDoc = doc;
-      _frontImage = null;
-      _backImage = null;
-      _controllers.clear();
-      for (var field in doc.fields) {
-        _controllers[field.name] = TextEditingController();
+  void _initControllers(List<KycDocumentType> docs) {
+    if (_initialized) return;
+    for (var doc in docs) {
+      _docControllers[doc.id] = {};
+      final List<KycField> allFields = List.from(doc.fields);
+      final isPan = doc.name.toUpperCase().contains('PAN') ||
+          doc.code.toUpperCase().contains('PAN');
+
+      if (isPan && !allFields.any((f) => f.name.contains('name'))) {
+        allFields
+            .add(KycField(name: 'full_name', label: 'Full Name', type: 'text'));
       }
-    });
-  }
 
-  Future<void> _pickImage(bool isFront) async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-    );
-    if (image != null) {
-      setState(() {
-        if (isFront) {
-          _frontImage = image;
-        } else {
-          _backImage = image;
-        }
-      });
+      for (var field in allFields) {
+        _docControllers[doc.id]![field.name] = TextEditingController();
+      }
     }
+    _initialized = true;
   }
 
-  Future<void> _submit() async {
-    if (_selectedDoc == null) return;
+  Future<void> _submit(List<KycDocumentType> docs) async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedDoc!.images.front && _frontImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Front image is required')),
-      );
+    // Pick the docs that need submission
+    final List<KycDocumentType> docsToSubmit = docs;
+    if (docsToSubmit.isEmpty) {
+      _handleSuccess();
       return;
     }
 
-    if (_selectedDoc!.images.back && _backImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Back image is required')),
-      );
-      return;
-    }
+    try {
+      // For now, we submit them sequentially as per the current kycSubmitProvider design.
+      // In a real production app, you might want to call them in parallel or have a single "save-all" API.
+      for (var doc in docsToSubmit) {
+        final Map<String, dynamic> fields = {};
+        final controllers = _docControllers[doc.id];
+        controllers?.forEach((key, controller) {
+          fields[key] = controller.text;
+        });
 
-    final fields = _controllers.map((key, controller) => MapEntry(key, controller.text));
+        await ref.read(kycSubmitProvider.notifier).submit(
+              requestFrom: widget.requestFrom,
+              documentId: doc.id,
+              fields: fields,
+            );
+        print('fields: $fields');
 
-    await ref.read(kycSubmitProvider.notifier).submit(
-          requestFrom: widget.requestFrom,
-          documentId: _selectedDoc!.id,
-          fields: fields,
-          frontPath: _frontImage?.path,
-          backPath: _backImage?.path,
-        );
+        final result = ref.read(kycSubmitProvider);
+        if (result.hasError) {
+          if (mounted) {
+            // Extract the real server message from the exception
+            String errorMsg = result.error.toString();
+            // Strip Dart's 'Exception: ' prefix if present
+            if (errorMsg.startsWith('Exception: ')) {
+              errorMsg = errorMsg.substring('Exception: '.length);
+            }
+            AppToast.show(context, errorMsg, type: ToastType.error);
+            Navigator.pop(context);
+          }
+          return;
+        }
+      }
 
-    final result = ref.read(kycSubmitProvider);
-    if (result.hasValue && result.value == true) {
+      _handleSuccess();
+    } catch (e) {
       if (mounted) {
-        // Success navigation logic
+        String msg = e.toString();
+        if (msg.startsWith('Exception: ')) {
+          msg = msg.substring('Exception: '.length);
+        }
+        AppToast.show(context, msg, type: ToastType.error);
+      }
+    }
+  }
+
+  void _handleSuccess() {
+    if (mounted) {
+      _showSuccessDialog();
+    }
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        child: Padding(
+          padding: EdgeInsets.all(32.r),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'PAN Verification',
+                style: GoogleFonts.lora(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF643D41),
+                ),
+              ),
+              SizedBox(height: 24.h),
+              Container(
+                width: 72.r,
+                height: 72.r,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF52B76E),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.check, color: Colors.white, size: 40.sp),
+              ),
+              SizedBox(height: 24.h),
+              Text(
+                'PAN Verification\nCompleted Successfully',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.lora(
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        Navigator.pop(context); // Close dialog
         if (widget.requestFrom == 'instant') {
-          Navigator.pushReplacementNamed(context, '/payment-methods', arguments: widget.extraData);
+          Navigator.pushReplacementNamed(context, '/payment-methods',
+              arguments: widget.extraData);
+        } else if (widget.requestFrom == 'withdraw') {
+          Navigator.pushReplacementNamed(context, '/upi-selection');
         } else {
           Navigator.pop(context, true);
         }
       }
-    } else if (result.hasError) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${result.error}')),
-        );
-      }
-    }
+    });
   }
 
   @override
@@ -120,212 +188,271 @@ class _KycScreenState extends ConsumerState<KycScreen> {
     final docsAsync = ref.watch(kycDocumentsProvider(widget.requestFrom));
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: Text(
-          ref.tr('kycVerification'),
-          style: GoogleFonts.outfit(fontWeight: FontWeight.w700),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-      ),
-      body: docsAsync.when(
-        data: (docs) {
-          if (docs.isEmpty) {
-            return const Center(child: Text('No documents available'));
-          }
-
-          return SingleChildScrollView(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          const GradientHeader(title: 'Verification'),
+          Expanded(
+            child: docsAsync.when(
+              data: (docs) {
+                _initControllers(docs);
+                return SingleChildScrollView(
             padding: EdgeInsets.all(24.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  ref.tr('selectDocumentType'),
-                  style: GoogleFonts.outfit(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-                SizedBox(height: 16.h),
-                _buildDocSelector(docs, isDark),
-                if (_selectedDoc != null) ...[
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Complete your KYC',
+                      style: GoogleFonts.lora(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : Colors.black)),
                   SizedBox(height: 32.h),
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ..._selectedDoc!.fields.map((field) => _buildDynamicField(field, isDark)),
-                        SizedBox(height: 24.h),
-                        _buildImagePickers(isDark),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 48.h),
+                  ...docs.map((doc) => _buildDocumentCard(doc, isDark)),
                 ],
-              ],
+              ),
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error: $e')),
+            ),
+          ),
+        ],
       ),
-      bottomNavigationBar: _selectedDoc != null ? _buildFooter(isDark) : null,
+      bottomNavigationBar:
+          docsAsync.hasValue ? _buildFooter(isDark, docsAsync.value!) : null,
     );
   }
 
-  Widget _buildDocSelector(List<KycDocumentType> docs, bool isDark) {
-    return Wrap(
-      spacing: 12.w,
-      runSpacing: 12.h,
-      children: docs.map((doc) {
-        final isSelected = _selectedDoc?.id == doc.id;
-        return GestureDetector(
-          onTap: () => _onDocSelected(doc),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
-            decoration: BoxDecoration(
-              color: isSelected ? AppTheme.arcticBlue : (isDark ? Colors.white.withOpacity(0.05) : Colors.white),
-              borderRadius: BorderRadius.circular(16.r),
-              border: Border.all(
-                color: isSelected ? AppTheme.arcticBlue : (isDark ? Colors.white10 : Colors.black12),
+  Widget _buildDocumentCard(KycDocumentType doc, bool isDark) {
+    final isPan = doc.name.toUpperCase().contains('PAN') ||
+        doc.code.toUpperCase().contains('PAN');
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: 32.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildStatusHeader(doc, isDark),
+          SizedBox(height: 16.h),
+          if (isPan)
+            _buildPanCard(doc, isDark)
+          else
+            _buildGenericCard(doc, isDark, false),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusHeader(KycDocumentType doc, bool isDark) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(4.r),
+          decoration: BoxDecoration(
+              color: isDark ? Colors.white12 : Colors.black12,
+              shape: BoxShape.circle),
+          child: Icon(Icons.check, color: Colors.transparent, size: 14.sp),
+        ),
+        SizedBox(width: 8.w),
+        Text('${doc.name} Required',
+            style: GoogleFonts.lora(
+                fontSize: 15.sp,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white : Colors.black)),
+      ],
+    );
+  }
+
+
+  Widget _buildPanCard(KycDocumentType doc, bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(24.r),
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFF1E3A8A).withOpacity(0.2)
+            : const Color(0xFFE2F1FF),
+        borderRadius: BorderRadius.circular(24.r),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 8))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('आयकर विभाग',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.notoSans(
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : Colors.black)),
+                    Text('INCOME TAX DEPARTMENT',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.lora(
+                            fontSize: 9.sp,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white70 : Colors.black54)),
+                  ],
+                ),
               ),
-            ),
-            child: Text(
-              doc.name,
-              style: GoogleFonts.outfit(
-                color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
-                fontWeight: FontWeight.w700,
+              Icon(Icons.account_balance_rounded,
+                  size: 32.sp, color: isDark ? Colors.white38 : Colors.black45),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('भारत सरकार',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.notoSans(
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : Colors.black)),
+                    Text('GOVT OF INDIA',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.lora(
+                            fontSize: 9.sp,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white70 : Colors.black54)),
+                  ],
+                ),
               ),
-            ),
+            ],
+          ),
+          SizedBox(height: 24.h),
+          _buildDocInputs(doc, isDark, false, true),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGenericCard(KycDocumentType doc, bool isDark, bool isPan) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20.r),
+      decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withOpacity(0.03)
+              : Colors.black.withOpacity(0.02),
+          borderRadius: BorderRadius.circular(20.r)),
+      child: _buildDocInputs(doc, isDark, false, isPan),
+    );
+  }
+
+  Widget _buildDocInputs(
+      KycDocumentType doc, bool isDark, bool stylized, bool isPan) {
+    final List<KycField> allFields = List.from(doc.fields);
+    if (isPan && !allFields.any((f) => f.name.contains('name'))) {
+      allFields
+          .add(KycField(name: 'full_name', label: 'Full Name', type: 'text'));
+    }
+
+    return Column(
+      children: allFields.map((field) {
+        final bool isNumeric = field.type == 'number' ||
+            (field.regex?.startsWith('^\\d') ?? false);
+        return Padding(
+          padding: EdgeInsets.only(bottom: 16.h),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!stylized)
+                Text(field.label,
+                    style: GoogleFonts.lora(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white60 : Colors.black54)),
+              if (!stylized) SizedBox(height: 8.h),
+              TextFormField(
+                controller: _docControllers[doc.id]?[field.name],
+                keyboardType:
+                    isNumeric ? TextInputType.number : TextInputType.text,
+                textCapitalization:
+                    !isNumeric && (isPan || field.name.contains('name'))
+                        ? TextCapitalization.characters
+                        : TextCapitalization.none,
+                inputFormatters:
+                    !isNumeric && (isPan || field.name.contains('name'))
+                        ? [UpperCaseFormatter()]
+                        : [],
+                style: GoogleFonts.lora(
+                    color: stylized
+                        ? Colors.black87
+                        : (isDark ? Colors.white : Colors.black),
+                    fontWeight: stylized ? FontWeight.w600 : FontWeight.normal),
+                decoration: InputDecoration(
+                  hintText: field.label,
+                  hintStyle: GoogleFonts.lora(fontSize: 16.sp, color: isDark ? Colors.white38 : Colors.black38),
+                  filled: true,
+                  fillColor: stylized
+                      ? Colors.white
+                      : (isDark
+                          ? Colors.white.withOpacity(0.03)
+                          : Colors.white),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12.r),
+                      borderSide: stylized
+                          ? const BorderSide(color: Colors.black12)
+                          : BorderSide.none),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+                ),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Required';
+                  if (field.regex != null && field.regex!.isNotEmpty) {
+                    if (!RegExp(field.regex!).hasMatch(v)) {
+                      return 'Invalid ${field.label} format';
+                    }
+                  }
+                  return null;
+                },
+              ),
+            ],
           ),
         );
       }).toList(),
     );
   }
 
-  Widget _buildDynamicField(KycField field, bool isDark) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 20.h),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            field.label,
-            style: GoogleFonts.outfit(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white60 : Colors.black54,
-            ),
-          ),
-          SizedBox(height: 8.h),
-          TextFormField(
-            controller: _controllers[field.name],
-            style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16.r),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) return 'Required';
-              if (field.regex != null && field.regex!.isNotEmpty) {
-                if (!RegExp(field.regex!).hasMatch(value)) {
-                  return 'Invalid format';
-                }
-              }
-              return null;
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImagePickers(bool isDark) {
-    return Row(
-      children: [
-        if (_selectedDoc!.images.front)
-          Expanded(child: _buildImageCard('Front Side', _frontImage, true, isDark)),
-        if (_selectedDoc!.images.back) ...[
-          SizedBox(width: 16.w),
-          Expanded(child: _buildImageCard('Back Side', _backImage, false, isDark)),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildImageCard(String label, XFile? image, bool isFront, bool isDark) {
-    return GestureDetector(
-      onTap: () => _pickImage(isFront),
-      child: AspectRatio(
-        aspectRatio: 1.4,
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02),
-            borderRadius: BorderRadius.circular(20.r),
-            border: Border.all(color: isDark ? Colors.white10 : Colors.black12, style: BorderStyle.solid),
-          ),
-          child: image != null
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(19.r),
-                  child: Image.file(File(image.path), fit: BoxFit.cover),
-                )
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_a_photo_outlined, color: AppTheme.arcticBlue, size: 28.sp),
-                    SizedBox(height: 8.h),
-                    Text(
-                      label,
-                      style: GoogleFonts.outfit(
-                        fontSize: 12.sp,
-                        color: isDark ? Colors.white38 : Colors.black38,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFooter(bool isDark) {
+  Widget _buildFooter(bool isDark, List<KycDocumentType> docs) {
     final submitState = ref.watch(kycSubmitProvider);
-    return Container(
-      padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 32.h),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF020617) : Colors.white,
-        border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 56.h,
-        child: ElevatedButton(
-          onPressed: submitState.isLoading ? null : _submit,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.arcticBlue,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-            elevation: 0,
-          ),
-          child: submitState.isLoading
-              ? const CircularProgressIndicator(color: Colors.white)
-              : Text(
-                  'Submit Verification'.toUpperCase(),
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.w900, letterSpacing: 1),
-                ),
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 16.h),
+        decoration: const BoxDecoration(color: Colors.transparent),
+        child: CustomButton(
+          text: 'Continue',
+          isLoading: submitState.isLoading,
+          onPressed: () => _submit(docs),
+          gradient: AppTheme.greenGradient,
         ),
       ),
     );
   }
 }
+
+class UpperCaseFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
+  }
+}
+

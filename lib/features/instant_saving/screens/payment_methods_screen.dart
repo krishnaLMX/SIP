@@ -1,11 +1,21 @@
+import 'package:flutter_cashfree_pg_sdk/api/cfpayment/cfwebcheckoutpayment.dart';
+import 'package:flutter_cashfree_pg_sdk/utils/cfenums.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cferrorresponse/cferrorresponse.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpaymentgateway/cfpaymentgatewayservice.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsession.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:sip/shared/theme/app_theme.dart';
+import 'package:startgold/shared/theme/app_theme.dart';
+import 'package:startgold/shared/widgets/custom_button.dart';
 import '../controller/saving_controller.dart';
-import 'package:sip/core/providers/user_provider.dart';
+import 'package:startgold/core/providers/user_provider.dart';
+import 'package:startgold/core/providers/timer_provider.dart';
+import 'package:startgold/core/error/failures.dart';
 import '../models/saving_models.dart';
+import './purchase_success_screen.dart';
+import 'package:startgold/shared/widgets/gradient_header.dart';
 
 class PaymentMethodsScreen extends ConsumerStatefulWidget {
   final double amount;
@@ -29,6 +39,122 @@ class PaymentMethodsScreen extends ConsumerStatefulWidget {
 class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
   String? _selectedMethodId;
   bool _isLoading = false;
+  bool _isVerifying = false;
+  final CFPaymentGatewayService _cfPaymentGatewayService =
+      CFPaymentGatewayService();
+
+  @override
+  void initState() {
+    super.initState();
+    _cfPaymentGatewayService.setCallback(_verifyPayment, _onPaymentError);
+  }
+
+  void _verifyPayment(String orderId) async {
+    setState(() => _isVerifying = true);
+    try {
+      final response =
+          await ref.read(savingServiceProvider).confirmPayment(orderId);
+
+      if (!mounted) return;
+      if (response['success'] == true) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PurchaseSuccessScreen(
+              data: {
+                'isSuccess': true,
+                'orderId': response['data']?['order_id'] ?? orderId,
+                'weight': response['data']?['grams_credited'] ??
+                    response['data']?['credited_weight'] ??
+                    response['data']?['weight'],
+                'message': response['message'] ??
+                    'Gold has been successfully added to your locker.',
+                'commodity_name': response['data']?['commodity_name'],
+                'total_amount': response['data']?['total_amount'],
+                'rate': response['data']?['rate'],
+                'payment_mode': response['data']?['payment_mode'],
+              },
+            ),
+          ),
+        );
+      } else {
+        // Extract error message from response — API may use
+        // response['message'] or response['error']['message']
+        final errorMsg = response['message'] ??
+            response['error']?['message'] ??
+            'Your order could not be processed. Please try again.';
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PurchaseSuccessScreen(
+              data: {
+                'isSuccess': false,
+                'orderId': orderId,
+                'message': errorMsg,
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PurchaseSuccessScreen(
+            data: {
+              'isSuccess': false,
+              'orderId': orderId,
+              'message': (e is Failure)
+                  ? e.message
+                  : 'Payment verification failed. Please try again.',
+            },
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isVerifying = false);
+    }
+  }
+
+  void _onPaymentError(CFErrorResponse errorResponse, String orderId) async {
+    if (!mounted) return;
+
+    // Notify server about the failed payment so it can update order status.
+    // Server needs the orderId regardless of success/failure.
+    String failureMessage =
+        'Payment failed for order $orderId.\n${errorResponse.getMessage()}';
+
+    setState(() => _isVerifying = true);
+    try {
+      final response =
+          await ref.read(savingServiceProvider).confirmPayment(orderId);
+      // Use server's message if available (may have more detail)
+      final serverMsg = response['message'] ??
+          response['error']?['message'];
+      if (serverMsg != null) {
+        failureMessage = serverMsg;
+      }
+    } catch (_) {
+      // Ignore server errors here — we still navigate to failure screen
+    } finally {
+      if (mounted) setState(() => _isVerifying = false);
+    }
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PurchaseSuccessScreen(
+          data: {
+            'isSuccess': false,
+            'orderId': orderId,
+            'message': failureMessage,
+          },
+        ),
+      ),
+    );
+  }
 
   Future<void> _createPaymentOrder() async {
     if (_selectedMethodId == null) return;
@@ -38,51 +164,44 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
       final user = ref.read(userProvider);
       if (user == null) throw Exception('User not logged in');
 
+      // Get locked rate from timer or fallback to initial rate
+      final timerState = ref.read(sellRateTimerProvider);
+      final activeRate = timerState.isActive
+          ? (widget.metalId == '1'
+              ? timerState.lockedRates!.goldSell
+              : timerState.lockedRates!.silverSell)
+          : widget.rate;
+
+      // Calculate weight net of GST for API (round to 4 decimals to match UI)
+      final config = ref.read(savingConfigProvider).valueOrNull;
+      final gstRate = (config?.gst ?? 3.0) / 100;
+      final rawWeight = (widget.amount / (1 + gstRate)) / activeRate;
+      final weight = double.parse(rawWeight.toStringAsFixed(4));
+
       // 1. Initiate Purchase
       final PurchaseInitiateResponse purchase =
           await ref.read(savingServiceProvider).initiatePurchase(
-            customerId: user.id,
-            metalId: widget.metalId,
-            mobile: user.mobile,
-            buyType: 'AMOUNT',
-            amount: widget.amount,
-            rate: widget.rate,
-            couponCode: widget.couponCode,
-          );
+                customerId: user.id,
+                metalId: widget.metalId,
+                mobile: user.mobile,
+                buyType: 'AMOUNT',
+                amount: widget.amount,
+                rate: activeRate,
+                weight: weight,
+                couponCode: widget.couponCode,
+              );
 
-      if (purchase.transactionId == null) {
-        throw Exception('Failed to initiate purchase');
-      }
-
-      // 2. Create Payment Order
-      final order = await ref.read(paymentServiceProvider).createOrder(
-            amount: widget.amount,
-            methodId: _selectedMethodId!,
-            transactionId: purchase.transactionId!,
-          );
-
+      // 2. Launch Cashfree directly — no confirmation sheet
       if (mounted) {
-        // Redirect to PG URL
-        // In real app, use url_launcher or WebView
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Redirecting to: ${order.paymentUrl}')),
-        );
-
-        // Mock status verification after 2 seconds
-        Future.delayed(const Duration(seconds: 2), () async {
-          final status = await ref
-              .read(paymentServiceProvider)
-              .verifyPaymentStatus(order.orderId);
-          if (status == 'SUCCESS') {
-            // Navigate to success screen
-            Navigator.pushReplacementNamed(context, '/home');
-          }
-        });
+        _startCashfreePayment(purchase);
       }
     } catch (e) {
       if (mounted) {
+        String message = (e is Failure)
+            ? e.message
+            : 'Payment initiation failed. Please try again.';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment initiation failed: ${e.toString()}')),
+          SnackBar(content: Text(message)),
         );
       }
     } finally {
@@ -90,61 +209,436 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
     }
   }
 
+  void _startCashfreePayment(PurchaseInitiateResponse purchase) {
+    try {
+      if (purchase.orderId == null || purchase.sessionId == null) {
+        throw Exception('Failed to initiate purchase session');
+      }
+
+      // 2. Start Payment via Cashfree SDK
+      final env = purchase.environment?.toUpperCase() == 'PRODUCTION'
+          ? CFEnvironment.PRODUCTION
+          : CFEnvironment.SANDBOX;
+
+      var session = CFSessionBuilder()
+          .setEnvironment(env)
+          .setOrderId(purchase.orderId!)
+          .setPaymentSessionId(purchase.sessionId!)
+          .build();
+
+      var cfWebCheckoutPayment =
+          CFWebCheckoutPaymentBuilder().setSession(session).build();
+
+      _cfPaymentGatewayService.doPayment(cfWebCheckoutPayment);
+    } catch (e) {
+      if (mounted) {
+        String message = (e is Failure)
+            ? e.message
+            : 'Payment initiation failed. Please try again.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  bool _isRefreshing = false;
+  bool _showUpdateSuccess = false;
+
+  void _handleRateExpiry() {
+    if (_isRefreshing) return;
+    setState(() {
+      _isRefreshing = true;
+    });
+  }
+
+  void _onRateUpdated(SavingConfig config) {
+    if (!_isRefreshing) return;
+
+    ref
+        .read(sellRateTimerProvider.notifier)
+        .startOrRefresh(config.sellRateLockSeconds);
+
+    setState(() {
+      _isRefreshing = false;
+      _showUpdateSuccess = true;
+    });
+
+    // Hide success message after 3 seconds
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _showUpdateSuccess = false);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final methodsAsync = ref.watch(paymentMethodsProvider);
 
+    // Auto-select first method when data arrives
+    ref.listen<AsyncValue<List<PaymentMethod>>>(paymentMethodsProvider,
+        (prev, next) {
+      if (next is AsyncData<List<PaymentMethod>> && next.value.isNotEmpty) {
+        if (_selectedMethodId == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() => _selectedMethodId = next.value.first.id);
+            }
+          });
+        }
+      }
+    });
+
+    // Handle cached data if already available
+    final methodsVal = ref.read(paymentMethodsProvider);
+    if (methodsVal is AsyncData<List<PaymentMethod>> &&
+        methodsVal.value.isNotEmpty) {
+      if (_selectedMethodId == null) {
+        // We use a post-frame callback to avoid setState during build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() => _selectedMethodId = methodsVal.value.first.id);
+          }
+        });
+      }
+    }
+
+    final timerState = ref.watch(sellRateTimerProvider);
+    final configAsync = ref.watch(savingConfigProvider);
+
+    // Sync timer with config if not active
+    ref.listen<AsyncValue<SavingConfig>>(savingConfigProvider, (prev, next) {
+      final config = next.valueOrNull;
+      if (config != null) {
+        if (!ref.read(sellRateTimerProvider).isActive) {
+          if (_isRefreshing) {
+            _onRateUpdated(config);
+          } else {
+            ref
+                .read(sellRateTimerProvider.notifier)
+                .startOrRefresh(config.sellRateLockSeconds);
+          }
+        }
+      }
+    });
+
+    // Listen to timer expiration
+    ref.listen<TimerState>(sellRateTimerProvider, (prev, next) {
+      if (prev != null &&
+          prev.remainingSeconds > 0 &&
+          next.remainingSeconds <= 0) {
+        _handleRateExpiry();
+      }
+    });
+
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: Text('Select Payment Method',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          _buildAmountHeader(isDark),
-          Expanded(
-            child: methodsAsync.when(
-              data: (methods) => ListView.builder(
-                padding: EdgeInsets.all(24.w),
-                itemCount: methods.length,
-                itemBuilder: (context, index) =>
-                    _buildMethodTile(methods[index], isDark),
-              ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: ${e.toString()}')),
+      backgroundColor: Colors.transparent,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: isDark ? AppTheme.darkGradient : AppTheme.lightGradient,
+        ),
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                // ── Gradient Header ─────────────────────────────────────
+                GradientHeader(
+                  title: 'Select Payment Method',
+                  onBack: () => Navigator.pop(context),
+                ),
+                // ── Body ────────────────────────────────────────────────────
+                _buildAmountHeader(isDark, timerState, configAsync),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 24.w, vertical: 8.h),
+                        child: Text(
+                          'RECOMMENDED PAYMENT GATEWAY',
+                          style: GoogleFonts.lora(
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: methodsAsync.when(
+                          data: (methods) => ListView.builder(
+                            padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 24.w),
+                            itemCount: methods.length,
+                            itemBuilder: (context, index) =>
+                                _buildMethodTile(methods[index], isDark),
+                          ),
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+                          error: (e, _) => const Center(
+                              child: Text(
+                                  'Failed to load payment methods. Please try again later.')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+            if (_isVerifying)
+              Container(
+                color: Colors.black.withOpacity(0.4),
+                child: Center(
+                  child: Container(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 40.w, vertical: 30.h),
+                    margin: EdgeInsets.symmetric(horizontal: 40.w),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(24.r),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                            color: Color(0xFF064E3B)),
+                        SizedBox(height: 20.h),
+                        Text(
+                          'Verifying Payment...',
+                          style: GoogleFonts.lora(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
       bottomNavigationBar: _buildBottomAction(isDark),
     );
   }
 
-  Widget _buildAmountHeader(bool isDark) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(vertical: 32.h),
+  Widget _buildAmountHeader(bool isDark, TimerState timerState,
+      AsyncValue<SavingConfig> configAsync) {
+    // Timer logic removed as requested, but keeping rates/weight for display
+    final gstRate = (configAsync.valueOrNull?.gst ?? 3.0) / 100;
+    final currentRate = timerState.isActive
+        ? (widget.metalId == '1'
+            ? timerState.lockedRates!.goldSell
+            : timerState.lockedRates!.silverSell)
+        : widget.rate;
+    final goldValueWithoutTax = widget.amount / (1 + gstRate);
+    final weight = goldValueWithoutTax / currentRate;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 20.h),
       child: Column(
         children: [
-          Text('TOTAL PAYABLE',
-              style: GoogleFonts.outfit(
-                  fontSize: 12.sp,
-                  color: isDark ? Colors.white38 : Colors.black38,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5)),
-          SizedBox(height: 8.h),
-          Text('₹${widget.amount.toStringAsFixed(2)}',
-              style: GoogleFonts.outfit(
-                  fontSize: 40.sp,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : Colors.black)),
+          if (_showUpdateSuccess) _buildUpdateBanner(),
+          Container(
+            padding: EdgeInsets.all(20.r),
+            decoration: BoxDecoration(
+              gradient: isDark
+                  ? const LinearGradient(
+                      colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : const LinearGradient(
+                      // same gradient as the page header
+                      begin: Alignment(-0.87, -0.5),
+                      end: Alignment(0.87, 0.5),
+                      colors: [Color(0xFF003716), Color(0xFF167525)],
+                      stops: [0.0223, 0.9399],
+                    ),
+              borderRadius: BorderRadius.circular(20.r),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withOpacity(0.3)
+                      : const Color(0xFF003716).withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('TOTAL PAYABLE',
+                            style: GoogleFonts.lora(
+                                fontSize: 10.sp,
+                                color: Colors.white.withOpacity(0.6),
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.5)),
+                        SizedBox(height: 6.h),
+                        Text('₹${widget.amount.toStringAsFixed(2)}',
+                            style: GoogleFonts.lora(
+                                fontSize: 20.sp,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: -0.5)),
+                      ],
+                    ),
+                    Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(100.r),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.auto_graph_rounded,
+                              color: Colors.white, size: 14.sp),
+                          SizedBox(width: 8.w),
+                          Text(
+                            widget.metalId == '1' ? '24K GOLD' : 'PURE SILVER',
+                            style: GoogleFonts.lora(
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 20.h),
+                Container(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20.r),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 11,
+                        child: _buildSummaryItem(
+                          'WT. ACCUMULATED',
+                          '${_isRefreshing ? "..." : weight.toStringAsFixed(4)} gm',
+                          true,
+                          Icons.scale_rounded,
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 30.h,
+                        color: Colors.white.withOpacity(0.12),
+                        margin: EdgeInsets.symmetric(horizontal: 12.w),
+                      ),
+                      Expanded(
+                        flex: 10,
+                        child: _buildSummaryItem(
+                          'LIVE PRICE / GM',
+                          _isRefreshing
+                              ? "Updating..."
+                              : '₹${currentRate.toStringAsFixed(2)}',
+                          true,
+                          Icons.trending_up_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildUpdateBanner() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: EdgeInsets.only(bottom: 16.h),
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        color: const Color(0xFF064E3B).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: const Color(0xFF064E3B).withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.check_circle_rounded,
+              color: const Color(0xFF064E3B), size: 18.sp),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Text(
+              'Live Price Updated Successfully',
+              style: GoogleFonts.lora(
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF064E3B),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem(
+      String label, String value, bool isDarkHeader, IconData icon) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12.sp, color: Colors.white.withOpacity(0.5)),
+            SizedBox(width: 6.w),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: GoogleFonts.lora(
+                  fontSize: 9.sp,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white.withOpacity(0.5),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          value,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+          style: GoogleFonts.lora(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+      ],
     );
   }
 
@@ -158,44 +652,84 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
           duration: const Duration(milliseconds: 200),
           padding: EdgeInsets.all(20.w),
           decoration: BoxDecoration(
-            color: isDark ? Colors.white.withOpacity(0.03) : Colors.white,
-            borderRadius: BorderRadius.circular(24.r),
+            color: isSelected
+                ? const Color(0xFF1B882C).withOpacity(0.06)
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.03)
+                    : Colors.white),
+            borderRadius: BorderRadius.circular(20.r),
             border: Border.all(
                 color: isSelected
-                    ? AppTheme.arcticBlue
+                    ? const Color(0xFF1B882C)
                     : (isDark
-                        ? Colors.white10
-                        : Colors.black.withOpacity(0.05)),
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.black.withValues(alpha: 0.05)),
                 width: isSelected ? 2 : 1),
             boxShadow: [
               if (isSelected)
                 BoxShadow(
-                    color: AppTheme.arcticBlue.withOpacity(0.2),
+                    color: const Color(0xFF1B882C).withOpacity(0.15),
                     blurRadius: 15,
                     offset: const Offset(0, 8)),
+              if (!isDark && !isSelected)
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
             ],
           ),
           child: Row(
             children: [
               Container(
-                width: 48.r,
-                height: 48.r,
+                width: 54.r,
+                height: 54.r,
                 decoration: BoxDecoration(
-                    color: (isDark ? Colors.white : Colors.black)
-                        .withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(14.r)),
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16.r)),
                 child: Center(
-                    child: Icon(Icons.payment, color: AppTheme.arcticBlue)),
+                    child: Icon(_getPaymentIcon(method.name),
+                        color: isSelected
+                            ? const Color(0xFF1B882C)
+                            : (isDark ? Colors.white24 : Colors.black26),
+                        size: 24.sp)),
               ),
               SizedBox(width: 16.w),
-              Text(method.name,
-                  style: GoogleFonts.outfit(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : Colors.black)),
-              const Spacer(),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(method.name.toUpperCase(),
+                        style: GoogleFonts.lora(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            color: isDark ? Colors.white : Colors.black)),
+                    SizedBox(height: 4.h),
+                    Text(
+                      method.description,
+                      style: GoogleFonts.lora(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white38 : Colors.black45,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
               if (isSelected)
-                Icon(Icons.check_circle_rounded, color: AppTheme.arcticBlue),
+                Container(
+                  padding: EdgeInsets.all(4.r),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1B882C),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.check, color: Colors.white, size: 12.sp),
+                ),
             ],
           ),
         ),
@@ -203,27 +737,68 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
     );
   }
 
+  IconData _getPaymentIcon(String name) {
+    name = name.toLowerCase();
+    if (name.contains('card')) return Icons.credit_card_rounded;
+    if (name.contains('upi')) return Icons.account_balance_wallet_rounded;
+    if (name.contains('bank')) return Icons.account_balance_rounded;
+    if (name.contains('cashfree')) return Icons.bolt_rounded;
+    return Icons.payment_rounded;
+  }
+
   Widget _buildBottomAction(bool isDark) {
-    return Padding(
-      padding: EdgeInsets.all(24.w),
-      child: SizedBox(
-        width: double.infinity,
-        height: 56.h,
-        child: ElevatedButton(
-          onPressed: _isLoading ? null : _createPaymentOrder,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.arcticBlue,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.r)),
-            elevation: 0,
-          ),
-          child: _isLoading
-              ? const CircularProgressIndicator(color: Colors.white)
-              : Text('Proceed to Pay',
-                  style: GoogleFonts.outfit(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white)),
+    final isDisabled = _isLoading || _isRefreshing || _selectedMethodId == null;
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 16.h),
+        decoration: const BoxDecoration(color: Colors.transparent),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.security_rounded,
+                    color: const Color(0xFF1B882C), size: 14.sp),
+                SizedBox(width: 8.w),
+                Text(
+                  '100% Secure Payments',
+                  style: GoogleFonts.lora(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1B882C),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16.h),
+            CustomButton(
+              text: 'Proceed to Pay',
+              isLoading: _isLoading,
+              onPressed: isDisabled ? null : _createPaymentOrder,
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: isDisabled
+                    ? [
+                        const Color(0xFF1B882C).withOpacity(0.45),
+                        const Color(0xFF003716).withOpacity(0.45),
+                      ]
+                    : const [Color(0xFF1B882C), Color(0xFF003716)],
+              ),
+              boxShadow: isDisabled
+                  ? []
+                  : [
+                      BoxShadow(
+                        color: const Color(0xFF1B882C).withOpacity(0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+              textColor: Colors.white,
+            ),
+          ],
         ),
       ),
     );

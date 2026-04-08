@@ -23,7 +23,7 @@ class SupportScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Support Center',
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.lora(
                 fontSize: 20.sp,
                 fontWeight: FontWeight.w700,
                 color: isDark ? Colors.white : Colors.black)),
@@ -38,7 +38,7 @@ class SupportScreen extends StatelessWidget {
             _buildSearchBox(isDark),
             SizedBox(height: 32.h),
             Text('Quick Assistance',
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.lora(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.bold,
                     color: isDark ? Colors.white : Colors.black87)),
@@ -54,7 +54,7 @@ class SupportScreen extends StatelessWidget {
             ),
             SizedBox(height: 32.h),
             Text('Frequently Asked Questions',
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.lora(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.bold,
                     color: isDark ? Colors.white : Colors.black87)),
@@ -90,7 +90,7 @@ class SupportScreen extends StatelessWidget {
           Icon(Icons.search, color: Colors.grey, size: 22.sp),
           SizedBox(width: 12.w),
           Text('Search for help...',
-              style: GoogleFonts.outfit(color: Colors.grey, fontSize: 16.sp)),
+              style: GoogleFonts.lora(color: Colors.grey, fontSize: 16.sp)),
         ],
       ),
     );
@@ -111,7 +111,7 @@ class SupportScreen extends StatelessWidget {
             Icon(icon, color: AppTheme.arcticBlue, size: 30.sp),
             SizedBox(height: 12.h),
             Text(title,
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.lora(
                     fontSize: 15.sp,
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : Colors.black87)),
@@ -136,7 +136,7 @@ class SupportScreen extends StatelessWidget {
             children: [
               Expanded(
                   child: Text(ques,
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.lora(
                           fontSize: 15.sp,
                           fontWeight: FontWeight.bold,
                           color: isDark ? Colors.white : Colors.black87))),
@@ -145,10 +145,11 @@ class SupportScreen extends StatelessWidget {
           ),
           SizedBox(height: 8.h),
           Text(ans,
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.lora(
                   fontSize: 13.sp, color: Colors.grey, height: 1.4)),
         ],
       ),
     );
   }
 }
+

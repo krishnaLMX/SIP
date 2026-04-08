@@ -1,13 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/api_client.dart';
+import 'package:startgold/core/providers/commodity_provider.dart';
 
 class CountryCode {
+  final String id;
   final String name;
   final String code; // ISO code (e.g., IN)
   final String prefix; // Phone prefix (e.g., +91)
   final String flag;
 
   CountryCode({
+    required this.id,
     required this.name,
     required this.code,
     required this.prefix,
@@ -16,6 +19,7 @@ class CountryCode {
 
   factory CountryCode.fromJson(Map<String, dynamic> json) {
     return CountryCode(
+      id: json['id_country']?.toString() ?? '101',
       name: json['name'] ?? '',
       code: json['iso'] ?? '',
       prefix: json['code'] ?? '',
@@ -61,6 +65,23 @@ class AmountDenomination {
   }
 }
 
+class WeightDenomination {
+  final double value;
+  final bool isPopular;
+
+  WeightDenomination({
+    required this.value,
+    required this.isPopular,
+  });
+
+  factory WeightDenomination.fromJson(Map<String, dynamic> json) {
+    return WeightDenomination(
+      value: (json['value'] ?? 0).toDouble(),
+      isPopular: (json['is_popular'] ?? 0) == 1,
+    );
+  }
+}
+
 class SharedService {
   final ApiClient _apiClient = ApiClient();
 
@@ -72,11 +93,21 @@ class SharedService {
         return list.map((item) => CountryCode.fromJson(item)).toList();
       }
       return [
-        CountryCode(name: 'India', code: 'IN', prefix: '+91', flag: '🇮🇳')
+        CountryCode(
+            id: '101',
+            name: 'India',
+            code: 'IN',
+            prefix: '+91',
+            flag: 'ðŸ‡®ðŸ‡³')
       ]; // Fallback
     } catch (e) {
       return [
-        CountryCode(name: 'India', code: 'IN', prefix: '+91', flag: '🇮🇳')
+        CountryCode(
+            id: '101',
+            name: 'India',
+            code: 'IN',
+            prefix: '+91',
+            flag: 'ðŸ‡®ðŸ‡³')
       ]; // Fallback
     }
   }
@@ -89,54 +120,75 @@ class SharedService {
         return list.map((item) => Commodity.fromJson(item)).toList();
       }
       return [
-        Commodity(id: '1', webSocketId: 91, name: 'Gold 24KT'),
-        Commodity(id: '2', webSocketId: 98, name: 'Silver 999'),
+        Commodity(id: '1', webSocketId: 1, name: 'Gold 24K'),
+        Commodity(id: '3', webSocketId: 3, name: 'Silver'),
       ]; // Fallback
     } catch (e) {
       return [
-        Commodity(id: '1', webSocketId: 91, name: 'Gold 24KT'),
-        Commodity(id: '2', webSocketId: 98, name: 'Silver 999'),
+        Commodity(id: '1', webSocketId: 1, name: 'Gold 24K'),
+        Commodity(id: '3', webSocketId: 3, name: 'Silver'),
       ]; // Fallback
     }
   }
 
-  Future<List<AmountDenomination>> getAmountDenominations() async {
+  Future<List<AmountDenomination>> getAmountDenominations(
+      String idMetal) async {
     try {
       final response =
-          await _apiClient.post('users/shared/amount-denominations');
+          await _apiClient.post('users/shared/amount-denominations', data: {
+        'id_metal': idMetal,
+      });
       if (response.data != null && response.data['data'] != null) {
         final List list = response.data['data'];
         return list.map((item) => AmountDenomination.fromJson(item)).toList();
       }
-      return [
-        AmountDenomination(value: 10, isPopular: false),
-        AmountDenomination(value: 50, isPopular: false),
-        AmountDenomination(value: 100, isPopular: true),
-      ]; // Fallback
+      return [];
     } catch (e) {
-      return [
-        AmountDenomination(value: 10, isPopular: false),
-        AmountDenomination(value: 50, isPopular: false),
-        AmountDenomination(value: 100, isPopular: true),
-      ]; // Fallback
+      return [];
+    }
+  }
+
+  Future<List<WeightDenomination>> getWeightDenominations(
+      String idMetal) async {
+    try {
+      final response =
+          await _apiClient.post('users/shared/weight-denominations', data: {
+        'id_metal': idMetal,
+      });
+      if (response.data != null && response.data['data'] != null) {
+        final List list = response.data['data'];
+        return list.map((item) => WeightDenomination.fromJson(item)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
     }
   }
 }
 
 final sharedServiceProvider = Provider<SharedService>((ref) => SharedService());
 
-final countryCodesProvider = FutureProvider<List<CountryCode>>((ref) {
+final countryCodesProvider =
+    FutureProvider.autoDispose<List<CountryCode>>((ref) {
   final service = ref.watch(sharedServiceProvider);
   return service.getCountryCodes();
 });
 
-final commoditiesProvider = FutureProvider<List<Commodity>>((ref) {
+final commoditiesProvider = FutureProvider.autoDispose<List<Commodity>>((ref) {
   final service = ref.watch(sharedServiceProvider);
   return service.getCommodities();
 });
 
 final amountDenominationsProvider =
-    FutureProvider<List<AmountDenomination>>((ref) {
+    FutureProvider.autoDispose<List<AmountDenomination>>((ref) {
   final service = ref.watch(sharedServiceProvider);
-  return service.getAmountDenominations();
+  final idMetal = ref.watch(selectedMetalIdProvider); // dynamic from API
+  return service.getAmountDenominations(idMetal);
+});
+
+final weightDenominationsProvider =
+    FutureProvider.autoDispose<List<WeightDenomination>>((ref) {
+  final service = ref.watch(sharedServiceProvider);
+  final idMetal = ref.watch(selectedMetalIdProvider); // dynamic from API
+  return service.getWeightDenominations(idMetal);
 });

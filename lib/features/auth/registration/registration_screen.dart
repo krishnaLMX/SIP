@@ -7,7 +7,8 @@ import '../controller/auth_controller.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/animations.dart';
-import '../../../shared/theme/app_theme.dart';
+import '../../../shared/widgets/app_toast.dart';
+import '../../../core/services/auth_service.dart';
 
 class RegistrationScreen extends ConsumerStatefulWidget {
   final String mobile;
@@ -23,12 +24,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _dobController = TextEditingController();
+  final _referralController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(authControllerProvider.notifier).clearError();
+      if (mounted) ref.read(authControllerProvider.notifier).clearError();
     });
   }
 
@@ -36,219 +39,301 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _dobController.dispose();
+    _referralController.dispose();
     super.dispose();
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime now = DateTime.now();
+    final DateTime yesterday = now.subtract(const Duration(days: 1));
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: now.subtract(const Duration(days: 6570)), // Default 18 years
+      firstDate: DateTime(1900),
+      lastDate: yesterday,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF064E3B),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final formattedDate =
+          "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+      setState(() {
+        _dobController.text = formattedDate;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AuthState>(authControllerProvider, (prev, next) {
+      if (next.error != null && next.error != prev?.error && mounted) {
+        AppToast.show(context, next.error!, type: ToastType.error);
+      }
+    });
+
     final authState = ref.watch(authControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final primaryTextColor = isDark ? Colors.white : const Color(0xFF333333);
+    final inputBgColor = isDark ? Colors.white.withOpacity(0.05) : Colors.white;
+
     return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              color: isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
-            ),
-          ),
-          SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.w),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: MediaQuery.of(context).size.height -
-                        MediaQuery.of(context).padding.top -
-                        MediaQuery.of(context).padding.bottom,
-                  ),
-                  child: IntrinsicHeight(
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(height: 16.h),
-                          IconButton(
-                            icon: Icon(Icons.arrow_back_ios_new_rounded,
-                                size: 22.sp),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          SizedBox(height: 32.h),
-                          FadeInAnimation(
-                            delay: const Duration(milliseconds: 100),
-                            child: Text(
-                              'Complete Your\nProfile',
-                              style: GoogleFonts.outfit(
-                                fontSize: 42.sp,
-                                fontWeight: FontWeight.w900,
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF0F172A),
-                                height: 1.05,
-                                letterSpacing: -1.5,
-                              ),
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Scrollable Content ─────────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24.w),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 16.h),
+                        IconButton(
+                          icon: Icon(Icons.arrow_back, color: primaryTextColor),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        SizedBox(height: 32.h),
+
+                        // Title — matches Figma: 2-line wrap, serif bold
+                        FadeInAnimation(
+                          delay: const Duration(milliseconds: 100),
+                          child: Text(
+                            'Enter full name exactly as on \nPAN Card',
+                            style: GoogleFonts.lora(
+                              fontSize: 20.sp,
+                              fontWeight: FontWeight.bold,
+                              color: primaryTextColor,
+                              height: 1.35,
                             ),
                           ),
-                          SizedBox(height: 16.h),
-                          FadeInAnimation(
-                            delay: const Duration(milliseconds: 200),
-                            child: Text(
-                              'Join the elite circle of smart investors.',
-                              style: GoogleFonts.outfit(
-                                fontSize: 17.sp,
-                                color: isDark ? Colors.white54 : Colors.black45,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 48.h),
-                          _buildTextField(
-                            controller: _nameController,
-                            label: 'Full Name',
-                            hint: 'Enter your name',
-                            icon: Icons.person_outline,
-                            validator: (v) => v == null || v.isEmpty
-                                ? 'Name is required'
-                                : null,
-                            delay: 300,
-                          ),
-                          SizedBox(height: 24.h),
-                          _buildTextField(
-                            controller: _emailController,
-                            label: 'Email Address',
-                            hint: 'Enter your email',
-                            icon: Icons.email_outlined,
-                            keyboardType: TextInputType.emailAddress,
-                            validator: (v) {
-                              if (v == null || v.isEmpty)
-                                return 'Email is required';
-                              if (!v.contains('@') || !v.contains('.')) {
-                                return 'Please enter a valid email';
-                              }
-                              return null;
-                            },
-                            delay: 400,
-                          ),
-                          if (authState.error != null)
-                            Padding(
-                              padding: EdgeInsets.only(top: 24.h),
-                              child: Center(
-                                child: Text(authState.error!,
-                                    style: GoogleFonts.outfit(
-                                        color: Colors.redAccent,
-                                        fontWeight: FontWeight.w600)),
-                              ),
-                            ),
-                          const Spacer(),
-                          FadeInAnimation(
-                            delay: const Duration(milliseconds: 500),
-                            child: CustomButton(
-                              text: 'Continue to Secure PIN',
-                              isLoading: authState.isLoading,
-                              onPressed: _handleRegistration,
-                              backgroundColor: AppTheme.arcticBlue,
-                            ),
-                          ),
-                          SizedBox(height: 24.h),
-                        ],
-                      ),
+                        ),
+                        SizedBox(height: 36.h),
+
+                        // Full Name Field
+                        _buildInputLabel('Full Name *', primaryTextColor),
+                        SizedBox(height: 8.h),
+                        _buildClassicTextField(
+                          controller: _nameController,
+                          hint: 'Enter your full name',
+                          bgColor: inputBgColor,
+                          textColor: primaryTextColor,
+                          textCapitalization: TextCapitalization.words,
+                          inputFormatters: [
+                            TextInputFormatter.withFunction((oldValue, newValue) {
+                              final text = newValue.text;
+                              if (text.isEmpty) return newValue;
+                              final capitalized = text.split(' ').map((word) {
+                                if (word.isEmpty) return word;
+                                return word[0].toUpperCase() + word.substring(1);
+                              }).join(' ');
+                              return newValue.copyWith(text: capitalized);
+                            }),
+                          ],
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Required' : null,
+                        ),
+
+                        SizedBox(height: 24.h),
+
+                        // DOB Field
+                        _buildInputLabel('Date of Birth *', primaryTextColor),
+                        SizedBox(height: 8.h),
+                        _buildClassicTextField(
+                          controller: _dobController,
+                          hint: 'DD/MM/YYYY',
+                          bgColor: inputBgColor,
+                          textColor: primaryTextColor,
+                          readOnly: true,
+                          onTap: () => _selectDate(context),
+                          suffixIcon: Icon(Icons.calendar_today_rounded,
+                              size: 20.sp,
+                              color: primaryTextColor.withOpacity(0.5)),
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Required' : null,
+                        ),
+
+                        SizedBox(height: 24.h),
+
+                        // Email Field
+                        _buildInputLabel('Email *', primaryTextColor),
+                        SizedBox(height: 8.h),
+                        _buildClassicTextField(
+                          controller: _emailController,
+                          hint: 'Enter your email',
+                          bgColor: inputBgColor,
+                          textColor: primaryTextColor,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Email is required';
+                            }
+                            // RFC-compliant email pattern
+                            final emailRegex = RegExp(
+                              r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+                            );
+                            if (!emailRegex.hasMatch(v.trim())) {
+                              return 'Enter a valid email address';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        SizedBox(height: 24.h),
+
+                        // Referral Field
+                        _buildInputLabel(
+                            'Referral Code (Optional)', primaryTextColor),
+                        SizedBox(height: 8.h),
+                        _buildClassicTextField(
+                          controller: _referralController,
+                          hint: 'Enter referral code',
+                          bgColor: inputBgColor,
+                          textColor: primaryTextColor,
+                          textCapitalization: TextCapitalization.characters,
+                        ),
+
+                        SizedBox(height: 24.h),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+
+            // ── Pinned Footer ──────────────────────────────────────────
+            Padding(
+              padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 28.h),
+              child: FadeInAnimation(
+                delay: const Duration(milliseconds: 400),
+                child: CustomButton(
+                  text: 'Confirm',
+                  isLoading: authState.isLoading,
+                  onPressed: _handleRegistration,
+                  gradient: const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [Color(0xFF1B882C), Color(0xFF003716)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF8F4C05).withOpacity(0.06),
+                      offset: const Offset(0, 4),
+                      blurRadius: 10,
+                    ),
+                  ],
+                  textColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildTextField({
+  Widget _buildInputLabel(String label, Color color) {
+    return Text(
+      label,
+      style: GoogleFonts.lora(
+        fontSize: 15.sp,
+        fontWeight: FontWeight.w500,
+        color: color,
+      ),
+    );
+  }
+
+  Widget _buildClassicTextField({
     required TextEditingController controller,
-    required String label,
     required String hint,
-    required IconData icon,
+    required Color bgColor,
+    required Color textColor,
     TextInputType? keyboardType,
+    int? maxLength,
+    TextAlign textAlign = TextAlign.start,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    bool readOnly = false,
+    VoidCallback? onTap,
+    Widget? suffixIcon,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
-    required int delay,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return FadeInAnimation(
-      delay: Duration(milliseconds: delay),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white70 : Colors.black54,
-            ),
-          ),
-          SizedBox(height: 10.h),
-          TextFormField(
-            controller: controller,
-            keyboardType: keyboardType,
-            inputFormatters: inputFormatters,
-            validator: validator,
-            style: GoogleFonts.outfit(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-            ),
-            decoration: InputDecoration(
-              hintText: hint,
-              prefixIcon: Icon(icon, size: 20.sp, color: AppTheme.arcticBlue),
-              filled: true,
-              fillColor: isDark
-                  ? Colors.white.withOpacity(0.04)
-                  : Colors.black.withOpacity(0.04),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(20.r),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(20.r),
-                borderSide: BorderSide(
-                  color: isDark ? Colors.white10 : Colors.black12,
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(20.r),
-                borderSide:
-                    const BorderSide(color: AppTheme.arcticBlue, width: 2),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(20.r),
-                borderSide:
-                    const BorderSide(color: Colors.redAccent, width: 1.5),
-              ),
-            ),
-          ),
-        ],
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLength: maxLength,
+      textAlign: textAlign,
+      textCapitalization: textCapitalization,
+      readOnly: readOnly,
+      onTap: onTap,
+      validator: validator,
+      inputFormatters: inputFormatters,
+      style: GoogleFonts.lora(
+        fontSize: 16.sp,
+        fontWeight: FontWeight.w500,
+        color: textColor,
+      ),
+      decoration: InputDecoration(
+        counterText: '',
+        hintText: hint,
+        hintStyle: GoogleFonts.lora(
+            fontSize: 16.sp, color: textColor.withOpacity(0.6)),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: bgColor,
+        contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 20.h),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          borderSide: BorderSide(color: textColor.withOpacity(0.1)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          borderSide: BorderSide(color: textColor.withOpacity(0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          borderSide: BorderSide(color: textColor.withOpacity(0.3), width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+        ),
       ),
     );
   }
 
   Future<void> _handleRegistration() async {
     if (_formKey.currentState!.validate()) {
-      final success = await ref.read(authControllerProvider.notifier).register(
-            mobile: widget.mobile,
-            fullName: _nameController.text,
-            email: _emailController.text,
-            tempToken: widget.tempToken,
-          );
-
-      if (success && mounted) {
+      if (mounted) {
         Navigator.pushReplacementNamed(
           context,
-          AppRouter.home,
-          arguments: {'mobile': widget.mobile},
+          AppRouter.mpinCreation,
+          arguments: {
+            'fullName': _nameController.text,
+            'mobile': widget.mobile,
+            'email': _emailController.text,
+            'dob': _dobController.text,
+            'referralCode': _referralController.text,
+            'tempToken': widget.tempToken,
+          },
         );
       }
     }

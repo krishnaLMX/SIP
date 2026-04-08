@@ -5,6 +5,7 @@ import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/animations.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../routes/app_router.dart';
+import '../../../shared/widgets/app_toast.dart';
 
 class PanVerificationScreen extends StatefulWidget {
   const PanVerificationScreen({super.key});
@@ -25,9 +26,7 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
 
   void _handleVerify() async {
     if (_panController.text.length < 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid 10-digit PAN')),
-      );
+      AppToast.show(context, 'Please enter a valid 10-digit PAN', type: ToastType.warning);
       return;
     }
 
@@ -59,14 +58,14 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
             ),
             SizedBox(height: 24.h),
             Text('Verification Sent',
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.lora(
                     fontSize: 20.sp, fontWeight: FontWeight.w900)),
             SizedBox(height: 12.h),
             Text(
                 'We are validating your documents. You will be notified once verified.',
                 textAlign: TextAlign.center,
                 style:
-                    GoogleFonts.outfit(fontSize: 14.sp, color: Colors.black54)),
+                    GoogleFonts.lora(fontSize: 14.sp, color: Colors.black54)),
             SizedBox(height: 32.h),
             SizedBox(
               width: double.infinity,
@@ -97,7 +96,7 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
           isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text('PAN Verification',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.w700)),
+            style: GoogleFonts.lora(fontWeight: FontWeight.w700)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -111,7 +110,7 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
               delay: const Duration(milliseconds: 100),
               child: Text(
                 'Enter Permanent Account\nNumber (PAN) Details',
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.lora(
                   fontSize: 24.sp,
                   fontWeight: FontWeight.w900,
                   height: 1.2,
@@ -121,7 +120,7 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
             SizedBox(height: 12.h),
             Text(
               'Required for tax reporting on your investments.',
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.lora(
                   color: isDark ? Colors.white54 : Colors.black54),
             ),
             SizedBox(height: 48.h),
@@ -154,7 +153,7 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.lora(
                 fontWeight: FontWeight.w700, fontSize: 14.sp)),
         SizedBox(height: 12.h),
         TextField(
@@ -162,9 +161,10 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
           keyboardType: type,
           textCapitalization: textCapitalization,
           style:
-              GoogleFonts.outfit(fontSize: 18.sp, fontWeight: FontWeight.w600),
+              GoogleFonts.lora(fontSize: 18.sp, fontWeight: FontWeight.w600),
           decoration: InputDecoration(
             hintText: hint,
+            hintStyle: GoogleFonts.lora(fontSize: 16.sp, color: isDark ? Colors.white38 : Colors.black38),
             filled: true,
             fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
             border: OutlineInputBorder(
@@ -177,3 +177,4 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
     );
   }
 }
+

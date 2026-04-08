@@ -12,21 +12,21 @@ class PortfolioService {
         'portfolio/summary',
         data: {
           'id_metal': idMetal,
-          'id_customer': idCustomer,
+          //'id_customer': idCustomer,
         },
       );
       if (response.data != null && response.data['success'] == true) {
         final data = response.data['data'] ?? {};
 
-        final invested = (data['total_invested'] ?? 0).toDouble();
-        final value = (data['current_value_inr'] ?? 0).toDouble();
-        final balance = (data['total_holdings_grams'] ?? 0).toDouble();
+        final invested = double.tryParse(data['total_invested']?.toString() ?? '0') ?? 0.0;
+        final value = double.tryParse(data['current_value_inr']?.toString() ?? '0') ?? 0.0;
+        final balance = double.tryParse(data['total_holdings_grams']?.toString() ?? '0') ?? 0.0;
 
         final summary = CommodityPortfolio(
           totalInvested: invested,
           currentValue: value,
           returns: value - invested,
-          returnsPercentage: (data['growth_percentage'] ?? 0).toDouble(),
+          returnsPercentage: double.tryParse(data['growth_percentage']?.toString() ?? '0') ?? 0.0,
           balance: balance,
           hasActiveAccount: balance > 0 || invested > 0,
         );

@@ -1,9 +1,9 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sip/core/providers/user_provider.dart';
-import 'package:sip/features/kyc/models/kyc_document.dart';
-import 'package:sip/features/kyc/repositories/kyc_repository.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:startgold/core/providers/user_provider.dart';
+import 'package:startgold/features/kyc/models/kyc_document.dart';
+import 'package:startgold/features/kyc/repositories/kyc_repository.dart';
 
-final kycDocumentsProvider = FutureProvider.family<List<KycDocumentType>, String>((ref, requestFrom) async {
+final kycDocumentsProvider = FutureProvider.autoDispose.family<List<KycDocumentType>, String>((ref, requestFrom) async {
   final user = ref.watch(userProvider);
   if (user == null) return [];
   
@@ -27,8 +27,6 @@ class KycSubmitController extends StateNotifier<AsyncValue<bool>> {
     required String requestFrom,
     required String documentId,
     required Map<String, dynamic> fields,
-    String? frontPath,
-    String? backPath,
   }) async {
     state = const AsyncValue.loading();
     try {
@@ -38,8 +36,6 @@ class KycSubmitController extends StateNotifier<AsyncValue<bool>> {
         requestFrom: requestFrom,
         documentId: documentId,
         fields: fields,
-        frontPath: frontPath,
-        backPath: backPath,
       );
       state = AsyncValue.data(success);
     } catch (e, st) {
@@ -47,3 +43,4 @@ class KycSubmitController extends StateNotifier<AsyncValue<bool>> {
     }
   }
 }
+

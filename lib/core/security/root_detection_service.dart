@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'package:root_checker_plus/root_checker_plus.dart';
 import 'dart:io';
 
@@ -16,3 +16,4 @@ class RootDetectionService {
     return false;
   }
 }
+

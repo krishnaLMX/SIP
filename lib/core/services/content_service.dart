@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/api_client.dart';
 
 class ContentService {
@@ -20,7 +20,7 @@ class ContentService {
 
   Future<Map<String, dynamic>> getTermsAndConditions() async {
     try {
-      final response = await _apiClient.post('users/content/terms');
+      final response = await _apiClient.post('content/terms');
       return response.data['data'] ?? {};
     } catch (e) {
       return {};
@@ -29,7 +29,7 @@ class ContentService {
 
   Future<Map<String, dynamic>> getPrivacyPolicy() async {
     try {
-      final response = await _apiClient.post('users/content/privacy');
+      final response = await _apiClient.post('content/privacy');
       return response.data['data'] ?? {};
     } catch (e) {
       return {};
@@ -38,7 +38,7 @@ class ContentService {
 
   Future<List<dynamic>> getFAQs() async {
     try {
-      final response = await _apiClient.post('users/content/faqs');
+      final response = await _apiClient.post('content/faqs');
       return response.data['data']['faqs'] ?? [];
     } catch (e) {
       return [];
@@ -47,7 +47,7 @@ class ContentService {
 
   Future<Map<String, dynamic>> getAboutUs() async {
     try {
-      final response = await _apiClient.post('users/content/about-us');
+      final response = await _apiClient.post('content/about-us');
       return response.data['data'] ?? {};
     } catch (e) {
       return {};
@@ -56,7 +56,7 @@ class ContentService {
 
   Future<Map<String, dynamic>> getContactUs() async {
     try {
-      final response = await _apiClient.post('users/content/contact-us');
+      final response = await _apiClient.post('content/contact-us');
       return response.data['data'] ?? {};
     } catch (e) {
       return {};
@@ -92,3 +92,4 @@ final aboutUsProvider = FutureProvider<Map<String, dynamic>>((ref) {
 final contactUsProvider = FutureProvider<Map<String, dynamic>>((ref) {
   return ref.watch(contentServiceProvider).getContactUs();
 });
+

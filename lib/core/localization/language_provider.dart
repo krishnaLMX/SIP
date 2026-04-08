@@ -1,7 +1,5 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'language_service.dart';
 
 class LanguageState {
   final String currentLocale;
@@ -28,49 +26,20 @@ class LanguageState {
 }
 
 class LanguageNotifier extends StateNotifier<LanguageState> {
-  final LanguageService _service = LanguageService();
   static const String _keyLocale = 'selected_locale';
-  static const String _keyTranslations = 'app_translations';
 
   LanguageNotifier() : super(LanguageState()) {
     _init();
   }
 
   Future<void> _init() async {
-    final prefs = await SharedPreferences.getInstance();
-    final cachedLocale = prefs.getString(_keyLocale) ?? 'en';
-
-    // Load local cache immediately
-    final cachedData = prefs.getString(_keyTranslations);
-    Map<String, Map<String, String>> localTranslations = {};
-    if (cachedData != null) {
-      try {
-        final decoded = jsonDecode(cachedData) as Map<String, dynamic>;
-        localTranslations =
-            decoded.map((k, v) => MapEntry(k, Map<String, String>.from(v)));
-      } catch (_) {}
-    }
-
+    // Current locale is English by default as per user request
     state = state.copyWith(
-      currentLocale: cachedLocale,
-      translations: localTranslations,
+      currentLocale: 'en',
+      translations: {},
     );
-
-    // Call API once in background
-    _fetchAndCacheTranslations(prefs);
   }
 
-  Future<void> _fetchAndCacheTranslations(SharedPreferences prefs) async {
-    try {
-      final remoteTranslations = await _service.fetchMegaTranslations();
-      if (remoteTranslations != null) {
-        state = state.copyWith(translations: remoteTranslations);
-        await prefs.setString(_keyTranslations, jsonEncode(remoteTranslations));
-      }
-    } catch (e) {
-      // Background call, fail silently
-    }
-  }
 
   Future<void> setLanguage(String localeCode) async {
     final prefs = await SharedPreferences.getInstance();
@@ -118,3 +87,4 @@ extension LocalizationHelper on WidgetRef {
     return trValue;
   }
 }
+

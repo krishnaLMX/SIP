@@ -8,32 +8,64 @@ class UserProfile {
   final String name;
   final String email;
   final String phone;
+  final String dob;
+  final String pincode;
+  final String state;
+  final String city;
   final String address;
+  final String idCountry;
+  final String idState;
+  final String idCity;
   final String? photoUrl;
+  final int kycStatus;
 
   UserProfile({
     required this.id,
     required this.name,
-    required this.email,
+    this.email = '',
     required this.phone,
+    required this.dob,
+    required this.pincode,
+    required this.state,
+    required this.city,
     required this.address,
+    required this.idCountry,
+    required this.idState,
+    required this.idCity,
     this.photoUrl,
+    this.kycStatus = 0,
   });
 
   UserProfile copyWith({
     String? name,
     String? email,
     String? phone,
+    String? dob,
+    String? pincode,
+    String? state,
+    String? city,
     String? address,
+    String? idCountry,
+    String? idState,
+    String? idCity,
     String? photoUrl,
+    int? kycStatus,
   }) {
     return UserProfile(
       id: this.id,
       name: name ?? this.name,
       email: email ?? this.email,
       phone: phone ?? this.phone,
+      dob: dob ?? this.dob,
+      pincode: pincode ?? this.pincode,
+      state: state ?? this.state,
+      city: city ?? this.city,
       address: address ?? this.address,
+      idCountry: idCountry ?? this.idCountry,
+      idState: idState ?? this.idState,
+      idCity: idCity ?? this.idCity,
       photoUrl: photoUrl ?? this.photoUrl,
+      kycStatus: kycStatus ?? this.kycStatus,
     );
   }
 }
@@ -79,9 +111,15 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
           user: UserProfile(
             id: _customerId,
             name: 'Investor',
-            email: '',
             phone: '',
+            dob: '',
+            pincode: '',
+            state: '',
+            city: '',
             address: '',
+            idCountry: '101',
+            idState: '',
+            idCity: '',
           ),
         )) {
     fetchProfileDetails();
@@ -98,8 +136,18 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
             name: data['name'] ?? data['full_name'] ?? 'Investor',
             email: data['email'] ?? '',
             phone: data['mobile'] ?? data['phone'] ?? '',
+            dob: data['dob'] ?? '',
+            pincode: data['pincode'] ?? '',
+            state: data['state'] ?? '',
+            city: data['city'] ?? '',
             address: data['address'] ?? '',
+            idCountry: data['id_country']?.toString() ?? '101',
+            idState: data['id_state']?.toString() ?? '',
+            idCity: data['id_city']?.toString() ?? '',
             photoUrl: data['photo_url'],
+            kycStatus: data['kyc_status'] != null
+                ? int.tryParse(data['kyc_status'].toString()) ?? 0
+                : 0,
           ),
           isLoading: false,
         );
@@ -115,10 +163,51 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     state = state.copyWith(isEditing: editing, error: null);
   }
 
-  Future<bool> updateProfile(
-      {required String name,
-      required String email,
-      required String address}) async {
+  Future<Map<String, String>?> checkPincode(String pincode) async {
+    try {
+      final result = await _profileService.checkPincode(pincode);
+      if (result != null) {
+        return {
+          'state': result['state'] ?? '',
+          'city': result['city'] ?? '',
+          'id_country': result['id_country']?.toString() ?? '101',
+          'id_state': result['id_state']?.toString() ?? '',
+          'id_city': result['id_city']?.toString() ?? '',
+        };
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  void updateLocationInfo({
+    required String stateVal,
+    required String city,
+    required String idCountry,
+    required String idState,
+    required String idCity,
+  }) {
+    state = state.copyWith(
+      user: state.user.copyWith(
+        state: stateVal,
+        city: city,
+        idCountry: idCountry,
+        idState: idState,
+        idCity: idCity,
+      ),
+    );
+  }
+
+  Future<bool> updateProfile({
+    required String name,
+    required String email,
+    required String dob,
+    required String pincode,
+    required String stateVal,
+    required String city,
+    required String address,
+  }) async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
@@ -126,12 +215,26 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         customerId: _customerId,
         name: name,
         email: email,
+        dob: dob,
+        pincode: pincode,
+        state: stateVal,
+        city: city,
         address: address,
+        idCountry: state.user.idCountry,
+        idState: state.user.idState,
+        idCity: state.user.idCity,
       );
 
       if (success) {
-        final updatedUser =
-            state.user.copyWith(name: name, email: email, address: address);
+        final updatedUser = state.user.copyWith(
+          name: name,
+          email: email,
+          dob: dob,
+          pincode: pincode,
+          state: stateVal,
+          city: city,
+          address: address,
+        );
         state = state.copyWith(
           user: updatedUser,
           isLoading: false,
@@ -160,13 +263,9 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       );
 
       if (success) {
-        // In a real app, the server might return the new URL
-        // For now, we update local state with a mock URL or just use the File path for immediate preview if needed
-        // but since we want to simulate a real upload, we'll keep it simple
-        state = state.copyWith(
-          isPhotoLoading: false,
-          error: null,
-        );
+        // Re-fetch profile to get the updated photo_url from server
+        await fetchProfileDetails();
+        state = state.copyWith(isPhotoLoading: false);
         return true;
       } else {
         throw Exception('Upload failed');
@@ -188,3 +287,4 @@ final profileProvider =
   final customerId = user?.id ?? '';
   return ProfileNotifier(service, customerId);
 });
+

@@ -23,11 +23,13 @@ final marketRatesStreamProvider = StreamProvider<MarketRates>((ref) {
     String? sName;
     for (var c in commodities) {
       if (c.name.toLowerCase().contains('gold')) {
-        gId = c.webSocketId > 0 ? c.webSocketId.toString() : '91';
+        // Use c.id (id_metal field: '1') — this matches socket parts[1].
+        // Do NOT use c.webSocketId (web_soc_id: 91) — socket does NOT use it.
+        gId = c.id.isNotEmpty ? c.id : '1';
         gName = c.name;
       }
       if (c.name.toLowerCase().contains('silver')) {
-        sId = c.webSocketId > 0 ? c.webSocketId.toString() : '98';
+        sId = c.id.isNotEmpty ? c.id : '3';
         sName = c.name;
       }
     }

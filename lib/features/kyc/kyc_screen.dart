@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:sip/shared/theme/app_theme.dart';
-import 'package:sip/shared/widgets/animations.dart';
-import 'package:sip/shared/widgets/custom_button.dart';
-import 'package:sip/features/kyc/providers/kyc_provider.dart';
-import 'package:sip/features/kyc/models/kyc_step.dart';
+import 'package:startgold/shared/theme/app_theme.dart';
+import 'package:startgold/shared/widgets/animations.dart';
+import 'package:startgold/shared/widgets/custom_button.dart';
+import 'package:startgold/features/kyc/providers/kyc_provider.dart';
+import 'package:startgold/features/kyc/models/kyc_step.dart';
 
 class KycScreen extends ConsumerWidget {
   const KycScreen({super.key});
@@ -44,7 +44,7 @@ class KycScreen extends ConsumerWidget {
                     delay: const Duration(milliseconds: 100),
                     child: Text(
                       'Account\nVerification',
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.lora(
                         fontSize: 42.sp,
                         fontWeight: FontWeight.w900,
                         color: isDark ? Colors.white : const Color(0xFF0F172A),
@@ -60,7 +60,7 @@ class KycScreen extends ConsumerWidget {
                     delay: const Duration(milliseconds: 200),
                     child: Text(
                       'Complete verification to unlock elite investment categories and higher transfer limits.',
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.lora(
                         fontSize: 17.sp,
                         color: isDark ? Colors.white54 : Colors.black45,
                         fontWeight: FontWeight.w400,
@@ -160,7 +160,7 @@ class KycScreen extends ConsumerWidget {
                         Expanded(
                           child: Text(
                             step.title,
-                            style: GoogleFonts.outfit(
+                            style: GoogleFonts.lora(
                               fontSize: 18.sp,
                               fontWeight: FontWeight.w700,
                               color: isDark
@@ -177,7 +177,7 @@ class KycScreen extends ConsumerWidget {
                     SizedBox(height: 8.h),
                     Text(
                       step.description,
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.lora(
                         fontSize: 14.sp,
                         color: isDark ? Colors.white38 : Colors.black38,
                         height: 1.4,
@@ -193,3 +193,4 @@ class KycScreen extends ConsumerWidget {
     );
   }
 }
+

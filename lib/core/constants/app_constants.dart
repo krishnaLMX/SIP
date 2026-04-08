@@ -1,6 +1,6 @@
-class AppConstants {
-  static const String companyName = 'START GOLD';
-  static const String appName = 'START GOLD';
+﻿class AppConstants {
+  static const String companyName = 'startGOLD';
+  static const String appName = 'startGOLD';
 
   // Login Screen Content
   static const String loginTitle = 'Welcome Back';

@@ -1,0 +1,353 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../shared/theme/app_theme.dart';
+import '../../core/utils/masking_utils.dart';
+import 'profile_controller.dart';
+import 'widgets/profile_photo_widget.dart';
+import '../../shared/widgets/app_toast.dart';
+import '../../shared/widgets/gradient_header.dart';
+import '../../shared/widgets/custom_button.dart';
+
+class AccountDetailsScreen extends ConsumerStatefulWidget {
+  const AccountDetailsScreen({super.key});
+
+  @override
+  ConsumerState<AccountDetailsScreen> createState() => _AccountDetailsScreenState();
+}
+
+class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
+  late TextEditingController _nameController;
+  late TextEditingController _emailController;
+  late TextEditingController _dobController;
+  late TextEditingController _pincodeController;
+  late TextEditingController _stateController;
+  late TextEditingController _cityController;
+  late TextEditingController _addressController;
+  bool _isPincodeChecking = false;
+  String? _emailError;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = ref.read(profileProvider).user;
+    _nameController = TextEditingController(text: user.name);
+    _emailController = TextEditingController(text: user.email);
+    _dobController = TextEditingController(text: user.dob);
+    _pincodeController = TextEditingController(text: user.pincode);
+    _stateController = TextEditingController(text: user.state);
+    _cityController = TextEditingController(text: user.city);
+    _addressController = TextEditingController(text: user.address);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _dobController.dispose();
+    _pincodeController.dispose();
+    _stateController.dispose();
+    _cityController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handlePincodeCheck() async {
+    if (_pincodeController.text.length != 6) return;
+    setState(() => _isPincodeChecking = true);
+    final result = await ref.read(profileProvider.notifier).checkPincode(_pincodeController.text);
+    setState(() => _isPincodeChecking = false);
+    if (result != null && mounted) {
+      _stateController.text = result['state'] ?? '';
+      _cityController.text = result['city'] ?? '';
+      ref.read(profileProvider.notifier).updateLocationInfo(
+            stateVal: result['state'] ?? '',
+            city: result['city'] ?? '',
+            idCountry: result['id_country'] ?? '101',
+            idState: result['id_state'] ?? '',
+            idCity: result['id_city'] ?? '',
+          );
+    } else if (mounted) {
+      AppToast.show(context, 'Invalid pincode or server error', type: ToastType.error);
+    }
+  }
+
+  bool _isValidEmail(String email) {
+    final regex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$');
+    return regex.hasMatch(email);
+  }
+
+  Future<void> _handleSubmit() async {
+    // Validate email
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() => _emailError = 'Email is required');
+      return;
+    }
+    if (!_isValidEmail(email)) {
+      setState(() => _emailError = 'Enter a valid email address');
+      return;
+    }
+    setState(() => _emailError = null);
+
+    final success = await ref.read(profileProvider.notifier).updateProfile(
+          name: _nameController.text,
+          email: email,
+          dob: _dobController.text,
+          pincode: _pincodeController.text,
+          stateVal: _stateController.text,
+          city: _cityController.text,
+          address: _addressController.text,
+        );
+    if (success && mounted) {
+      AppToast.show(context, 'Profile updated successfully', type: ToastType.success);
+    }
+  }
+
+  Future<void> _handlePhotoUpdate(File photo) async {
+    final success = await ref.read(profileProvider.notifier).updateProfilePhoto(photo);
+    if (mounted) {
+      if (success) {
+        AppToast.show(context, 'Profile photo updated successfully', type: ToastType.success);
+      } else {
+        AppToast.show(context, 'Failed to update profile photo', type: ToastType.error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final profileState = ref.watch(profileProvider);
+    final user = profileState.user;
+
+    ref.listen(profileProvider, (previous, next) {
+      if (!next.isEditing && (previous == null || previous.user != next.user)) {
+        _nameController.text = next.user.name;
+        _emailController.text = next.user.email;
+        _dobController.text = next.user.dob;
+        _pincodeController.text = next.user.pincode;
+        _stateController.text = next.user.state;
+        _cityController.text = next.user.city;
+        _addressController.text = next.user.address;
+      }
+    });
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          // ── Gradient Header ───────────────────────────────────────────────
+          GradientHeader(
+            title: 'Account Details',
+            trailing: TextButton.icon(
+              onPressed: () =>
+                  ref.read(profileProvider.notifier).setEditing(!profileState.isEditing),
+              icon: Icon(
+                profileState.isEditing ? Icons.close_rounded : Icons.edit_rounded,
+                color: Colors.white,
+                size: 18.sp,
+              ),
+              label: Text(
+                profileState.isEditing ? 'Cancel' : 'Edit',
+                style: GoogleFonts.lora(fontWeight: FontWeight.w700, color: Colors.white),
+              ),
+            ),
+          ),
+
+          // ── Body ─────────────────────────────────────────────────────────
+          Expanded(
+            child: profileState.isLoading && user.name == 'Investor'
+                ? const Center(child: CircularProgressIndicator(color: AppTheme.arcticBlue))
+                : SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.symmetric(horizontal: 24.w),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 16.h),
+                        Center(
+                          child: ProfilePhotoWidget(
+                            initialPhotoUrl: user.photoUrl,
+                            initials: user.name.isNotEmpty
+                                ? user.name
+                                    .split(' ')
+                                    .where((e) => e.isNotEmpty)
+                                    .map((e) => e[0])
+                                    .take(2)
+                                    .join('')
+                                    .toUpperCase()
+                                : '??',
+                            onPhotoSelected: _handlePhotoUpdate,
+                            isLoading: profileState.isPhotoLoading,
+                          ),
+                        ),
+                        SizedBox(height: 32.h),
+                        _buildInputField(label: 'Name as per PAN *', controller: _nameController, isEditable: profileState.isEditing, isDark: isDark, textCapitalization: TextCapitalization.words, inputFormatters: [_UpperCaseWordsFormatter()]),
+                        _buildInputField(label: 'Phone Number *', hint: MaskingUtils.maskMobile(user.phone), isEditable: false, isDark: isDark),
+                        _buildInputField(label: 'Email *', controller: _emailController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.emailAddress, errorText: _emailError, onChanged: (_) { if (_emailError != null) setState(() => _emailError = null); }),
+                        _buildInputField(label: 'DOB *', hint: user.dob, isEditable: false, isDark: isDark),
+                        _buildInputField(label: 'Pincode *', controller: _pincodeController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.number, actionLabel: 'Check', onAction: _handlePincodeCheck, isActionLoading: _isPincodeChecking),
+                        _buildInputField(label: 'State', controller: _stateController, isEditable: false, isDark: isDark),
+                        _buildInputField(label: 'City', controller: _cityController, isEditable: false, isDark: isDark),
+                        _buildInputField(label: 'Residential Address', controller: _addressController, isEditable: profileState.isEditing, isDark: isDark, maxLines: 4),
+                        SizedBox(height: 40.h),
+                      ],
+                    ),
+                  ),
+          ),
+
+          // ── Footer Save Button ────────────────────────────────────────────
+          if (profileState.isEditing)
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 16.h),
+                decoration: const BoxDecoration(color: Colors.transparent),
+                child: CustomButton(
+                  text: 'Save',
+                  isLoading: profileState.isLoading,
+                  onPressed: profileState.isLoading ? null : _handleSubmit,
+                  gradient: const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [Color(0xFF1B882C), Color(0xFF003716)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1B882C).withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  textColor: Colors.white,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String dateStr) {
+    if (dateStr.isEmpty) return '';
+    try {
+      if (dateStr.contains('-')) {
+        final parts = dateStr.split('-');
+        if (parts.length == 3) return '${parts[2]}/${parts[1]}/${parts[0]}';
+      }
+      return dateStr;
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  Widget _buildInputField({
+    required String label,
+    TextEditingController? controller,
+    String? hint,
+    bool isEditable = true,
+    bool isDark = false,
+    int maxLines = 1,
+    TextInputType keyboardType = TextInputType.text,
+    String? actionLabel,
+    VoidCallback? onAction,
+    bool isActionLoading = false,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    List<TextInputFormatter>? inputFormatters,
+    String? errorText,
+    ValueChanged<String>? onChanged,
+  }) {
+    String displayValue = controller?.text ?? hint ?? '';
+    if (label.contains('DOB')) displayValue = _formatDate(displayValue);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: 16.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: GoogleFonts.lora(fontSize: 15.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white70 : const Color(0xFF8D8D8D))),
+          SizedBox(height: 8.h),
+          Container(
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+              borderRadius: BorderRadius.circular(15.r),
+              border: Border.all(color: errorText != null ? Colors.redAccent : (isDark ? Colors.white10 : Colors.black.withOpacity(0.1))),
+              boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+            ),
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 4.h),
+            child: Row(
+              children: [
+                Expanded(
+                  child: isEditable
+                      ? TextField(
+                          controller: controller,
+                          maxLines: maxLines,
+                          keyboardType: keyboardType,
+                          textCapitalization: textCapitalization,
+                          inputFormatters: inputFormatters,
+                          onChanged: onChanged,
+                          style: GoogleFonts.lora(fontSize: 16.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white : const Color(0xFF333333)),
+                          decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 12.h), hintStyle: GoogleFonts.lora(fontSize: 16.sp, color: Colors.grey)),
+                        )
+                      : Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16.h),
+                          child: Text(displayValue, style: GoogleFonts.lora(fontSize: 16.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white54 : const Color(0xFF333333))),
+                        ),
+                ),
+                if (actionLabel != null && isEditable)
+                  GestureDetector(
+                    onTap: isActionLoading ? null : onAction,
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 12.w),
+                      child: isActionLoading
+                        ? SizedBox(height: 16.h, width: 16.h, child: const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0E5723)))
+                        : Text(actionLabel, style: GoogleFonts.lora(fontSize: 16.sp, fontWeight: FontWeight.bold, color: const Color(0xFF0E5723))),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (errorText != null) ...[
+            SizedBox(height: 6.h),
+            Text(errorText, style: GoogleFonts.lora(fontSize: 12.sp, color: Colors.redAccent, fontWeight: FontWeight.w500)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Capitalizes the first letter of every word as the user types.
+class _UpperCaseWordsFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final text = newValue.text;
+    if (text.isEmpty) return newValue;
+
+    final buf = StringBuffer();
+    bool capitalizeNext = true;
+    for (int i = 0; i < text.length; i++) {
+      final ch = text[i];
+      if (ch == ' ') {
+        capitalizeNext = true;
+        buf.write(ch);
+      } else if (capitalizeNext) {
+        buf.write(ch.toUpperCase());
+        capitalizeNext = false;
+      } else {
+        buf.write(ch);
+      }
+    }
+
+    final newText = buf.toString();
+    return newValue.copyWith(
+      text: newText,
+      selection: newValue.selection,
+    );
+  }
+}

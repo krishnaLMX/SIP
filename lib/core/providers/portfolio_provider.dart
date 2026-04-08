@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/portfolio_service.dart';
-import '../services/shared_service.dart';
 import 'commodity_provider.dart';
 import 'user_provider.dart';
 
@@ -57,6 +56,10 @@ class PortfolioNotifier extends StateNotifier<AsyncValue<PortfolioData>> {
   }
 
   Future<void> fetchPortfolio() async {
+    if (_idCustomer.isEmpty) {
+      state = AsyncValue.data(PortfolioData.empty());
+      return;
+    }
     state = const AsyncValue.loading();
     try {
       final data =
@@ -69,28 +72,14 @@ class PortfolioNotifier extends StateNotifier<AsyncValue<PortfolioData>> {
 }
 
 final portfolioProvider =
-    StateNotifierProvider<PortfolioNotifier, AsyncValue<PortfolioData>>((ref) {
+    StateNotifierProvider.autoDispose<PortfolioNotifier, AsyncValue<PortfolioData>>((ref) {
   final service = ref.watch(portfolioServiceProvider);
-  final selectedType = ref.watch(commodityProvider);
-  final commodities = ref.watch(commoditiesProvider).valueOrNull;
   final userProfile = ref.watch(userProvider);
 
   final String idCustomer = userProfile?.id ?? '';
-
-  // Find id_metal based on selected commodity name
-  String idMetal = '1'; // Default
-  if (commodities != null) {
-    try {
-      final match = commodities.firstWhere(
-        (c) => c.name.toLowerCase().contains(selectedType.name.toLowerCase()),
-      );
-      idMetal = match.id;
-    } catch (_) {
-      idMetal = selectedType == CommodityType.gold ? '1' : '2';
-    }
-  } else {
-    idMetal = selectedType == CommodityType.gold ? '1' : '2';
-  }
+  // Reads id_metal dynamically from the API commodity list
+  final String idMetal = ref.watch(selectedMetalIdProvider);
 
   return PortfolioNotifier(service, idMetal, idCustomer);
 });
+

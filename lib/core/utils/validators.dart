@@ -1,4 +1,4 @@
-class Validators {
+﻿class Validators {
   static String? validateMobile(String? value) {
     if (value == null || value.isEmpty) return 'Mobile number is required';
     final regExp = RegExp(r'^[0-9]{10}$');
@@ -12,3 +12,4 @@ class Validators {
     return null;
   }
 }
+

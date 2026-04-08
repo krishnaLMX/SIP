@@ -1,4 +1,4 @@
-class KycValidator {
+﻿class KycValidator {
   static String? validateAadhaar(String? value) {
     if (value == null || value.isEmpty) return 'Aadhaar number is required';
     final regex = RegExp(r'^[2-9]{1}[0-9]{11}$');
@@ -35,3 +35,4 @@ class KycValidator {
     return null;
   }
 }
+

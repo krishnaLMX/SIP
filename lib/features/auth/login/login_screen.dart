@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/svg.dart';
 
 import '../controller/auth_controller.dart';
 import '../../../core/utils/validators.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/animations.dart';
-import '../../../shared/theme/app_theme.dart';
-import '../../../core/constants/app_constants.dart';
+import '../../../shared/widgets/app_toast.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/services/shared_service.dart';
-import '../../../core/localization/language_provider.dart';
+import '../../../shared/theme/app_theme.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -24,17 +25,28 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _mobileController = TextEditingController();
   String _countryCode = '+91';
+  String _selectedCountryId = '101';
+  final TapGestureRecognizer _termsRecognizer = TapGestureRecognizer();
+  final TapGestureRecognizer _privacyRecognizer = TapGestureRecognizer();
 
   @override
   void initState() {
     super.initState();
+    _termsRecognizer.onTap = () {
+      Navigator.pushNamed(context, AppRouter.terms);
+    };
+    _privacyRecognizer.onTap = () {
+      Navigator.pushNamed(context, AppRouter.privacy);
+    };
     Future.microtask(() {
-      ref.read(authControllerProvider.notifier).clearError();
+      if (mounted) ref.read(authControllerProvider.notifier).clearError();
     });
   }
 
   @override
   void dispose() {
+    _termsRecognizer.dispose();
+    _privacyRecognizer.dispose();
     _mobileController.dispose();
     super.dispose();
   }
@@ -47,335 +59,207 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (codes.isNotEmpty && !codes.any((c) => c.prefix == _countryCode)) {
           setState(() {
             _countryCode = codes.first.prefix;
+            _selectedCountryId = codes.first.id;
           });
         }
       });
     });
 
+    ref.listen<AuthState>(authControllerProvider, (prev, next) {
+      if (next.error != null && next.error != prev?.error && mounted) {
+        AppToast.show(context, next.error!, type: ToastType.error);
+      }
+    });
+
     final authState = ref.watch(authControllerProvider);
     final countryCodesAsync = ref.watch(countryCodesProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final bool isValid =
         Validators.validateMobile(_mobileController.text) == null;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = isDark ? Colors.white : const Color(0xFF333333);
+    final secondaryTextColor =
+        isDark ? Colors.white70 : const Color(0xFF666666);
 
     return Scaffold(
-      body: Stack(
-        children: [
-          // Background Layer
-          Positioned.fill(
-            child: Container(
-              color: isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
-            ),
-          ),
-
-          // Strategic Depth Orbs
-          Positioned(
-            top: -100.h,
-            right: -100.w,
-            child: Container(
-              width: 400.w,
-              height: 400.h,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppTheme.arcticBlue.withOpacity(0.12),
-                    AppTheme.arcticBlue.withOpacity(0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          Positioned(
-            bottom: 50.h,
-            left: -150.w,
-            child: Container(
-              width: 500.w,
-              height: 500.h,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppTheme.auroraPurple.withOpacity(0.08),
-                    AppTheme.auroraPurple.withOpacity(0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.w),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: MediaQuery.of(context).size.height -
-                        MediaQuery.of(context).padding.top -
-                        MediaQuery.of(context).padding.bottom,
-                  ),
-                  child: IntrinsicHeight(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: isDark ? AppTheme.darkGradient : AppTheme.lightGradient,
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // ── Scrollable Content ──────────────────────────────────
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24.w),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(height: 32.h),
-
-                        // Center-Aligned Luxury Branding
+                        SizedBox(height: 16.h),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            SvgPicture.asset(
+                              'assets/images/startGold.svg',
+                              height: 85.h,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 48.h),
                         FadeInAnimation(
                           delay: const Duration(milliseconds: 100),
-                          child: Center(
-                            child: Column(
-                              children: [
-                                Image.asset(
-                                  'assets/images/header.png',
-                                  height: 48.h,
-                                  fit: BoxFit.contain,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Welcome to',
+                                style: TextStyle(
+                                  fontSize: 30.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryTextColor,
                                 ),
-                                SizedBox(height: 12.h),
-                                Text(
-                                  ref.tr('appName'),
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 16.sp,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 6.0,
-                                    color: isDark
-                                        ? Colors.white
-                                        : const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                SizedBox(height: 12.h),
-                                // Customized Dropdown-Style Button
-                                GestureDetector(
-                                  onTap: () =>
-                                      _showLanguageBottomSheet(context),
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 16.w, vertical: 8.h),
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? Colors.white10
-                                          : Colors.black.withOpacity(0.05),
-                                      borderRadius: BorderRadius.circular(20.r),
-                                      border: Border.all(
-                                        color: isDark
-                                            ? Colors.white24
-                                            : Colors.black12,
+                              ),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.baseline,
+                                textBaseline: TextBaseline.alphabetic,
+                                children: [
+                                  // "Start" — green gradient
+                                  ShaderMask(
+                                    shaderCallback: (bounds) =>
+                                        const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Color(0xFF49B44B),
+                                        Color(0xFF1A6F2D),
+                                      ],
+                                    ).createShader(bounds),
+                                    blendMode: BlendMode.srcIn,
+                                    child: Text(
+                                      'start',
+                                      style: TextStyle(
+                                        fontSize: 30.sp,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.language_rounded,
-                                          color: isDark
-                                              ? Colors.white70
-                                              : Colors.black87,
-                                          size: 16.sp,
-                                        ),
-                                        SizedBox(width: 8.w),
-                                        Text(
-                                          _getLanguageName(ref
-                                              .watch(languageProvider)
-                                              .currentLocale),
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 14.sp,
-                                            fontWeight: FontWeight.w600,
-                                            color: isDark
-                                                ? Colors.white
-                                                : Colors.black87,
-                                          ),
-                                        ),
-                                        SizedBox(width: 4.w),
-                                        Icon(
-                                          Icons.keyboard_arrow_down_rounded,
-                                          color: isDark
-                                              ? Colors.white70
-                                              : Colors.black87,
-                                          size: 18.sp,
-                                        ),
+                                  ),
+                                  // "GOLD" — orange gradient
+                                  ShaderMask(
+                                    shaderCallback: (bounds) =>
+                                        const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Color(0xFFFFB941),
+                                        Color(0xFFE27903),
                                       ],
+                                    ).createShader(bounds),
+                                    blendMode: BlendMode.srcIn,
+                                    child: Text(
+                                      'GOLD',
+                                      style: TextStyle(
+                                        fontSize: 30.sp,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
+                                  // " Family" — plain color
+                                  Text(
+                                    ' Family',
+                                    style: TextStyle(
+                                      fontSize: 30.sp,
+                                      fontWeight: FontWeight.bold,
+                                      color: primaryTextColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 12.h),
+                              Text(
+                                'Your Gold Journey Starts the Best Way!',
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  color: secondaryTextColor,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
-
-                        SizedBox(height: 42.h),
-
-                        // Center-Aligned Bold Title
+                        SizedBox(height: 80.h),
                         FadeInAnimation(
                           delay: const Duration(milliseconds: 200),
-                          child: Center(
-                            child: Text(
-                              ref.tr('loginTitle'),
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.outfit(
-                                fontSize: 42.sp,
-                                fontWeight: FontWeight.w900,
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF0F172A),
-                                height: 1.05,
-                                letterSpacing: -1.5,
-                              ),
+                          child: Text(
+                            'Phone number*',
+                            style: TextStyle(
+                              fontSize: 20.sp,
+                              fontWeight: FontWeight.bold,
+                              color: primaryTextColor,
                             ),
                           ),
                         ),
-
                         SizedBox(height: 16.h),
-
                         FadeInAnimation(
                           delay: const Duration(milliseconds: 300),
-                          child: Center(
-                            child: Text(
-                              ref.tr('loginSubtitle'),
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.outfit(
-                                fontSize: 17.sp,
-                                color: isDark ? Colors.white54 : Colors.black45,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        SizedBox(height: 60.h),
-
-                        // Glass Input
-                        FadeInAnimation(
-                          delay: const Duration(milliseconds: 400),
                           child: Container(
-                            height: 72.h,
+                            height: 64.h,
                             decoration: BoxDecoration(
                               color: isDark
-                                  ? Colors.white.withOpacity(0.04)
-                                  : Colors.white.withOpacity(0.7),
-                              borderRadius: BorderRadius.circular(24.r),
+                                  ? Colors.white.withOpacity(0.05)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(16.r),
                               border: Border.all(
-                                color: authState.error != null
-                                    ? Colors.redAccent.withOpacity(0.5)
-                                    : (isDark
-                                        ? Colors.white12
-                                        : Colors.black12),
-                                width: 1.5,
+                                color: primaryTextColor.withOpacity(0.1),
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.02),
-                                  blurRadius: 30,
-                                  offset: const Offset(0, 15),
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
                                 ),
                               ],
                             ),
-                            padding: EdgeInsets.symmetric(horizontal: 20.w),
+                            padding: EdgeInsets.symmetric(horizontal: 16.w),
                             child: Row(
                               children: [
                                 countryCodesAsync.when(
-                                  data: (codes) {
-                                    // Ensure unique prefixes and check if current selection is valid
-                                    final List<String> prefixes = codes
-                                        .map((e) => e.prefix)
-                                        .toSet()
-                                        .toList();
-
-                                    if (prefixes.isEmpty)
-                                      return const SizedBox();
-
-                                    // Validate selection
-                                    final String? effectiveValue =
-                                        prefixes.contains(_countryCode)
-                                            ? _countryCode
-                                            : prefixes.first;
-
-                                    return DropdownButton<String>(
-                                      value: effectiveValue,
-                                      underline: const SizedBox(),
-                                      icon: Icon(
-                                          Icons.keyboard_arrow_down_rounded,
-                                          size: 20.sp,
-                                          color: Colors.grey),
-                                      items: prefixes.map((String prefix) {
-                                        // Get the first matching country for this prefix to show the flag
-                                        final country = codes.firstWhere(
-                                            (c) => c.prefix == prefix);
-                                        return DropdownMenuItem<String>(
-                                          value: prefix,
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(country.flag,
-                                                  style: TextStyle(
-                                                      fontSize: 18.sp)),
-                                              SizedBox(width: 8.w),
-                                              Text(
-                                                prefix,
-                                                style: GoogleFonts.outfit(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 18.sp,
-                                                  color: isDark
-                                                      ? Colors.white
-                                                      : const Color(0xFF0F172A),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }).toList(),
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          setState(() => _countryCode = val);
-                                        }
-                                      },
-                                    );
-                                  },
-                                  loading: () => SizedBox(
-                                    width: 40.w,
-                                    height: 20.h,
-                                    child: const CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppTheme.arcticBlue,
-                                    ),
-                                  ),
-                                  error: (_, __) => Text(
-                                    _countryCode,
-                                    style: GoogleFonts.outfit(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 18.sp,
-                                      color: isDark
-                                          ? Colors.white
-                                          : const Color(0xFF0F172A),
-                                    ),
-                                  ),
+                                  data: (codes) => _buildCountryPicker(
+                                      codes, isDark, primaryTextColor),
+                                  loading: () => const SizedBox(
+                                      width: 40,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2)),
+                                  error: (_, __) => Text(_countryCode,
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16.sp,
+                                          color: primaryTextColor)),
                                 ),
-                                SizedBox(width: 12.w),
-                                Container(
-                                  width: 1.5,
-                                  height: 28.h,
-                                  color:
-                                      isDark ? Colors.white12 : Colors.black12,
+                                Padding(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 8.w, vertical: 16.h),
+                                  child: Container(
+                                      width: 1,
+                                      color: primaryTextColor.withOpacity(0.1)),
                                 ),
-                                SizedBox(width: 18.w),
                                 Expanded(
                                   child: TextField(
                                     controller: _mobileController,
                                     keyboardType: TextInputType.phone,
                                     inputFormatters: [
-                                      FilteringTextInputFormatter.digitsOnly,
+                                      FilteringTextInputFormatter.digitsOnly
                                     ],
                                     maxLength: 10,
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 22.sp,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 2.5,
-                                      color: isDark
-                                          ? Colors.white
-                                          : const Color(0xFF0F172A),
+                                    style: TextStyle(
+                                      fontSize: 18.sp,
+                                      fontWeight: FontWeight.w500,
+                                      color: primaryTextColor,
                                     ),
-                                    onChanged: (_) {
+                                    onChanged: (v) {
                                       if (authState.error != null) {
                                         ref
                                             .read(
@@ -385,12 +269,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       setState(() {});
                                     },
                                     decoration: InputDecoration(
-                                      hintText: '00000 00000',
-                                      hintStyle: GoogleFonts.outfit(
-                                        color: isDark
-                                            ? Colors.white10
-                                            : Colors.black12,
-                                        letterSpacing: 2.5,
+                                      hintText: 'Enter your phone number',
+                                      hintStyle: TextStyle(
+                                        fontSize: 16.sp,
+                                        color:
+                                            primaryTextColor.withOpacity(0.3),
                                       ),
                                       border: InputBorder.none,
                                       counterText: '',
@@ -401,79 +284,138 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                         ),
-
-                        if (authState.error != null)
-                          Padding(
-                            padding: EdgeInsets.only(top: 14.h, left: 10.w),
-                            child: Text(authState.error!,
-                                style: GoogleFonts.outfit(
-                                    color: Colors.redAccent,
-                                    fontSize: 13.sp,
-                                    fontWeight: FontWeight.w500)),
-                          ),
-
-                        const SizedBox(
-                            height: 20.0), // Replaced Spacer with SizedBox
-
-                        // CTA Section
-                        FadeInAnimation(
-                          delay: const Duration(milliseconds: 500),
-                          child: Column(
-                            children: [
-                              CustomButton(
-                                text: ref.tr('Get OTP'),
-                                isLoading: authState.isLoading,
-                                onPressed: isValid ? _handleLogin : null,
-                                backgroundColor: isValid
-                                    ? AppTheme.arcticBlue
-                                    : (isDark
-                                        ? Colors.white.withOpacity(0.05)
-                                        : Colors.black.withOpacity(0.05)),
-                              ),
-                              SizedBox(height: 28.h),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.verified_user_outlined,
-                                      size: 16.sp,
-                                      color: AppTheme.electricCyan),
-                                  SizedBox(width: 10.w),
-                                  Text(
-                                    'Authorized Access Only',
-                                    style: GoogleFonts.outfit(
-                                      color: Colors.grey,
-                                      fontSize: 13.sp,
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 24.h),
-                            ],
-                          ),
-                        ),
+                        SizedBox(height: 24.h),
                       ],
                     ),
                   ),
                 ),
               ),
-            ),
+
+              // ── Pinned Footer ───────────────────────────────────────
+              Padding(
+                padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FadeInAnimation(
+                      delay: const Duration(milliseconds: 400),
+                      child: CustomButton(
+                        text: 'Initiate Secure Login',
+                        isLoading: authState.isLoading,
+                        onPressed: isValid ? _handleLogin : null,
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: isValid
+                              ? const [Color(0xFF1B882C), Color(0xFF003716)]
+                              : [
+                                  const Color(0xFF1B882C).withOpacity(0.5),
+                                  const Color(0xFF003716).withOpacity(0.5),
+                                ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF8F4C05).withOpacity(0.06),
+                            offset: const Offset(0, 4),
+                            blurRadius: 10,
+                          ),
+                        ],
+                        textColor: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                    FadeInAnimation(
+                      delay: const Duration(milliseconds: 500),
+                      child: Center(
+                        child: RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            style: TextStyle(
+                              fontFamily: 'Lora',
+                              fontSize: 12.sp,
+                              color: secondaryTextColor,
+                              height: 1.6,
+                            ),
+                            children: [
+                              const TextSpan(
+                                  text: 'By proceeding, you accept our '),
+                              TextSpan(
+                                text: 'Terms and Conditions.',
+                                style: const TextStyle(
+                                  fontFamily: 'Lora',
+                                  color: Colors.orangeAccent,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                recognizer: _termsRecognizer,
+                              ),
+                              const TextSpan(text: '\nand '),
+                              TextSpan(
+                                text: 'Privacy Policy.',
+                                style: const TextStyle(
+                                  fontFamily: 'Lora',
+                                  color: Colors.orangeAccent,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                recognizer: _privacyRecognizer,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Future<void> _handleLogin() async {
-    // Clear any previous errors before starting a new flow
-    ref.read(authControllerProvider.notifier).clearError();
+  Widget _buildCountryPicker(
+      List<CountryCode> codes, bool isDark, Color textColor) {
+    return DropdownButton<String>(
+      value: _countryCode,
+      underline: const SizedBox(),
+      icon: Icon(Icons.keyboard_arrow_down,
+          size: 18.sp, color: textColor.withOpacity(0.4)),
+      items: codes
+          .map((c) => DropdownMenuItem(
+                value: c.prefix,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(c.flag, style: TextStyle(fontSize: 18.sp)),
+                    SizedBox(width: 8.w),
+                    Text(c.prefix,
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16.sp,
+                            color: textColor)),
+                  ],
+                ),
+              ))
+          .toList(),
+      onChanged: (val) {
+        if (val != null) {
+          final selected = codes.firstWhere((c) => c.prefix == val);
+          setState(() {
+            _countryCode = val;
+            _selectedCountryId = selected.id;
+          });
+        }
+      },
+    );
+  }
 
+  Future<void> _handleLogin() async {
+    ref.read(authControllerProvider.notifier).clearError();
     final success = await ref.read(authControllerProvider.notifier).sendOtp(
           _mobileController.text,
           _countryCode,
+          _selectedCountryId,
         );
-
     if (success && mounted) {
       final authData = ref.read(authControllerProvider).data;
       Navigator.pushNamed(
@@ -482,87 +424,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         arguments: {
           'mobile': _mobileController.text,
           'countryCode': _countryCode,
+          'idCountry': _selectedCountryId,
           'otpReferenceId': authData?['otp_reference_id'] ?? '',
         },
       );
     }
-  }
-
-  String _getLanguageName(String code) {
-    switch (code) {
-      case 'ta':
-        return 'தமிழ்';
-      case 'te':
-        return 'తెలుగు';
-      case 'en':
-      default:
-        return 'English';
-    }
-  }
-
-  void _showLanguageBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Consumer(builder: (context, ref, _) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return Container(
-          padding: EdgeInsets.all(24.w),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F172A) : Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(ref.tr('languageSelector'),
-                  style: GoogleFonts.outfit(
-                    fontSize: 20.sp,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
-                  )),
-              SizedBox(height: 8.h),
-              Text(
-                ref.tr('chooseLanguagePref'),
-                style: GoogleFonts.outfit(
-                  fontSize: 14.sp,
-                  color: Colors.grey,
-                ),
-              ),
-              SizedBox(height: 24.h),
-              _buildLangOption(context, ref, 'English', 'en', isDark),
-              _buildLangOption(context, ref, 'தமிழ் (Tamil)', 'ta', isDark),
-              _buildLangOption(context, ref, 'తెలుగు (Telugu)', 'te', isDark),
-              SizedBox(height: 16.h),
-            ],
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildLangOption(BuildContext context, WidgetRef ref, String title,
-      String code, bool isDark) {
-    final currentCode = ref.watch(languageProvider).currentLocale;
-    final isSelected = currentCode == code;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(title,
-          style: GoogleFonts.outfit(
-            fontSize: 16.sp,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-            color: isSelected
-                ? AppTheme.arcticBlue
-                : (isDark ? Colors.white70 : Colors.black87),
-          )),
-      trailing: isSelected
-          ? Icon(Icons.check_circle_rounded, color: AppTheme.arcticBlue)
-          : null,
-      onTap: () {
-        ref.read(languageProvider.notifier).setLanguage(code);
-        Navigator.pop(context);
-      },
-    );
   }
 }

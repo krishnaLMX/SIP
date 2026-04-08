@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 enum KycStatus { pending, submitted, verified, rejected }
 
@@ -19,3 +19,4 @@ class KycStep {
     required this.route,
   });
 }
+

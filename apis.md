@@ -27,6 +27,110 @@ This document summarizes the complete set of API endpoints required for the Star
 7.  **Device Integrity:** 
     *   Pass `device_id` on login and sensitive actions.
     *   Environment checks (Root/Jailbreak detection) prevent the app from running on insecure hardware.
+8.  **RSA Key Exchange (`crypto/public-key`):**
+    *   On first launch (or when cache is empty), the app calls `GET crypto/public-key` to retrieve the server's **RSA-OAEP-SHA256** public key.
+    *   The key is persisted in `FlutterSecureStorage` and reused for the session.
+    *   If the endpoint is unreachable, the app transparently falls back to **AES-256-CBC** so the user experience is never broken.
+    *   The private key is **never exposed** to the client; sensitive fields are encrypted one-way with RSA before transmission.
+
+---
+
+## 0. 🔑 Encryption Key Exchange
+
+### 0.1 Fetch Server RSA Public Key
+*   **Endpoint:** `GET crypto/public-key`
+*   **Authorization:** None (public endpoint – called before login)
+*   **Purpose:** Retrieves the server's RSA-OAEP-SHA256 public key used to encrypt sensitive fields client-side before transmission.
+*   **Trigger:** Called automatically by `ApiSecurityInterceptor` on app startup. Result is cached in `FlutterSecureStorage`.
+*   **Response (Success):**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "algorithm": "RSA-OAEP-SHA256",
+        "public_key": "\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA..."
+      }
+    }
+    ```
+*   **Failure Handling:**
+    *   If the endpoint is unavailable (network error, server down, timeout) the app **silently falls back** to AES-256-CBC encryption.
+    *   The error is logged via `SecureLogger` but the user is never shown an error for this background call.
+    *   On the next app launch the fetch is retried automatically.
+
+---
+
+## 0.2 🌐 App Runtime Control
+
+### 0.2.1 Fetch App Control Data
+*   **Endpoint:** `GET app/control`
+*   **Authorization:** None (public endpoint — called before login and periodically while app is open)
+*   **Purpose:** Central runtime control gate. Returns current version info (with platform-specific popups) and any live global alerts.
+*   **Polling:** App polls this endpoint every **5 minutes** while active to pick up live alert changes without requiring a restart.
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "version": {
+          "latest_version": "2.1.0",
+          "min_version": "1.5.0",
+          "store_url": "https://play.google.com/store/apps/details?id=com.startgold",
+          "force_update": false,
+          "android": {
+            "title": "New Update Available",
+            "message": "We've added exciting new features. Update now for the best experience.",
+            "button_text": "Update Now"
+          },
+          "ios": {
+            "title": "Update Available",
+            "message": "A new version of StartGold is available on the App Store.",
+            "button_text": "Go to App Store"
+          }
+        },
+        "alert": {
+          "is_active": true,
+          "type": "warning",
+          "title": "Scheduled Maintenance",
+          "message": "Our servers will be down for maintenance on Apr 2, 2:00–4:00 AM IST.",
+          "action_url": null,
+          "action_label": null
+        },
+        "maintenance": {
+          "is_enabled": false,
+          "title": "Under Maintenance",
+          "subtitle": "We're upgrading our systems for a better experience. Please check back soon.",
+          "expected_resume": "We'll be back by 4:00 AM IST"
+        }
+      }
+    }
+    ```
+
+#### Version Update Logic (Client-Side)
+| Condition | Behaviour |
+|---|---|
+| `current < min_version` | **Force update** — dialog shown, app unusable until updated |
+| `current < latest_version` | **Optional update** — dialog with "Later" skip option |
+| `current >= latest_version` | No popup shown |
+
+#### Alert `type` Values
+| Value | Color | Dismissible |
+|---|---|---|
+| `info` | Blue | ✅ Yes |
+| `warning` | Amber | ✅ Yes |
+| `maintenance` | Indigo | ❌ No |
+
+*   **Failure Handling:** If this endpoint is unavailable, the app continues normally with no update/alert/maintenance popup.
+
+#### Maintenance Mode Behaviour
+| `is_enabled` | Client Behaviour |
+|---|---|
+| `true` at launch | `initialRoute` → `/maintenance` (blocks all normal routing) |
+| `true` while in-app | `AppControlWrapper` redirects to `/maintenance` on next poll |
+| `false` (lifted) | `MaintenanceScreen` auto-navigates to the original `resumeRoute` |
+
+*   **Polling during maintenance:** Every **2 minutes** (faster than normal 5-min alert poll)
+*   **Back press on maintenance screen:** Exits app (Android) / no-op (iOS)
+*   **No AppBar back button** on maintenance screen
 
 ---
 
@@ -61,12 +165,12 @@ This document summarizes the complete set of API endpoints required for the Star
       "data": [
         {
           "id_metal": "1",
-          "web_soc_id": 47,
+          "web_soc_id": 91,
           "name": "Gold 24KT"
         },
         {
           "id_metal": 2,
-          "web_soc_id": 48,
+          "web_soc_id": 98,
           "name": "Silver 999"
         }
       ]
@@ -75,6 +179,12 @@ This document summarizes the complete set of API endpoints required for the Star
 
 ### 1.4 Fetch Amount Denominations
 *   **Endpoint:** `POST users/shared/amount-denominations`
+*   **Request Body:**
+    ```json
+    {
+      "id_metal": "1"
+    }
+    ```
 *   **Response:**
     ```json
     {
@@ -95,6 +205,40 @@ This document summarizes the complete set of API endpoints required for the Star
       ]
     }
     ```
+
+### 1.5 Fetch Weight Denominations
+*   **Endpoint:** `POST users/shared/weight-denominations`
+*   **Request Body:**
+    ```json
+    {
+      "id_metal": "1"
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "value": 1,
+          "is_popular": 0
+        },
+        {
+          "value": 2,
+          "is_popular": 0
+        },
+        {
+          "value": 5,
+          "is_popular": 1
+        },
+        {
+          "value": 10,
+          "is_popular": 0
+        }
+      ]
+    }
+    ```
+
 
 ### 1.4 Fetch All Translations (Mega)
 *   **Endpoint:** `POST users/shared/all-translations`
@@ -117,6 +261,26 @@ This document summarizes the complete set of API endpoints required for the Star
     }
     ```
 
+### 1.5 Pincode Check
+*   **Endpoint:** `POST users/shared/check-pincode`
+*   **Description:** Validates a 6-digit pincode and retrieves corresponding State and City.
+*   **Request Body:**
+    ```json
+    {
+      "pincode": "641012"
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "state": "Tamilnadu",
+        "city": "Coimbatore"
+      }
+    }
+    ```
+
 ---
 
 
@@ -135,6 +299,7 @@ This document summarizes the complete set of API endpoints required for the Star
     {
       "mobile": "9876543210",
       "country_code": "+91",
+      "id_country": "101",
       "type": "LOGIN / REGISTRATION / FORGOT_PIN / RESEND",
       "device_id": "uuid-123",
       "device_type": "android",
@@ -236,21 +401,54 @@ This document summarizes the complete set of API endpoints required for the Star
 
 ---
 
-## 3. MPIN Management (Security)
+### 2.4 Refresh Access Token
+*   **Trigger:** Called automatically by `ApiSecurityInterceptor` when any API returns `401 Unauthorized`.
+*   **Endpoint:** `POST users/auth/token/refresh`
+*   **Authorization:** None (public endpoint)
+*   **Request Body:**
+    ```json
+    {
+      "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Token refreshed successfully.",
+      "data": {
+        "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      }
+    }
+    ```
+*   **On Success:** New `access` + `refresh` tokens are persisted; original failed request is retried transparently.
+*   **On Failure:** `SessionManager.logout()` is called, user is redirected to login.
 
-### 3.1 Create Secure MPIN
-*   **Page Name:** `PinCreationScreen`
+---
+
+
+
+### 3.1 MPIN Lifecycle Scenarios (The 5 Core Flows)
+1. **Registration Flow:** Customer creates profile, then prompted to establish PIN -> Calls **`POST /mpin/create`**
+2. **App Session (Cold Start):** Returning customer unlocks application -> Calls **`POST /mpin/validate`** 
+3. **Change MPIN:** Customer updates PIN from Profile settings -> Calls **`POST /mpin/change`**
+4. **Biometric Enablement:** Enabling fingerprint/FaceID requires PIN confirmation -> Calls **`POST /mpin/validate`**
+5. **Withdrawal / Money Transfer:** Confirming financial action requires PIN verification -> Calls **`POST /mpin/validate`** (followed by `POST /account/withdraw` passing `transaction_pin`)
+
+### 3.2 Create Secure MPIN
+*   **Page Name:** `MpinScreen` (Setup Mode)
 *   **Endpoint:** `POST /mpin/create`
 *   **Authorization:** `Bearer Token`
 *   **Request:** `{ "mpin": "1234" }`
 
-### 3.2 Validate MPIN (App Unlock)
-*   **Page Name:** `MpinScreen`
+### 3.3 Validate MPIN (App Unlock / Biometrics / Transfers)
+*   **Page Name:** `MpinScreen` (Unlock/Verify Mode)
 *   **Endpoint:** `POST /mpin/validate`
 *   **Authorization:** `Bearer Token`
 *   **Request:** `{ "mpin": "1234" }`
 
-### 3.3 Check MPIN Status
+### 3.4 Check MPIN Status
 *   **Reason:** To check if the user has already set an MPIN (usually called on app start).
 *   **Endpoint:** `POST /auth/has-mpin`
 *   **Authorization:** `Bearer Token`
@@ -267,11 +465,96 @@ This document summarizes the complete set of API endpoints required for the Star
     }
     ```
 
+### 3.5 Change MPIN
+*   **Reason:** Allows an already authenticated user to change their MPIN in the application profile settings.
+*   **Page Name:** `ChangeMpinScreen`
+*   **Endpoint:** `POST /mpin/change`
+*   **Authorization:** `Bearer Token`
+*   **Request Body:**
+    ```json
+    {
+      "old_mpin": "1234",
+      "new_mpin": "5678"
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "MPIN changed successfully."
+    }
+    ```
+
 ---
 
-## 4. Market & Portfolio
+## 4. Home Dashboard
 
-### 4.1 Live Gold Market Rates
+### 4.1 Fetch Home Dashboard Blocks
+*   **Page Name:** `HomeScreen`
+*   **Endpoint:** `POST /home/dashboard`
+*   **Description:** Retrieves dynamic blocks for the home screen, including rate history, investment banners, and learning content.
+*   **Request Body:**
+    ```json
+    {
+      "id_metal": "1"
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "rate_history": {
+          "title": "Gold on a Growth Streak",
+          "start_year": "2020",
+          "start_rate": 4865,
+          "end_year": "2026",
+          "end_rate": 16446,
+          "highlight_text": "Gold value has grown Over 4X in 5 years"
+        },
+        "invest_sections": {
+          "title": "Invest Smart, Earn Big",
+          "blocks": [
+            {
+              "type": "micro_saving",
+              "title": "Micro Savings, Mega Rewards",
+              "image": "assets/images/banner1.png",
+              "cta": "Swipe"
+            },
+            {
+              "type": "safe_secure",
+              "title": "Safe & Secure",
+              "subtitle": "Your assets are safely stored in 100% insured digital vaults."
+            }
+          ]
+        },
+        "learning_sections": {
+          "title": "Learn Something New",
+          "banners": [
+            {
+              "id": 1,
+              "image": "assets/images/learn1.png",
+              "title": "How Digital Gold Works",
+              "url": "https://startgold.com/learn/how-it-works"
+            }
+          ]
+        },
+        "footer_info": {
+          "title": "Your savings are 100% secure with StartGOLD!",
+          "subtitle": "Your hard-earned precious metal is securely stored in vaults and can be withdrawn at any time.",
+          "compliance": [
+            { "icon": "assets/icons/iso.png", "label": "ISO 27001 Certified" },
+            { "icon": "assets/icons/bis.png", "label": "BIS 24K Hallmark" }
+          ],
+          "office_address": "477-482, Anna Salai, 1st Floor, Khivraj Complex-1, Chennai 600 035, Tamil Nadu, India"
+        }
+      }
+    }
+    ```
+
+---
+
+## 5. Market & Portfolio
 *   **Page Name:** `HomeScreen` / `MarketScreen`
 *   **Endpoint:** `POST /market/rates/live`
 *   **Response:** `{ "buy_price": 6250.5, "sell_price": 6120.25, "currency": "INR", "timestamp": "2024-03-02..." }`
@@ -317,8 +600,44 @@ This document summarizes the complete set of API endpoints required for the Star
 *   `POST /support/ticket`: Submits a query or chat request (Page: `SupportScreen`).
 
 ### 5.4 Referrals
-*   `POST /referral/data`: Returns user referral code and earning stats.
-*   `POST /referral/claim`: To claim referral rewards (Page: `ReferralScreen`).
+
+#### 5.4.1 Fetch Referral Data
+*   **Page Name:** `ReferralScreen`
+*   **Endpoint:** `POST /users/auth/referral/details`
+*   **Description:** Returns user's referral code, sharing link, and earning statistics. Called every time the Refer & Earn screen is opened.
+*   **Authorization:** `Bearer Token`
+*   **Request Body:**
+    ```json
+    {}
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Referral data fetched successfully",
+      "data": {
+        "referral_code": "AQWYSJ",
+        "total_referrals": 5,
+        "total_earned": 1250.00,
+        "reward_amount": "₹250",
+        "share_link": "https://startgold.com/refer/AQWYSJ"
+      }
+    }
+    ```
+*   **Fields:**
+    | Field | Type | Description |
+    |-------|------|-------------|
+    | `referral_code` | String | Unique code for the customer to share |
+    | `total_referrals` | Integer | Number of friends who joined using this code |
+    | `total_earned` | Double | Total reward amount earned via referrals |
+    | `reward_amount` | String | Display string for per-referral reward (e.g. "₹250") |
+    | `share_link` | String | Deep link URL for sharing |
+
+#### 5.4.2 Claim Referral Reward
+*   **Endpoint:** `POST /referral/claim`
+*   **Description:** Claims pending referral rewards.
+*   **Authorization:** `Bearer Token`
+*   **Page:** `ReferralScreen`
 
 ### 5.5 Session Termination
 *   `POST /auth/logout`: Invalidate session on server-side.
@@ -331,14 +650,18 @@ This document summarizes the complete set of API endpoints required for the Star
 
 ### 6.1 Fetch Saving Configuration
 *   **Endpoint:** `POST /savings/config`
-*   **Description:** Retrieves global limits. Used to validate `min_amount` and `max_amount` before initiation.
+*   **Description:** Retrieves global limits and timer lock durations.
 *   **Response:**
     ```json
     {
       "success": true,
       "data": {
         "min_amount": 10.0,
-        "max_amount": 200000.0
+        "max_amount": 200000.0,
+        "sell_rate_lock_seconds": 10,
+        "buy_rate_lock_seconds": 10,
+        "gst": "3",
+        "type": "inclusive"
       }
     }
     ```
@@ -356,7 +679,8 @@ This document summarizes the complete set of API endpoints required for the Star
       "amount_inr": 100,
       "rate_per_gram": 15248.95,
       "device_id": "device-id-placeholder",
-      "coupon_code": null
+      "coupon_code": null,
+      "request_from": "instant"
     }
     ```
 *   **Response:**
@@ -365,7 +689,7 @@ This document summarizes the complete set of API endpoints required for the Star
       "success": true,
       "message": "Eligibility checked successfully",
       "data": {
-        "next_step": "KYC_REQUIRED / PAYMENT"
+        "next_step": "KYC_REQUIRED / PAYMENT / UPI_LIST"
       }
     }
     ```
@@ -384,7 +708,8 @@ This document summarizes the complete set of API endpoints required for the Star
       "amount_inr": 100.0,
       "rate_per_gram": 6250.5,
       "coupon_code": "SECONDJAR",
-      "device_id": "uuid-123"
+      "device_id": "uuid-123",
+      "request_from": "instant"
     }
     ```
 *   **Response:**
@@ -405,6 +730,45 @@ This document summarizes the complete set of API endpoints required for the Star
 *   **Endpoint:** `POST /savings/validate-coupon`
 *   **Request Body:** `{ "code": "SECONDJAR", "amount": 100.0 }`
 *   **Response:** `{ "valid": true, "discount_amount": 5.0, "message": "Coupon applied!" }`
+
+### 6.5 Confirm Payment
+*   **Endpoint:** `POST /savings/confirm-payment`
+*   **Reason:** Verifying the payment status with the backend after the mobile SDK (Cashfree) returns a callback.
+*   **Request Body:**
+    ```json
+    {
+      "order_id": "ORD2T20260325122541"
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Order ORD2T20260325122541 has been successfully paid.",
+      "data": {
+        "status": "SUCCESS",
+        "transaction_id": "CF_123456",
+        "credited_weight": 0.0070
+      }
+    }
+    ```
+
+### 6.6 Cancel Order
+*   **Endpoint:** `POST /savings/cancel_order`
+*   **Reason:** Explicitly cancelling an order when the user backs out of the payment confirmation or bottom sheet.
+*   **Request Body:**
+    ```json
+    {
+      "order_id": "ORD2T20260325122541"
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "order has been canceled"
+    }
+    ```
 
 ---
 
@@ -429,40 +793,18 @@ This document summarizes the complete set of API endpoints required for the Star
       "data": {
         "documents": [
           {
-            "id_document": "1",
-            "document_name": "Aadhaar",
-            "code": "AADHAAR",
-            "mandatory": true,
-            "fields": [
-              {
-                "name": "aadhaar_number",
-                "label": "Aadhaar Number",
-                "type": "text",
-                "regex": "^[0-9]{12}$"
-              }
-            ],
-            "images": {
-              "front": true,
-              "back": true
-            }
-          },
-          {
             "id_document": "2",
             "document_name": "PAN",
             "code": "PAN",
             "mandatory": true,
             "fields": [
               {
-                "name": "pan_number",
+                "name": "pan",
                 "label": "PAN Number",
                 "type": "text",
                 "regex": "^[A-Z]{5}[0-9]{4}[A-Z]{1}$"
               }
-            ],
-            "images": {
-              "front": true,
-              "back": false
-            }
+            ]
           }
         ]
       }
@@ -471,16 +813,20 @@ This document summarizes the complete set of API endpoints required for the Star
 
 ### 7.2 Upload KYC Data
 *   **Endpoint:** `POST /kyc/upload`
-*   **Content-Type:** `multipart/form-data`
-*   **Description:** Uploads KYC document details and images.
+*   **Content-Type:** `application/json`
+*   **Description:** Uploads KYC document details.
 *   **Request Body:**
-    *   `id_customer`: String
-    *   `request_from`: String (e.g., "instant")
-    *   `id_document`: String
-    *   `fields`: JSON String (e.g., `{"aadhaar_number": "1234..."}`) -> **ENCRYPTED**
-    *   `front_image`: File (multipart)
-    *   `back_image`: File (multipart, optional)
-*   **Security:** Field values (like Aadhaar/PAN numbers) must be encrypted before sending. Images must be JPEG/PNG < 5MB.
+    ```json
+    {
+      "id_document": "1",
+      "request_from": "instant / withdraw",
+      "fields": {
+        "pan": "ABCPV1234D",
+        "name": "John Doe"
+      }
+    }
+    ```
+*   **Security:** Field values (like PAN numbers) must be encrypted before sending (AES-256).
 *   **Response:**
     ```json
     {
@@ -504,8 +850,9 @@ This document summarizes the complete set of API endpoints required for the Star
       "success": true,
       "data": {
         "methods": [
-          { "id": "upi", "name": "UPI", "icon": "upi_icon_url" },
-          { "id": "netbanking", "name": "Net Banking", "icon": "nb_icon_url" }
+          { "id": "1", "name": "cashfree", "icon": "cashfree icon","description":"For testing Credit Card Debit Card Net Banking."
+           },
+        
         ]
       }
     }
@@ -548,44 +895,22 @@ This document summarizes the complete set of API endpoints required for the Star
 
 ---
 
-## 9. Withdrawal Flow
-
-### 7.1 Check Eligibility & Balance
+### 9.1 Check Redemption Eligibility
 *   **Page Name:** `WithdrawalScreen`
-*   **Endpoint:** `POST /withdrawal/eligibility`
-*   **Response:** Returns live balance, KYC status, and withdrawal limits (Min/Max).
-
-### 7.2 Fetch Verified Bank/UPI Accounts
-*   **Endpoint:** `POST /withdrawal/bank-accounts`
-*   **Response:** List of previously verified UPI IDs and Bank Accounts.
-
-### 7.3 Add & Verify New UPI ID
-*   **Step 1:** Call `POST /withdrawal/verify-upi-vpa` to check VPA owner name (e.g., via Setu/Cashfree).
-*   **Step 2:** Call `Generate OTP` (Section 2.1) with `type: "ADD_UPI"`.
-*   **Step 3:** Call `POST /withdrawal/add-upi` with `vpa`, `name`, and `otp`.
-
-### 7.4 Initiate Withdrawal (MPIN Required)
-*   **Endpoint:** `POST /withdrawal/initiate`
-*   **Request Body:**
+*   **Endpoint:** `POST /savings/check-eligibility`
+*   **Payload:**
     ```json
     {
-      "amount_grams": 0.001,
-      "commodity_type": "GOLD",
-      "withdrawal_method_id": "UPI_123",
-      "mpin_hash": "HASHED_MPIN",
-      "device_id": "uuid-123"
+      "id_customer": "C101",
+      "id_metal": "1",
+      "mobile": "9876543210",
+      "amount_inr": 100,
+      "request_from": "withdraw"
     }
     ```
 *   **Response:**
     ```json
-    {
-      "success": true,
-      "data": {
-        "withdrawal_id": "WDL_101",
-        "status": "PENDING",
-        "estimated_arrival": "2024-03-02..."
-      }
-    }
+    { "success": true, "data": { "next_step": "KYC_REQUIRED / UPI_LIST" } }
     ```
 
 ---
@@ -669,6 +994,8 @@ This document summarizes the complete set of API endpoints required for the Star
 *   **Payload:**
     ```json
     {
+      "id_customer": "123",
+      "mobile": "9876543210",
       "subject": "Payment Issue",
       "message": "My payment was deducted but not reflect in portfolio.",
       "category": "PAYMENT / TECHNICAL / GENERAL"
@@ -689,6 +1016,13 @@ This document summarizes the complete set of API endpoints required for the Star
 
 ### 11.2 Enquiry Listing
 *   **Endpoint:** `POST users/support/list`
+*   **Payload:**
+    ```json
+    {
+      "id_customer": "123",
+      "mobile": "9876543210"
+    }
+    ```
 *   **Response:**
     ```json
     {
@@ -713,3 +1047,341 @@ This document summarizes the complete set of API endpoints required for the Star
       }
     }
     ```
+---
+
+## 12. 🚀 PRODUCTION READINESS CHECKLIST
+
+Before deploying the application to the Production Environment (Play Store / App Store), the following changes **MUST** be implemented in `lib/core/config/app_config.dart` and the server infrastructure:
+
+### 12.1 Backend Environment
+- **Base URL:** Change from `.../test/api/mock_api/` to the production endpoint (e.g., `https://mxhedge.logimaxindia.com/api/v1/`).
+- **Trailing Slashes:** Ensure all production URLs match the backend routing rules (consistent trailing slashes).
+
+### 12.2 SSL & Security (Level 1: Transport)
+- **HTTPS Enforcement:** Verify that NO `http://` URLs remain in the app.
+- **SSL Pinning:** Implement Certificate Pinning using the SHA-256 fingerprint in `AppConfig.allowedCertFingerprints`.
+
+### 12.3 Data Protection (Level 2: Information)
+- **Field-Level Encryption:** Activate AES-256-CBC for all fields in `sensitiveFields` (Aadhaar, PAN, UPI IDs, Bank details).
+- **Secure Storage:** Ensure all tokens and keys are ONLY stored in `FlutterSecureStorage` using Hardware-backed Enclaves (automatic on iOS/Android).
+- **Secure Logger:** Ensure `SecureLogger` is scrubbing logs in the Release build.
+
+### 12.4 Device Protection (Level 3: Physical)
+- **Root/Jailbreak Detection:** Mandatory check at app launch; block sensitive transactions if detected.
+- **Screenshot Protection:** Enable `ScreenProtector.preventScreenshotOn()` to block screenshots and screen recordings app-wide.
+- **App Switcher Masking:** Use lifecycle events to blur or black out the app preview in the Task Manager (Recent Apps).
+- **Biometric Unlock:** (Future Update) Integrate `local_auth` for FaceID/Fingerprint unlock on app resume.
+
+### 12.5 API Performance & Availability
+- **Connection Timeouts:** Change `connectTimeout` from 60s to 30s for better mobile reliability.
+- **ProGuard/R8:** Add rules to `android/app/proguard-rules.pro` to prevent reverse-engineering of encryption logic.
+- **App Integrity:** Verify Android 'Play Integrity API' and iOS 'App Attest' settings on the store consoles.
+
+### 12.5 Socket.io
+- **Production Event Names:** Confirm that the socket events (`market_rates`, `gold_rate`) match the production bullion server's definitions.
+- **Auto-Reconnect:** Verify heartbeat intervals to maintain stable connections on mobile networks (3G/4G/5G).
+
+### 12.6 Logging & Analytics
+- **SecureLogger:** Double-check that `SecureLogger` is suppressing `[REDACTED]` fields in Release mode.
+- **Analytics:** Enable production-level analytics (Firebase/AppCenter) to monitor transaction success rates and app stability.
+
+---
+
+## 13. ⚙️ AUTOMATION: SYNC RELEASE INFO
+
+To avoid manually editing 10+ platform-specific files, use the integrated sync script.
+
+### 13.1 Global Configuration
+Edit the **`release_config.json`** file at the root of the project to change the app name or bundle identifier globally:
+```json
+{
+    "app_name": "Start Gold",
+    "bundle_id": "com.startgold.app",
+    "version": "0.0.1",
+    "build_number": 1
+}
+```
+
+### 13.2 Running the Sync
+Run the following command from the project root to apply the changes to Android Manifest, Gradle, Info.plist, and Kotlin sources:
+```powershell
+python scripts/update_release_info.py
+```
+
+### 13.3 What the script updates:
+1.  **Android Label**: `AndroidManifest.xml` (the name on the home screen).
+2.  **Android ID**: `build.gradle.kts` (`applicationId` & `namespace`).
+3.  **Kotlin Package**: Moves `MainActivity.kt` and updates the `package` declaration.
+4.  **iOS Label**: `Info.plist` (`CFBundleDisplayName`).
+5.  **iOS Bundle ID**: `project.pbxproj` (`PRODUCT_BUNDLE_IDENTIFIER`).
+
+---
+
+## 14. 💸 WITHDRAWAL APIs
+
+### 14.1 Fetch Saved Accounts
+Lists all saved UPI handles and bank accounts. First item is auto-selected in UI when only one exists.
+
+- **Endpoint:** `POST profile/accountdetails`
+- **Request:**
+```json
+{
+  "id_customer": "1234",
+  "mobile": "9876543210"
+}
+```
+- **Response:**
+```json
+{
+  "success": true,
+  "message": "Account details fetched successfully",
+  "data": {
+    "accounts": [
+      { "id_payout": "1", "upi_id": "user@okaxis", "upi_handle": "user@okaxis" },
+      { "id_payout": "2", "bank_name": "SBI", "holder_name": "John Doe", "account_no": "012345678901", "ifsc_code": "SBIN0001234" }
+    ]
+  }
+}
+```
+
+---
+
+### 14.2 Verify & Add UPI Handle
+- **Endpoint:** `POST account/verify-upi`
+- **Encryption:** `upi_id` → AES-256
+- **Request:**
+```json
+{ "id_customer": "1234", "mobile": "9876543210", "upi_id": "<encrypted>" }
+```
+- **Response (success):**
+```json
+{ "success": true, "message": "UPI ID verified and saved successfully", "data": { "id_payout": "3", "upi_id": "user@okaxis", "status": "verified" } }
+```
+- **Response (failure):**
+```json
+{ "success": false, "message": "Invalid UPI ID. Please check and try again." }
+```
+
+---
+
+### 14.3 Verify & Add Bank Account
+- **Endpoint:** `POST account/verify-bank`
+- **Encryption:** `account_no`, `ifsc_code` → AES-256
+- **Request:**
+```json
+{ "id_customer": "1234", "mobile": "9876543210", "account_holder": "John Doe", "account_no": "<encrypted>", "ifsc_code": "<encrypted>" }
+```
+- **Response (success):**
+```json
+{ "success": true, "message": "Bank account verified and saved", "data": { "id_payout": "4", "bank_name": "SBI", "holder_name": "John Doe", "account_no": "XXXX8901", "ifsc_code": "SBIN0001234", "status": "verified" } }
+```
+- **Response (failure):**
+```json
+{ "success": false, "message": "Bank account verification failed. Please check details." }
+```
+
+---
+
+### 14.4 Submit Withdrawal
+- **Endpoint:** `POST withdraw`
+- **Encryption:** `withdrawal_amount`, `upi_id`, `transaction_pin` → AES-256
+- **Request:**
+```json
+{ "id_customer": "1234", "mobile": "9876543210", "withdrawal_amount": "<encrypted>", "upi_id": "<encrypted>", "transaction_pin": "<encrypted>" }
+```
+- **Response:**
+```
+{ "success": true, "message": "Withdrawal request submitted", "data": { "transaction_id": "TXN20240324001", "amount": 5000, "status": "PROCESSING", "estimated_time": "1-2 business days" } }
+```
+
+---
+
+## 15. Transaction History & Details
+
+### 15.1 Fetch Transaction History
+- **Endpoint:** `POST transactions/history`
+- **Request Body:**
+```json
+{
+  "id_customer": "C101",
+  "metal_type": "1", // General filter
+  "page": 1,
+  "limit": 20
+}
+```
+- **Response:**
+```json
+{
+  "success": true,
+  "message": "Transactions retrieved successfully",
+  "data": {
+    "grouped_transactions": {
+      "11 Mar 2026": [
+        {
+          "transaction_id": "TXN_11MAR_01",
+          "title": "Instant Saving",
+          "type": "purchase",
+          "status": "Success",
+          "amount": 10.00,
+          "weight_grams": 0.0005,
+          "metal_name": "Gold",
+          "display_date": "11 Mar '26, 01:03pm"
+        },
+        {
+          "transaction_id": "TXN_11MAR_02",
+          "title": "Withdrawal",
+          "type": "withdrawal",
+          "status": "Success",
+          "amount": 9.64,
+          "weight_grams": 0.0006,
+          "metal_name": "Gold",
+          "display_date": "11 Mar '26, 11:07am"
+        }
+      ],
+      "05 Feb 2025": [
+        {
+          "transaction_id": "TXN_05FEB_01",
+          "title": "Instant Saving",
+          "type": "purchase",
+          "status": "Success",
+          "amount": 10.00,
+          "weight_grams": 0.0011,
+          "metal_name": "Gold",
+          "display_date": "05 Feb '25, 11:03am"
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+### 15.2 Fetch Transaction Details
+- **Endpoint:** `POST transactions/details`
+- **Request Body:**
+```json
+{
+  "id_customer": "C101",
+  "transaction_id": "TXN_11MAR_01"
+}
+```
+- **Response:**
+```json
+{
+  "success": true,
+  "message": "Transaction details retrieved successfully",
+  "data": {
+    "transaction_id": "TXN_11MAR_01",
+    "title": "Instant Saving",
+    "subtitle": "Gold purchased",
+    "amount": 10.00,
+    "weight_grams": 0.0005,
+    "metal_name": "Gold",
+    "timeline": [
+      {
+        "step_name": "Payment",
+        "status": "Success",
+        "time": "11 Mar '26, 01:03 PM"
+      },
+      {
+        "step_name": "Gold order",
+        "status": "Success",
+        "time": "11 Mar '26, 01:03 PM"
+      },
+      {
+        "step_name": "Gold purchase",
+        "status": "Success",
+        "time": "11 Mar '26, 01:03 PM"
+      }
+    ],
+    "footer_message": "Gold has been added to your Jar locker.",
+    "price_breakdown": {
+      "gold_quantity": "0.0005 g",
+      "gold_rate": "₹16,577.19/g",
+      "gold_value": "₹9.76",
+      "gst": "₹0.24",
+      "total_amount": "₹10"
+    },
+    "technical_details": {
+      "transaction_id_display": "........4e9b64a",
+      "gold_transaction_id": "........3DZ8B45",
+      "placed_on": "11 Mar '26, 01:03 PM",
+      "paid_via": "UPI"
+    }
+  }
+}
+```
+
+---
+
+## Support / Enquiry
+
+### Create Support Ticket
+*   **Endpoint:** `POST support/create-ticket`
+*   **Authorization:** Bearer token required
+*   **Request Payload:**
+    ```json
+    {
+      "type": 1,
+      "subject": "Payment query",
+      "content": "I have a question about my last payment."
+    }
+    ```
+
+#### `type` Values
+| Value | Label |
+|---|---|
+| `1` | General |
+| `2` | Payment |
+| `3` | Technical |
+| `4` | Account |
+
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Support request submitted successfully.",
+      "data": {
+        "id": 3,
+        "on": "01/04/2026 05:59 am",
+        "type": "Enquiry",
+        "subject": "Payment query",
+        "content": "I have a question about my last payment.",
+        "status": "pending"
+      }
+    }
+    ```
+
+#### Status Values
+| Value | Meaning |
+|---|---|
+| `pending` | Ticket received, awaiting review |
+| `open` | Under investigation |
+| `resolved` | Ticket closed |
+
+---
+
+### List My Tickets
+*   **Endpoint:** `POST support/list`
+*   **Authorization:** Bearer token required
+*   **Payload:** `{}` (empty body — user identified from token)
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "id": 3,
+          "on": "01/04/2026 05:59 am",
+          "type": "Enquiry",
+          "subject": "Payment query",
+          "content": "I have a question about my last payment.",
+          "status": "pending"
+        }
+      ]
+    }
+    ```
+
+> **Note:** The client tries multiple response shapes:
+> `data` as array → `data.tickets` → `data.enquiries` → `data.data` → `data.list`

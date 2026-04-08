@@ -12,7 +12,7 @@ class WithdrawalState {
 
   WithdrawalState({
     this.amount = 0,
-    this.isGrams = true,
+    this.isGrams = false,
     this.selectedMethod,
     this.savedMethods = const [],
     this.isProcessing = false,
@@ -39,54 +39,18 @@ class WithdrawalState {
 }
 
 class WithdrawalNotifier extends StateNotifier<WithdrawalState> {
-  WithdrawalNotifier() : super(WithdrawalState()) {
-    _loadSavedMethods();
-  }
-
-  void _loadSavedMethods() {
-    // Mocking saved UPI IDs
-    state = state.copyWith(
-      savedMethods: [
-        WithdrawalMethod(
-            id: '1',
-            upiId: 'john.doe@okicici',
-            bankName: 'ICICI Bank',
-            isVerified: true),
-        WithdrawalMethod(
-            id: '2',
-            upiId: '9876543210@paytm',
-            bankName: 'Paytm Payments Bank',
-            isVerified: true),
-      ],
-    );
-    if (state.savedMethods.isNotEmpty) {
-      state = state.copyWith(selectedMethod: state.savedMethods.first);
-    }
-  }
+  WithdrawalNotifier() : super(WithdrawalState());
 
   void updateAmount(double value) {
     state = state.copyWith(amount: value, error: null);
   }
 
-  void toggleInputType() {
-    state = state.copyWith(isGrams: !state.isGrams, amount: 0, error: null);
-  }
-
-  void selectMethod(WithdrawalMethod method) {
+  void selectMethod(WithdrawalMethod? method) {
     state = state.copyWith(selectedMethod: method);
   }
 
-  void addUpiMethod(String upiId, String bankName) {
-    final newMethod = WithdrawalMethod(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      upiId: upiId,
-      bankName: bankName,
-      isVerified: true,
-    );
-    state = state.copyWith(
-      savedMethods: [...state.savedMethods, newMethod],
-      selectedMethod: newMethod,
-    );
+  void setProcessing(bool value) {
+    state = state.copyWith(isProcessing: value);
   }
 
   String? validate(double availableBalanceGrams, double buyPrice) {

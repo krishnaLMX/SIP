@@ -75,7 +75,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(ref.tr('languageSelector', fallback: 'Change Language'),
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.lora(
                     fontSize: 20.sp,
                     fontWeight: FontWeight.bold,
                     color: isDark ? Colors.white : Colors.black,
@@ -84,15 +84,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               Text(
                 ref.tr('chooseLanguagePref',
                     fallback: 'Choose your preferred language'),
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.lora(
                   fontSize: 14.sp,
                   color: Colors.grey,
                 ),
               ),
               SizedBox(height: 24.h),
               _buildLangOption(context, 'English', 'en', isDark),
-              _buildLangOption(context, 'தமிழ் (Tamil)', 'ta', isDark),
-              _buildLangOption(context, 'తెలుగు (Telugu)', 'te', isDark),
+              _buildLangOption(context, '????? (Tamil)', 'ta', isDark),
+              _buildLangOption(context, '?????? (Telugu)', 'te', isDark),
               SizedBox(height: 16.h),
             ],
           ),
@@ -108,7 +108,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(title,
-          style: GoogleFonts.outfit(
+          style: GoogleFonts.lora(
             fontSize: 16.sp,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
             color: isSelected
@@ -142,7 +142,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Settings',
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.lora(
                 fontSize: 20.sp,
                 fontWeight: FontWeight.w700,
                 color: isDark ? Colors.white : Colors.black)),
@@ -186,7 +186,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.language_rounded,
                       title: ref.tr('languageTitle', fallback: 'Language'),
                       subtitle: ref.tr('languageSubtitle',
-                          fallback: 'English / தமிழ் / తెలుగు'),
+                          fallback: 'English / ????? / ??????'),
                       trailing: Icon(Icons.chevron_right_rounded,
                           color: Colors.grey.shade400),
                       isDark: isDark,
@@ -210,7 +210,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildSectionTitle(String title, bool isDark) {
     return Text(
       title.toUpperCase(),
-      style: GoogleFonts.outfit(
+      style: GoogleFonts.lora(
           fontSize: 12.sp,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.5,
@@ -250,12 +250,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.lora(
                         fontSize: 16.sp,
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white : Colors.black87)),
                 Text(subtitle,
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.lora(
                         fontSize: 12.sp, color: Colors.grey, height: 1.2)),
               ],
             ),
@@ -266,3 +266,4 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 }
+

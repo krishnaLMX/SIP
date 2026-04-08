@@ -1,19 +1,16 @@
 import '../../../core/network/api_client.dart';
 import '../models/saving_models.dart';
+import '../../../core/security/secure_logger.dart';
 
 class SavingService {
   final ApiClient _apiClient = ApiClient();
 
   Future<SavingConfig> getSavingConfig() async {
-    try {
-      final response = await _apiClient.post('savings/config');
-      if (response.data != null && response.data['data'] != null) {
-        return SavingConfig.fromJson(response.data['data']);
-      }
-      return SavingConfig.defaultConfig();
-    } catch (e) {
-      return SavingConfig.defaultConfig();
+    final response = await _apiClient.post('savings/config');
+    if (response.data != null && response.data['data'] != null) {
+      return SavingConfig.fromJson(response.data['data']);
     }
+    throw Exception('Failed to load saving configuration');
   }
 
   Future<EligibilityResponse> checkEligibility({
@@ -32,6 +29,7 @@ class SavingService {
       'rate_per_gram': rate,
       'device_id': 'device-id-placeholder',
       'coupon_code': couponCode,
+      'request_from': 'instant',
     });
     return EligibilityResponse.fromJson(response.data['data']);
   }
@@ -43,6 +41,7 @@ class SavingService {
     required String buyType,
     required double amount,
     required double rate,
+    required double weight,
     String? couponCode,
   }) async {
     final response = await _apiClient.post('savings/initiate', data: {
@@ -50,12 +49,28 @@ class SavingService {
       'id_metal': metalId,
       'mobile': mobile,
       'buy_type': buyType,
-      'amount_inr': amount,
+      'amount_inr': amount.toStringAsFixed(2),
       'rate_per_gram': rate,
+      'weight': weight,
       'device_id': 'device-id-placeholder',
       'coupon_code': couponCode,
+      'request_from': 'instant',
     });
     return PurchaseInitiateResponse.fromJson(response.data['data']);
+  }
+
+  Future<Map<String, dynamic>> confirmPayment(String orderId) async {
+    final response = await _apiClient.post('savings/confirm-payment', data: {
+      'order_id': orderId,
+    });
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> cancelOrder(String orderId) async {
+    final response = await _apiClient.post('savings/cancel_order', data: {
+      'order_id': orderId,
+    });
+    return response.data;
   }
 }
 
@@ -63,9 +78,10 @@ class PaymentService {
   final ApiClient _apiClient = ApiClient();
 
   Future<List<PaymentMethod>> getPaymentMethods() async {
+    SecureLogger.d('DEBUG: Calling getPaymentMethods API...');
     final response = await _apiClient.post('payments/methods');
     if (response.data != null && response.data['data'] != null) {
-      final List list = response.data['data']['methods'];
+      final List list = response.data['data']['payment_methods'] ?? [];
       return list.map((item) => PaymentMethod.fromJson(item)).toList();
     }
     return [];

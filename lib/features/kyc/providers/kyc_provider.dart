@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sip/routes/app_router.dart';
-import 'package:sip/features/kyc/models/kyc_step.dart';
+import 'package:startgold/routes/app_router.dart';
+import 'package:startgold/features/kyc/models/kyc_step.dart';
 
 class KycState {
   final List<KycStep> steps;
@@ -68,3 +68,4 @@ class KycNotifier extends StateNotifier<KycState> {
 final kycStepsProvider = StateNotifierProvider<KycNotifier, KycState>((ref) {
   return KycNotifier();
 });
+

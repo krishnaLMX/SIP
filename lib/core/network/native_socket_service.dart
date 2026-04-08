@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../features/market/models/market_rates.dart';
 import '../security/secure_logger.dart';
@@ -6,9 +6,9 @@ import '../security/secure_logger.dart';
 enum SocketStatus { connecting, connected, disconnected, error }
 
 class NativeSocketService {
-  final String _wsUrl = 'ws://test.ganeshbullion.com/ws';
+  final String _wsUrl = 'ws://13.202.62.253:57200';
   final List<String> _protocols = [
-    '98aa523f3eca1469f2b8115c78579b88c3a2dacaa043be7f87fad20ce7c2a8a3'
+    '0b286a8b1100f097e7c8e879dbd4174e468a9e92f888e6e289595efdd4747b89'
   ];
 
   WebSocketChannel? _channel;
@@ -29,8 +29,8 @@ class NativeSocketService {
   MarketRates? _lastRate;
   Timer? _reconnectTimer;
 
-  String goldId = '91';
-  String silverId = '98';
+  String goldId = '1';
+  String silverId = '3';
   String goldName = 'Gold 24KT';
   String silverName = 'Silver 999';
 

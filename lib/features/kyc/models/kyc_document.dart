@@ -1,8 +1,10 @@
-class KycDocumentType {
+﻿class KycDocumentType {
   final String id;
   final String name;
   final String code;
   final bool mandatory;
+  final String status;
+  final bool alreadyUploaded;
   final List<KycField> fields;
   final KycImagesRequirement images;
 
@@ -13,14 +15,18 @@ class KycDocumentType {
     required this.mandatory,
     required this.fields,
     required this.images,
+    this.status = '',
+    this.alreadyUploaded = false,
   });
 
   factory KycDocumentType.fromJson(Map<String, dynamic> json) {
     return KycDocumentType(
-      id: json['id_document'] ?? '',
+      id: json['id_document']?.toString() ?? '',
       name: json['document_name'] ?? '',
       code: json['code'] ?? '',
       mandatory: json['mandatory'] ?? false,
+      status: json['status'] ?? '',
+      alreadyUploaded: json['already_uploaded'] ?? false,
       fields: (json['fields'] as List?)
               ?.map((e) => KycField.fromJson(e))
               .toList() ??
@@ -69,3 +75,4 @@ class KycImagesRequirement {
     );
   }
 }
+

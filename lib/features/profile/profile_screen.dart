@@ -1,13 +1,24 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../shared/theme/app_theme.dart';
-import '../../shared/widgets/animations.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../routes/app_router.dart';
-import 'profile_controller.dart';
-import 'widgets/profile_photo_widget.dart';
+import '../../core/security/secure_storage_service.dart';
+import '../../core/utils/masking_utils.dart';
+import '../auth/controller/auth_controller.dart';
+import '../main/main_screen.dart';
+import 'profile_controller.dart' as pc;
+import '../../shared/widgets/loaders.dart';
+import '../../shared/widgets/app_toast.dart';
+
+// ── App version provider ───────────────────────────────────────────────────
+final appVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return 'Version ${info.version} (${info.buildNumber})';
+});
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -17,462 +28,575 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  late TextEditingController _nameController;
-  late TextEditingController _emailController;
-  late TextEditingController _addressController;
+  bool _biometricEnabled = false;
+  bool _biometricAvailable = false;
+  final LocalAuthentication _localAuth = LocalAuthentication();
 
   @override
   void initState() {
     super.initState();
-    final user = ref.read(profileProvider).user;
-    _nameController = TextEditingController(text: user.name);
-    _emailController = TextEditingController(text: user.email);
-    _addressController = TextEditingController(text: user.address);
+    _loadBiometricState();
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _addressController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _handleSubmit() async {
-    final success = await ref.read(profileProvider.notifier).updateProfile(
-          name: _nameController.text,
-          email: _emailController.text,
-          address: _addressController.text,
-        );
-
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Profile updated successfully',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
-          backgroundColor: AppTheme.electricCyan,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+  Future<void> _loadBiometricState() async {
+    final enabled = await SecureStorageService.isBiometricEnabled();
+    bool available = false;
+    try {
+      available = await _localAuth.canCheckBiometrics ||
+          await _localAuth.isDeviceSupported();
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _biometricEnabled = enabled;
+        _biometricAvailable = available;
+      });
     }
   }
 
-  Future<void> _handlePhotoUpdate(File photo) async {
-    final success =
-        await ref.read(profileProvider.notifier).updateProfilePhoto(photo);
+  Future<void> _onBiometricToggle(bool newValue) async {
+    debugPrint('── Biometric Toggle: $newValue ──');
+    if (newValue) {
+      // Step 1: Verify identity with existing MPIN.
+      debugPrint('  Step 1: Opening MPIN verify_only...');
+      final verified = await Navigator.pushNamed(
+        context,
+        AppRouter.mpin,
+        arguments: {'type': 'verify_only'},
+      );
+      debugPrint('  Step 1 result: verified=$verified');
+      if (verified != true) {
+        debugPrint('  ABORTED: MPIN not verified');
+        return;
+      }
 
-    if (mounted) {
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Profile photo updated successfully',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
-            backgroundColor: AppTheme.electricCyan,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+      // Step 2: Confirm with actual biometric enrollment
+      debugPrint('  Step 2: Prompting biometric enrollment...');
+      try {
+        final enrolled = await _localAuth.authenticate(
+          localizedReason: 'Confirm biometrics to enable this feature',
+          biometricOnly: true,
+          persistAcrossBackgrounding: true,
         );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update profile photo',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
+        debugPrint('  Step 2 result: enrolled=$enrolled');
+        if (!enrolled) {
+          debugPrint('  ABORTED: Biometric enrollment rejected');
+          return;
+        }
+      } catch (e) {
+        debugPrint('  Step 2 ERROR: $e');
+        return;
       }
     }
+
+    debugPrint('  Step 3: Saving biometricEnabled=$newValue');
+    await SecureStorageService.setBiometricEnabled(newValue);
+    // Also persist the MPIN enabled flag so the flag stays correct
+    if (newValue) await SecureStorageService.setMpinEnabled(true);
+    if (mounted) setState(() => _biometricEnabled = newValue);
+
+    final msg = newValue
+        ? 'Biometric authentication enabled'
+        : 'Biometric authentication disabled';
+    final type = newValue ? ToastType.success : ToastType.info;
+    if (mounted) AppToast.show(context, msg, type: type);
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final profileState = ref.watch(profileProvider);
+    final profileState = ref.watch(pc.profileProvider);
+
+    if (profileState.isLoading && profileState.user.name == 'Investor') {
+      return AppLoaders.fullScreenLoader(context, isDark: isDark);
+    }
+
     final user = profileState.user;
 
-    // Listen for state changes to update controllers when data is fetched
-    ref.listen(profileProvider, (previous, next) {
-      if (!next.isEditing && (previous == null || previous.user != next.user)) {
-        _nameController.text = next.user.name;
-        _emailController.text = next.user.email;
-        _addressController.text = next.user.address;
-      }
-    });
-
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
-      body: profileState.isLoading && user.name == 'Investor'
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.arcticBlue))
-          : CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                _buildSliverAppBar(context, isDark, user, profileState),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20.w),
+      backgroundColor: Colors.transparent,
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          children: [
+            _buildHeader(context, user, isDark),
+            Padding(
+              padding: EdgeInsets.all(24.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSection(
+                      'Profile Settings',
+                      [
+                        _buildMenuItem(
+                          'Account Details',
+                          'assets/sidemenu/account.svg',
+                          onTap: () => Navigator.pushNamed(
+                              context, AppRouter.accountDetails),
+                        ),
+                        _buildMenuItem(
+                          'Transaction History',
+                          'assets/sidemenu/transhistory.svg',
+                          onTap: () => Navigator.pushNamed(
+                              context, AppRouter.transactionHistory),
+                        ),
+                        _buildMenuItem(
+                          'KYC Verification',
+                          'assets/sidemenu/kyc.svg',
+                          onTap: () async {
+                            if (user.kycStatus == 1) {
+                              AppToast.show(
+                                  context, 'Your KYC is already verified! ✓',
+                                  type: ToastType.success);
+                              return;
+                            }
+                            final result = await Navigator.pushNamed(
+                                context, AppRouter.kyc,
+                                arguments: {'request_from': 'profile'});
+                            // Refresh profile to update the verified badge
+                            if (result == true && mounted) {
+                              ref
+                                  .read(pc.profileProvider.notifier)
+                                  .fetchProfileDetails();
+                            }
+                          },
+                          trailing: user.kycStatus == 1
+                              ? Container(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 10.w, vertical: 4.h),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0E5723)
+                                        .withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(100.r),
+                                    border: Border.all(
+                                        color: const Color(0xFF0E5723)
+                                            .withOpacity(0.15)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.verified_user_rounded,
+                                          color: const Color(0xFF0E5723),
+                                          size: 14.sp),
+                                      SizedBox(width: 4.w),
+                                      Text(
+                                        'Verified',
+                                        style: TextStyle(
+                                          fontSize: 10.sp,
+                                          fontWeight: FontWeight.w900,
+                                          color: const Color(0xFF0E5723),
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : null,
+                        ),
+                        // Nominee Details - Commented as requested
+                        /*
+                    _buildMenuItem(
+                      'Nominee Details',
+                      'assets/sidemenu/nominee.svg',
+                      onTap: () {},
+                    ),
+                    */
+                        // Auto Savings - Commented as requested
+                        /*
+                    _buildMenuItem(
+                      'Auto Savings',
+                      'assets/sidemenu/autosaving.svg',
+                      onTap: () {},
+                    ),
+                    */
+                      ],
+                      isDark),
+                  SizedBox(height: 16.h),
+                  _buildSection(
+                      'General',
+                      [
+                        _buildMenuItem(
+                          'Refer & Earn',
+                          'assets/sidemenu/refer.svg',
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRouter.referral),
+                        ),
+                        _buildMenuItem(
+                          'Privacy Policy',
+                          'assets/sidemenu/privacy.svg',
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRouter.privacy),
+                        ),
+                        _buildMenuItem(
+                          'Terms & Conditions',
+                          'assets/sidemenu/tc.svg',
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRouter.terms),
+                        ),
+                        _buildMenuItem(
+                          'Enquiry',
+                          'assets/sidemenu/enquiry.svg',
+                          onTap: () => Navigator.pushNamed(
+                              context, AppRouter.enquiryList),
+                        ),
+                        _buildMenuItem(
+                          'Help & Support',
+                          'assets/sidemenu/help.svg',
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRouter.contact),
+                        ),
+                      ],
+                      isDark),
+                  SizedBox(height: 16.h),
+                  _buildSection(
+                      'Account',
+                      [
+                        // Biometrics Auth
+                        if (_biometricAvailable)
+                          _buildMenuItem(
+                            'Biometric Authentication',
+                            'assets/sidemenu/lock.svg',
+                            onTap: () => _onBiometricToggle(!_biometricEnabled),
+                            trailing: Switch(
+                              value: _biometricEnabled,
+                              onChanged: _onBiometricToggle,
+                              activeColor: const Color(0xFF0E5723),
+                            ),
+                          ),
+
+                        // Change MPIN
+
+                        _buildMenuItem(
+                          'Change MPIN',
+                          'assets/sidemenu/mpin.svg',
+                          onTap: () => Navigator.pushNamed(
+                              context, AppRouter.changeMpin),
+                        ),
+
+                        _buildMenuItem(
+                          'Logout',
+                          'assets/sidemenu/logout.svg',
+                          onTap: () => _handleLogout(context, ref),
+                        ),
+                        _buildMenuItem(
+                          'Delete Account',
+                          'assets/sidemenu/deleteacc.svg',
+                          isDestructive: true,
+                          onTap: () => _handleDeleteAccount(context),
+                        ),
+                      ],
+                      isDark),
+                  SizedBox(height: 32.h),
+                  Center(
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final versionAsync = ref.watch(appVersionProvider);
+                        final label = versionAsync.when(
+                          data: (v) => v,
+                          loading: () => 'Version ...',
+                          error: (_, __) => 'Version 1.0',
+                        );
+                        return Text(
+                          label,
+                          style: GoogleFonts.lora(
+                            fontSize: 14.sp,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  SizedBox(height: 48.h),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, user, bool isDark) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment(-0.87, -0.5),
+          end: Alignment(0.87, 0.5),
+          colors: [Color(0xFF003716), Color(0xFF167525)],
+          stops: [0.0223, 0.9399],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(32.r),
+          bottomRight: Radius.circular(32.r),
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 28.h),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Nav row ─────────────────────────────────────────────────
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white, size: 20.sp),
+                    onPressed: () {
+                      final routeName = ModalRoute.of(context)?.settings.name;
+                      if (routeName == AppRouter.profile) {
+                        Navigator.pop(context);
+                      } else {
+                        ref.read(selectedTabProvider.notifier).state = 0;
+                      }
+                    },
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Profile',
+                      textAlign: TextAlign.left,
+                      style: GoogleFonts.lora(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18.sp,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 20.h),
+              // ── User info ───────────────────────────────────────────────
+              Row(
+                children: [
+                  SizedBox(width: 8.w),
+                  // Circular Progress Avatar
+                  Builder(builder: (context) {
+                    // Profile completion: 5 fields × 20% each
+                    int filled = 0;
+                    if (user.name.isNotEmpty) filled++;
+                    if (user.phone.isNotEmpty) filled++;
+                    if (user.dob.isNotEmpty) filled++;
+                    if (user.kycStatus == 1) filled++;
+                    if (user.pincode.isNotEmpty) filled++;
+                    final completion = filled / 5.0;
+                    final pct = (completion * 100).round();
+
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 70.w,
+                          height: 70.w,
+                          child: CircularProgressIndicator(
+                            value: completion,
+                            strokeWidth: 4,
+                            backgroundColor: Colors.white.withOpacity(0.15),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                Color(0xFFFDE047)),
+                          ),
+                        ),
+                        Container(
+                          width: 58.w,
+                          height: 58.w,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                            image: user.photoUrl != null &&
+                                    user.photoUrl!.isNotEmpty
+                                ? DecorationImage(
+                                    image: NetworkImage(user.photoUrl!),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                          alignment: Alignment.center,
+                          child: user.photoUrl == null || user.photoUrl!.isEmpty
+                              ? Text(
+                                  user.name.isNotEmpty
+                                      ? user.name
+                                          .substring(
+                                              0,
+                                              user.name.length < 2
+                                                  ? user.name.length
+                                                  : 2)
+                                          .toUpperCase()
+                                      : 'AS',
+                                  style: GoogleFonts.lora(
+                                    fontSize: 20.sp,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: EdgeInsets.all(7.w),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$pct%',
+                              style: TextStyle(
+                                fontSize: 8.sp,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF0E5723),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                  SizedBox(width: 20.w),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(height: 24.h),
-                        _buildKycStatus(isDark),
-                        SizedBox(height: 32.h),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _buildSectionTitle('Personal Information', isDark),
-                            TextButton.icon(
-                              onPressed: () {
-                                ref
-                                    .read(profileProvider.notifier)
-                                    .setEditing(!profileState.isEditing);
-                                if (!profileState.isEditing) {
-                                  // Reset controllers when entering edit mode to ensure sync
-                                  _nameController.text = user.name;
-                                  _emailController.text = user.email;
-                                  _addressController.text = user.address;
-                                }
-                              },
-                              icon: Icon(
-                                profileState.isEditing
-                                    ? Icons.close
-                                    : Icons.edit_note,
-                                size: 18.sp,
-                                color: AppTheme.arcticBlue,
-                              ),
-                              label: Text(
-                                profileState.isEditing ? 'Cancel' : 'Edit',
-                                style: GoogleFonts.outfit(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.arcticBlue,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 16.h),
-                        _buildProfileTile(
-                          Icons.person_outline,
-                          'Full Name',
-                          user.name,
-                          isDark,
-                          isEditing: profileState.isEditing,
-                          controller: _nameController,
-                        ),
-                        _buildProfileTile(
-                          Icons.alternate_email,
-                          'Email Address',
-                          user.email,
-                          isDark,
-                          isEditing: profileState.isEditing,
-                          controller: _emailController,
-                        ),
-                        _buildProfileTile(
-                          Icons.location_on_outlined,
-                          'Residential Address',
-                          user.address,
-                          isDark,
-                          isEditing: profileState.isEditing,
-                          controller: _addressController,
-                          maxLines: 3,
-                        ),
-                        _buildProfileTile(
-                          Icons.phone_iphone,
-                          'Mobile Number',
-                          user.phone,
-                          isDark,
-                          isReadOnly: true,
-                        ),
-                        if (profileState.isEditing) ...[
-                          SizedBox(height: 24.h),
-                          FadeInAnimation(
-                            delay: const Duration(milliseconds: 100),
-                            child: ElevatedButton(
-                              onPressed:
-                                  profileState.isLoading ? null : _handleSubmit,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.arcticBlue,
-                                minimumSize: Size(double.infinity, 56.h),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16.r),
-                                ),
-                              ),
-                              child: profileState.isLoading
-                                  ? SizedBox(
-                                      height: 24.h,
-                                      width: 24.h,
-                                      child: const CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : Text(
-                                      'Apply Changes',
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 18.sp,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                            ),
+                        Text(
+                          user.name.isNotEmpty ? user.name : '',
+                          style: GoogleFonts.lora(
+                            fontSize: 20.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
                           ),
-                          if (profileState.error != null)
-                            Padding(
-                              padding: EdgeInsets.only(top: 16.h),
-                              child: Text(
-                                profileState.error!,
-                                style: GoogleFonts.outfit(
-                                  color: Colors.redAccent,
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                        ],
-                        SizedBox(height: 32.h),
-                        _buildSectionTitle('Security & Privacy', isDark),
-                        SizedBox(height: 16.h),
-                        _buildProfileTile(
-                          Icons.lock_outline,
-                          'Change MPIN',
-                          'Last updated 2 days ago',
-                          isDark,
-                          isAction: true,
-                          onTap: () =>
-                              Navigator.pushNamed(context, AppRouter.settings),
                         ),
-                        _buildProfileTile(Icons.fingerprint, 'Biometric Login',
-                            'Enabled', isDark,
-                            isAction: true),
-                        _buildProfileTile(Icons.description_outlined,
-                            'KYC Documents', 'Verified', isDark,
-                            isAction: true),
-                        SizedBox(height: 120.h),
+                        SizedBox(height: 4.h),
+                        Text(
+                          MaskingUtils.maskMobile(user.phone),
+                          style: GoogleFonts.lora(
+                            fontSize: 14.sp,
+                            color: Colors.white.withOpacity(0.8),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ],
                     ),
                   ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSection(String title, List<Widget> items, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(left: 4.w, bottom: 16.h),
+          child: Text(
+            title,
+            style: GoogleFonts.lora(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : Colors.black,
+            ),
+          ),
+        ),
+        ...items,
+      ],
+    );
+  }
+
+  Widget _buildMenuItem(String title, String iconPath,
+      {required VoidCallback onTap,
+      bool isDestructive = false,
+      Widget? trailing}) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12.h),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(15.r),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15.r),
+              border: Border.all(color: Colors.black.withOpacity(0.05)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
-    );
-  }
-
-  Widget _buildSliverAppBar(
-      BuildContext context, bool isDark, UserProfile user, ProfileState state) {
-    return SliverAppBar(
-      expandedHeight: 240.h,
-      floating: false,
-      pinned: true,
-      backgroundColor: isDark ? const Color(0xFF020617) : Colors.white,
-      elevation: 0,
-      leading: IconButton(
-        icon: Icon(Icons.arrow_back_ios_new_rounded,
-            color: isDark ? Colors.white : Colors.black, size: 20.sp),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppTheme.arcticBlue.withOpacity(0.8),
-                    AppTheme.auroraPurple.withOpacity(0.6),
-                  ],
+            child: Row(
+              children: [
+                Container(
+                  width: 40.w,
+                  height: 40.w,
+                  padding: EdgeInsets.all(10.w),
+                  child: SvgPicture.asset(
+                    iconPath,
+                    colorFilter: ColorFilter.mode(
+                        isDestructive ? Colors.red : const Color(0xFF0E5723),
+                        BlendMode.srcIn),
+                  ),
                 ),
-              ),
+                SizedBox(width: 16.w),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: GoogleFonts.lora(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w500,
+                      color:
+                          isDestructive ? Colors.red : const Color(0xFF4B5563),
+                    ),
+                  ),
+                ),
+                trailing ??
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 20.sp,
+                      color: Colors.black26,
+                    ),
+              ],
             ),
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(height: 40.h),
-                  ProfilePhotoWidget(
-                    initialPhotoUrl: user.photoUrl,
-                    initials: user.name.isNotEmpty
-                        ? user.name
-                            .split(' ')
-                            .map((e) => e[0])
-                            .take(2)
-                            .join('')
-                            .toUpperCase()
-                        : '??',
-                    onPhotoSelected: _handlePhotoUpdate,
-                    isLoading: state.isPhotoLoading,
-                  ),
-                  SizedBox(height: 12.h),
-                  Text(
-                    user.name,
-                    style: GoogleFonts.outfit(
-                        fontSize: 22.sp,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white),
-                  ),
-                  Text(
-                    'Investor ID: #${user.id}',
-                    style: GoogleFonts.outfit(
-                        fontSize: 14.sp, color: Colors.white.withOpacity(0.8)),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildKycStatus(bool isDark) {
-    return FadeInAnimation(
-      delay: const Duration(milliseconds: 300),
-      child: Container(
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: AppTheme.electricCyan.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20.r),
-          border: Border.all(color: AppTheme.electricCyan.withOpacity(0.2)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.verified, color: AppTheme.electricCyan, size: 24.sp),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('KYC Verified',
-                      style: GoogleFonts.outfit(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.electricCyan)),
-                  Text('Your account is fully compliant and secure.',
-                      style: GoogleFonts.outfit(
-                          fontSize: 12.sp,
-                          color: isDark ? Colors.white60 : Colors.black54)),
-                ],
-              ),
-            ),
-          ],
-        ),
+  void _handleLogout(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ref.read(selectedTabProvider.notifier).state = 0;
+              ref.read(authControllerProvider.notifier).logout();
+              Navigator.pushNamedAndRemoveUntil(
+                  context, AppRouter.login, (route) => false);
+            },
+            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title, bool isDark) {
-    return Text(
-      title.toUpperCase(),
-      style: GoogleFonts.outfit(
-          fontSize: 12.sp,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.5,
-          color: AppTheme.arcticBlue),
-    );
-  }
-
-  Widget _buildProfileTile(
-      IconData icon, String title, String value, bool isDark,
-      {bool isAction = false,
-      VoidCallback? onTap,
-      bool isEditing = false,
-      bool isReadOnly = false,
-      int? maxLines,
-      TextEditingController? controller}) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 12.h),
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: isEditing && !isReadOnly
-            ? (isDark
-                ? AppTheme.arcticBlue.withOpacity(0.08)
-                : AppTheme.arcticBlue.withOpacity(0.03))
-            : (isDark ? Colors.white.withOpacity(0.03) : Colors.white),
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(
-          color: isEditing && !isReadOnly
-              ? AppTheme.arcticBlue.withOpacity(0.4)
-              : (isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
-          width: isEditing && !isReadOnly ? 1.5 : 1.0,
-        ),
-        boxShadow: isEditing && !isReadOnly
-            ? [
-                BoxShadow(
-                  color: AppTheme.arcticBlue.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                )
-              ]
-            : [],
-      ),
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Row(
-          children: [
-            Icon(icon,
-                color: isDark ? Colors.white38 : Colors.black38, size: 22.sp),
-            SizedBox(width: 16.w),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: GoogleFonts.outfit(
-                          fontSize: 12.sp,
-                          color: isDark ? Colors.white38 : Colors.black38)),
-                  if (isEditing && !isReadOnly && controller != null)
-                    TextField(
-                      controller: controller,
-                      autofocus: true,
-                      maxLines: maxLines,
-                      style: GoogleFonts.outfit(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : Colors.black87),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8.h),
-                        border: InputBorder.none,
-                        hintText: 'Enter $title',
-                        hintStyle: GoogleFonts.outfit(
-                          fontSize: 15.sp,
-                          color: isDark ? Colors.white24 : Colors.black26,
-                        ),
-                        suffixIcon: Icon(
-                          Icons.mode_edit_outline_outlined,
-                          size: 16.sp,
-                          color: AppTheme.arcticBlue.withOpacity(0.5),
-                        ),
-                        suffixIconConstraints: BoxConstraints(
-                          minWidth: 24.w,
-                          minHeight: 24.w,
-                        ),
-                      ),
-                    )
-                  else
-                    Text(value,
-                        style: GoogleFonts.outfit(
-                            fontSize: 15.sp,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white : Colors.black87)),
-                ],
-              ),
-            ),
-            if (isAction)
-              Icon(Icons.chevron_right_rounded,
-                  color: isDark ? Colors.white24 : Colors.black26),
-          ],
-        ),
-      ),
-    );
+  void _handleDeleteAccount(BuildContext context) {
+    // Show a similar dialog for delete account if needed
   }
 }

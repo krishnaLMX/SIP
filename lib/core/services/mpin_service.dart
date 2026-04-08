@@ -6,12 +6,22 @@ import '../network/api_client.dart';
 class MpinService {
   final ApiClient _apiClient = ApiClient();
 
-  /// Sets the MPIN on the server. Never stored locally.
+  /// Sets the MPIN on the server after registration.
+  /// Throws an [Exception] with the backend message if success == false.
   Future<void> setMpin(String mpin) async {
-    await _apiClient.post(
+    final response = await _apiClient.post(
       'mpin/create',
       data: {'mpin': mpin},
     );
+    final data = response.data;
+    // Server always returns HTTP 200 — check application-level flag
+    if (data?['success'] == true) return;
+
+    final errObj = data?['error'];
+    final msg = (errObj is Map ? errObj['message'] : null)
+        ?? data?['message']
+        ?? 'Failed to set PIN. Please try again.';
+    throw Exception(msg);
   }
 
   /// Verifies the MPIN with the server.
@@ -20,7 +30,51 @@ class MpinService {
       'mpin/validate',
       data: {'mpin': mpin},
     );
-    return response.statusCode == 200;
+    // Server returns HTTP 200 even on failure — must check app-level flag
+    return response.data?['success'] == true;
+  }
+
+  /// Changes the MPIN with the server.
+  /// Throws an [Exception] with the backend message if success == false.
+  Future<bool> changeMpin(String oldMpin, String newMpin) async {
+    final response = await _apiClient.post(
+      'mpin/change',
+      data: {
+        'old_mpin': oldMpin,
+        'new_mpin': newMpin,
+      },
+    );
+    final data = response.data;
+    // Server always returns HTTP 200 — check the application-level flag
+    if (data?['success'] == true) return true;
+
+    // Extract the real error message from the response
+    final errObj = data?['error'];
+    final msg = (errObj is Map ? errObj['message'] : null)
+        ?? data?['message']
+        ?? 'Failed to change PIN. Please try again.';
+    throw Exception(msg);
+  }
+
+  /// Resets the MPIN after forgot-PIN OTP verification.
+  /// Requires temp_token from the OTP verify response.
+  Future<void> resetMpin(String tempToken, String newMpin, {String? mobile}) async {
+    final response = await _apiClient.post(
+      'mpin/reset',
+      data: {
+        'temp_token': tempToken,
+        'new_mpin': newMpin,
+        if (mobile != null) 'mobile': mobile,
+      },
+    );
+    final data = response.data;
+    if (data?['success'] == true) return;
+
+    final errObj = data?['error'];
+    final msg = (errObj is Map ? errObj['message'] : null)
+        ?? data?['message']
+        ?? 'Failed to reset PIN. Please try again.';
+    throw Exception(msg);
   }
 
   /// Checks if the user already has an MPIN set on the backend.
@@ -57,6 +111,7 @@ class MpinState {
     bool? isComplete,
     bool? isLoading,
     String? error,
+    bool clearError = false,
     int? failedAttempts,
     bool? isLocked,
   }) {
@@ -64,7 +119,7 @@ class MpinState {
       mpin: mpin ?? this.mpin,
       isComplete: isComplete ?? this.isComplete,
       isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
+      error: clearError ? null : (error ?? this.error),
       failedAttempts: failedAttempts ?? this.failedAttempts,
       isLocked: isLocked ?? this.isLocked,
     );
@@ -99,15 +154,16 @@ class MpinNotifier extends StateNotifier<MpinState> {
 
   Future<bool> setMpin() async {
     if (state.isLoading) return false;
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
       await _mpinService.setMpin(state.mpin);
       state = state.copyWith(isLoading: false);
       return true;
     } catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '');
       state = state.copyWith(
         isLoading: false,
-        error: 'Failed to set security PIN. Try again.',
+        error: msg.isNotEmpty ? msg : 'Failed to set security PIN. Try again.',
       );
       return false;
     }
@@ -115,7 +171,7 @@ class MpinNotifier extends StateNotifier<MpinState> {
 
   Future<bool> verifyMpin() async {
     if (state.isLoading || state.isLocked) return false;
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
       final success = await _mpinService.verifyMpin(state.mpin);
       if (success) {
@@ -145,6 +201,24 @@ class MpinNotifier extends StateNotifier<MpinState> {
     }
   }
 
+  /// Resets the MPIN (forgot PIN flow).
+  Future<bool> resetMpin(String tempToken, {String? mobile}) async {
+    if (state.isLoading) return false;
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _mpinService.resetMpin(tempToken, state.mpin, mobile: mobile);
+      state = state.copyWith(isLoading: false);
+      return true;
+    } catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      state = state.copyWith(
+        isLoading: false,
+        error: msg.isNotEmpty ? msg : 'Failed to reset PIN. Try again.',
+      );
+      return false;
+    }
+  }
+
   void clear() {
     state = MpinState();
   }
@@ -154,3 +228,4 @@ final mpinProvider = StateNotifierProvider<MpinNotifier, MpinState>((ref) {
   final service = ref.watch(mpinServiceProvider);
   return MpinNotifier(service);
 });
+

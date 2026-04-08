@@ -52,6 +52,7 @@ class AuthService {
   Future<Map<String, dynamic>> sendOtp({
     required String mobile,
     required String countryCode,
+    required String idCountry,
     String type = 'LOGIN',
   }) async {
     final appVersion = await _getAppVersion();
@@ -61,6 +62,7 @@ class AuthService {
       data: {
         'mobile': mobile,
         'country_code': countryCode,
+        'id_country': idCountry,
         'type': type,
         'device_id': await _getDeviceId(),
         'device_type': _getDeviceType(),
@@ -101,6 +103,14 @@ class AuthService {
         await SecureStorageService.saveCustomerId(
             data['user']['id_customer'].toString());
       }
+      if (data['user']?['name'] != null) {
+        await SecureStorageService.saveCustomerName(data['user']['name']);
+      } else if (data['user']?['full_name'] != null) {
+        await SecureStorageService.saveCustomerName(data['user']['full_name']);
+      }
+      if (data['user']?['photo_url'] != null) {
+        await SecureStorageService.saveCustomerPhoto(data['user']['photo_url']);
+      }
       if (mobile.isNotEmpty) {
         await SecureStorageService.saveMobile(mobile);
       }
@@ -113,6 +123,8 @@ class AuthService {
     required String fullName,
     required String email,
     required String tempToken,
+    String? dob,
+    String? referralCode,
   }) async {
     final deviceId = await _getDeviceId();
     final deviceType = _getDeviceType();
@@ -123,6 +135,8 @@ class AuthService {
         'mobile': mobile,
         'full_name': fullName,
         'email': email,
+        'dob': dob,
+        'referral_code': referralCode,
         'temp_token': tempToken,
         'device_id': await deviceId,
         'device_type': deviceType,
@@ -142,6 +156,11 @@ class AuthService {
       if (data['user']?['id_customer'] != null) {
         await SecureStorageService.saveCustomerId(
             data['user']['id_customer'].toString());
+      }
+      if (data['user']?['name'] != null) {
+        await SecureStorageService.saveCustomerName(data['user']['name']);
+      } else if (data['user']?['full_name'] != null) {
+        await SecureStorageService.saveCustomerName(data['user']['full_name']);
       }
       if (mobile.isNotEmpty) {
         await SecureStorageService.saveMobile(mobile);
@@ -196,31 +215,39 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
 
   AuthNotifier(this._authService) : super(AuthState()) {
-    _rehydrate();
+    rehydrateFromStorage();
   }
 
-  Future<void> _rehydrate() async {
+  /// Populates sessionData from SecureStorage.
+  /// Called in constructor and can be called externally when sessionData
+  /// may have been overwritten (e.g. forgot PIN flow overwrites it with
+  /// temp_token, losing the user.id_customer needed by providers).
+  Future<void> rehydrateFromStorage() async {
     final customerId = await SecureStorageService.getCustomerId();
     final mobile = await SecureStorageService.getMobile();
+    final name = await SecureStorageService.getCustomerName();
+    final photo = await SecureStorageService.getCustomerPhoto();
 
     if (customerId != null || mobile != null) {
       final Map<String, dynamic> data = {
         'mobile': mobile ?? '',
         'user': {
           'id_customer': customerId ?? '',
+          'name': name ?? '',
+          'photo_url': photo,
         }
       };
       state = state.copyWith(sessionData: data, isRegistered: true);
     }
   }
 
-  Future<bool> sendOtp(String mobile, String countryCode,
+  Future<bool> sendOtp(String mobile, String countryCode, String idCountry,
       {String type = 'LOGIN'}) async {
     if (state.isLoading) return false;
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
       final data = await _authService.sendOtp(
-          mobile: mobile, countryCode: countryCode, type: type);
+          mobile: mobile, countryCode: countryCode, idCountry: idCountry, type: type);
 
       if (data['success'] == true) {
         state = state.copyWith(isLoading: false, data: data['data']);
@@ -281,7 +308,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> verifyOtp(
       String mobile, String otp, String otpReferenceId) async {
     if (state.isLoading) return false;
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
       final data = await _authService.verifyOtp(
         mobile: mobile,
@@ -347,15 +374,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String fullName,
     required String email,
     required String tempToken,
+    String? dob,
+    String? referralCode,
   }) async {
     if (state.isLoading) return false;
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
       final data = await _authService.register(
         mobile: mobile,
         fullName: fullName,
         email: email,
         tempToken: tempToken,
+        dob: dob,
+        referralCode: referralCode,
       );
 
       if (data['success'] == true) {
@@ -367,10 +398,41 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
         return true;
       } else {
-        String errorMessage = data['message'] ?? 'Registration failed.';
+        // Extract error from nested error.message structure
+        String? errorMessage;
+        if (data['error'] != null && data['error']['message'] != null) {
+          final msg = data['error']['message'];
+          if (msg is Map) {
+            errorMessage = msg.values.first.toString();
+          } else {
+            errorMessage = msg.toString();
+          }
+        }
+        errorMessage ??= data['message'] ?? 'Registration failed.';
         state = state.copyWith(isLoading: false, error: errorMessage);
         return false;
       }
+    } on DioException catch (e) {
+      String errorMessage = 'Registration failed. Please try again.';
+      if (e.response?.data != null) {
+        final respData = e.response?.data;
+        if (respData['error'] != null &&
+            respData['error']['message'] != null) {
+          final msg = respData['error']['message'];
+          if (msg is Map) {
+            errorMessage = msg.values.first
+                .toString()
+                .replaceAll('[', '')
+                .replaceAll(']', '');
+          } else {
+            errorMessage = msg.toString();
+          }
+        } else {
+          errorMessage = respData['message'] ?? errorMessage;
+        }
+      }
+      state = state.copyWith(isLoading: false, error: errorMessage);
+      return false;
     } catch (e) {
       state = state.copyWith(
           isLoading: false, error: 'Registration failed. Please try again.');
@@ -392,3 +454,4 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final service = ref.watch(authServiceProvider);
   return AuthNotifier(service);
 });
+

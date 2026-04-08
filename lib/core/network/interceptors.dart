@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import '../security/secure_storage_service.dart';
 import '../security/session_manager.dart';
 import '../utils/logger.dart';
@@ -40,3 +40,4 @@ class AuthInterceptor extends Interceptor {
     return handler.next(err);
   }
 }
+

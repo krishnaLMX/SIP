@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'dart:developer' as dev;
 
 class AppLogger {
@@ -29,3 +29,4 @@ class AppLogger {
     }
   }
 }
+

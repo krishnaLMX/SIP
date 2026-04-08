@@ -33,6 +33,16 @@ class SecureStorageService {
         key: AppConfig.keyIsMpinEnabled, value: enabled.toString());
   }
 
+  static Future<bool> isBiometricEnabled() async {
+    final value = await _storage.read(key: AppConfig.keyIsBiometricEnabled);
+    return value == 'true';
+  }
+
+  static Future<void> setBiometricEnabled(bool enabled) async {
+    await _storage.write(
+        key: AppConfig.keyIsBiometricEnabled, value: enabled.toString());
+  }
+
   static Future<bool> getOnboardingSeen() async {
     final value = await _storage.read(key: AppConfig.keyHasSeenOnboarding);
     return value == 'true';
@@ -51,6 +61,32 @@ class SecureStorageService {
     return await _storage.read(key: AppConfig.keyCustomerId);
   }
 
+  static Future<void> saveCustomerName(String name) async {
+    await _storage.write(key: AppConfig.keyCustomerName, value: name);
+  }
+
+  static Future<String?> getCustomerName() async {
+    return await _storage.read(key: AppConfig.keyCustomerName);
+  }
+
+  static Future<void> saveCustomerPhoto(String url) async {
+    await _storage.write(key: AppConfig.keyCustomerPhoto, value: url);
+  }
+
+  static Future<String?> getCustomerPhoto() async {
+    return await _storage.read(key: AppConfig.keyCustomerPhoto);
+  }
+
+  // ── RSA Public Key Cache ──────────────────────────────────────────────────
+  static Future<void> saveServerPublicKey(String pem) async {
+    await _storage.write(key: AppConfig.keyServerPublicKey, value: pem);
+  }
+
+  static Future<String?> getServerPublicKey() async {
+    return await _storage.read(key: AppConfig.keyServerPublicKey);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   static Future<void> saveMobile(String mobile) async {
     await _storage.write(key: AppConfig.keyMobileNumber, value: mobile);
   }
@@ -63,3 +99,4 @@ class SecureStorageService {
     await _storage.deleteAll();
   }
 }
+

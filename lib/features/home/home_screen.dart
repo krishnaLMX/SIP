@@ -3,20 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../shared/theme/app_theme.dart';
-import '../../shared/widgets/animations.dart';
 import '../../routes/app_router.dart';
 import '../../core/providers/market_provider.dart';
 import '../market/models/market_rates.dart';
 import '../../core/providers/commodity_provider.dart';
 import '../../core/providers/portfolio_provider.dart';
 import '../../core/providers/user_provider.dart';
-import '../../core/services/shared_service.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/localization/language_provider.dart';
-
-import '../../core/network/native_socket_service.dart';
-import '../auth/controller/auth_controller.dart';
+import '../../core/providers/home_dashboard_provider.dart';
+import '../../shared/widgets/loaders.dart';
+import './models/home_dashboard.dart';
+import '../profile/profile_controller.dart';
+import '../main/main_screen.dart';
+import '../../core/providers/timer_provider.dart';
+import '../instant_saving/controller/saving_controller.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -26,68 +28,156 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  String _selectedDailyAmount = '₹100';
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final selectedCommodity = ref.watch(commodityProvider);
     final userProfile = ref.watch(userProvider);
+    final profileState =
+        ref.watch(profileProvider); // Added to get latest name/profile
     final portfolioState = ref.watch(portfolioProvider);
     final marketRates = ref.watch(marketRatesStreamProvider);
-    final socketStatus =
-        ref.watch(socketStatusProvider).value ?? SocketStatus.disconnected;
+    // Sell rate lock timer — uses sell_rate_lock_seconds from config API.
+    // Locks the displayed sell rate for the configured duration (e.g. 120s).
+    final timerState = ref.watch(sellRateTimerProvider);
+    ref.watch(savingConfigProvider); // keep config subscription alive
+    ref.listen(savingConfigProvider, (prev, next) {
+      final config = next.valueOrNull;
+      if (config != null && !ref.read(sellRateTimerProvider).isActive) {
+        ref
+            .read(sellRateTimerProvider.notifier)
+            .startOrRefresh(config.sellRateLockSeconds);
+      }
+    });
 
-    final String customerName =
-        userProfile?.name ?? ref.tr('investorLabel', fallback: 'Investor');
-    final String mobile = userProfile?.mobile ?? '';
+    // Auto-refresh ALL Home page APIs whenever Home tab becomes active.
+    // Covers: bottom nav tap, returning from payment/withdrawal success.
+    // Future.microtask safely defers until after the build frame.
+    // Navigation success screens use 350ms delay before switching tab,
+    // ensuring animation is fully done before these calls fire.
+    ref.listen<int>(selectedTabProvider, (prev, next) {
+      if (next == 0 && prev != 0) {
+        Future.microtask(() {
+          if (mounted) {
+            // 1. Portfolio — weight/value updated after purchase/withdrawal
+            ref.read(portfolioProvider.notifier).fetchPortfolio();
+            // 2. Home dashboard — growth streak, schemes, latest metrics
+            ref.invalidate(homeDashboardProvider);
+            // 3. Profile — name, photo (in case updated)
+            ref.invalidate(profileProvider);
+          }
+        });
+      }
+    });
+
+    // Never block render with full-screen spinner.
+    // Header shows immediately; content shimmer-loads below.
+
+    final String customerName = profileState.user.name.isNotEmpty &&
+            profileState.user.name != 'Investor'
+        ? profileState.user.name
+        : (userProfile?.name ?? ref.tr('investorLabel', fallback: 'Investor'));
+
+    final String? photoUrl =
+        profileState.user.photoUrl ?? userProfile?.photoUrl;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
-      endDrawer: _buildSideMenu(context,
-          name: customerName, mobile: mobile, photoUrl: userProfile?.photoUrl),
-      body: Stack(
-        children: [
-          SafeArea(
-            child: RefreshIndicator(
-              onRefresh: () async =>
-                  ref.read(portfolioProvider.notifier).fetchPortfolio(),
-              color: AppTheme.arcticBlue,
-              backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                    parent: BouncingScrollPhysics()),
-                slivers: [
-                  _buildPremiumHeader(
-                      context, isDark, customerName, userProfile?.photoUrl),
-                  SliverToBoxAdapter(
+      key: _scaffoldKey,
+      backgroundColor: const Color(0xFFFDFBF3),
+      body: RefreshIndicator(
+        onRefresh: () async =>
+            ref.read(portfolioProvider.notifier).fetchPortfolio(),
+        color: AppTheme.arcticBlue,
+        backgroundColor: Colors.transparent,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics()),
+          slivers: [
+            _buildPremiumHeader(context, isDark, customerName, photoUrl,
+                marketRates, selectedCommodity, timerState),
+            SliverToBoxAdapter(
+              child: Stack(
+                children: [
+                  // Gold gradient visible behind green section's rounded corners
+                  // (matches Rate History section gradient so there's no white gap)
+                  if (ref
+                          .watch(homeDashboardProvider)
+                          .valueOrNull
+                          ?.rateHistory !=
+                      null)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 32,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment(-0.73, -0.68),
+                            end: Alignment(0.73, 0.68),
+                            colors: [
+                              Color(0xFFF9F3E3),
+                              Color(0xFFFFDF90),
+                              Color(0xFFf4bd44),
+                            ],
+                            stops: [0.0, 0.5679, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        // same 120deg gradient as the header
+                        begin: Alignment(-0.87, -0.5),
+                        end: Alignment(0.87, 0.5),
+                        colors: [Color(0xFF003716), Color(0xFF167525)],
+                        stops: [0.0223, 0.9399],
+                      ),
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(32),
+                        bottomRight: Radius.circular(32),
+                      ),
+                    ),
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24.w),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SizedBox(height: 24.h),
-                          _buildCommoditySelector(
-                              isDark, selectedCommodity, marketRates),
-                          SizedBox(height: 24.h),
-                          _buildLiveRateCard(isDark, marketRates, socketStatus,
-                              selectedCommodity),
-                          SizedBox(height: 32.h),
-                          portfolioState.when(
-                            data: (data) => data.isNewCustomer
-                                ? _buildJoinBanner(isDark)
-                                : _buildPortfolioOverview(isDark, data,
-                                    selectedCommodity, marketRates),
-                            loading: () => _buildPortfolioLoading(isDark),
-                            error: (e, st) => _buildPortfolioError(isDark),
+                          SizedBox(height: 8.h),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 350),
+                            switchInCurve: Curves.easeOut,
+                            child: portfolioState.maybeWhen(
+                              data: (data) {
+                                if (userProfile?.isNewUser == true ||
+                                    data.isNewCustomer) {
+                                  return _buildNewCustomerBanner(
+                                      context, selectedCommodity);
+                                }
+                                return _buildPortfolioOverview(isDark, data,
+                                    selectedCommodity, marketRates);
+                              },
+                              // On refresh: if we have previous data keep showing it
+                              loading: () {
+                                final prev = portfolioState.valueOrNull;
+                                if (prev != null) {
+                                  if (userProfile?.isNewUser == true ||
+                                      prev.isNewCustomer) {
+                                    return _buildNewCustomerBanner(
+                                        context, selectedCommodity);
+                                  }
+                                  return _buildPortfolioOverview(isDark, prev,
+                                      selectedCommodity, marketRates);
+                                }
+                                return _buildPortfolioSkeleton(isDark);
+                              },
+                              orElse: () => _buildPortfolioError(isDark),
+                            ),
                           ),
-                          SizedBox(height: 48.h),
-                          _buildSectionHeader(
-                              ref.tr('artisanalHeader'), isDark),
-                          SizedBox(height: 24.h),
-                          _buildCategoryGrid(isDark),
-                          SizedBox(height: 120.h),
+                          SizedBox(height: 16.h),
                         ],
                       ),
                     ),
@@ -95,1228 +185,1462 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
             ),
+            SliverToBoxAdapter(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                switchInCurve: Curves.easeOut,
+                child: Builder(builder: (context) {
+                  final dashAsync = ref.watch(homeDashboardProvider);
+                  // Show previous data immediately during refresh (no flicker)
+                  final dashboard = dashAsync.valueOrNull;
+                  if (dashAsync.isLoading && dashboard == null) {
+                    return _buildHomeScreenSkeleton(isDark);
+                  }
+                  if (dashAsync.hasError && dashboard == null) {
+                    return _buildDashboardError(ref, isDark, dashAsync.error!);
+                  }
+                  if (dashboard == null)
+                    return _buildHomeScreenSkeleton(isDark);
+                  return _buildDashboardContent(
+                      context, ref, isDark, dashboard);
+                }),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardContent(BuildContext context, WidgetRef ref,
+      bool isDark, HomeDashboard dashboard) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Rate History Section ──
+        if (dashboard.rateHistory != null)
+          Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment(-0.73, -0.68),
+                end: Alignment(0.73, 0.68),
+                colors: [
+                  Color(0xFFF9F3E3),
+                  Color(0xFFFFDF90),
+                  Color(0xFFEB9F00),
+                ],
+                stops: [0.0, 0.5679, 1.0],
+              ),
+            ),
+            padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 32.h),
+            child: _buildGrowthStreakCard(isDark, dashboard.rateHistory!),
           ),
-          _buildBottomNav(isDark),
+        // ── Unified Card Container ──
+        Container(
+          width: double.infinity,
+          transform: dashboard.rateHistory != null
+              ? Matrix4.translationValues(0, -32.h, 0)
+              : null,
+          decoration: BoxDecoration(
+            gradient: isDark
+                ? null
+                : const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFFDFBF3), Color(0xFFF9F2EA)],
+                  ),
+            color: isDark ? Colors.white.withValues(alpha: 0.06) : null,
+            borderRadius: BorderRadius.only(
+              topLeft: dashboard.rateHistory != null
+                  ? Radius.circular(32.r)
+                  : Radius.zero,
+              topRight: dashboard.rateHistory != null
+                  ? Radius.circular(32.r)
+                  : Radius.zero,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── 1. Invest Smart, Earn Big ──
+              ...() {
+                final invest = dashboard.investSection ??
+                    InvestSection(title: 'Invest Smart, Earn Big', blocks: []);
+                return [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(20.w, 24.h, 20.w, 0),
+                    child: _buildSectionHeader(invest.title, isDark),
+                  ),
+                  SizedBox(height: 16.h),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20.w),
+                    child: _buildInvestContent(invest),
+                  ),
+                ];
+              }(),
+              SizedBox(height: 32.h),
+              // ── 2. Discover StartGold ──
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
+                child: _buildSectionHeader('Discover StartGold', isDark),
+              ),
+              SizedBox(height: 16.h),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
+                child: _buildDiscoverSection(isDark),
+              ),
+              SizedBox(height: 32.h),
+              // ── 3. Learn Something New ──
+              ...() {
+                final learn = dashboard.learningSection ??
+                    LearningSection(title: 'Learn Something New', banners: []);
+                return [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20.w),
+                    child: _buildSectionHeader(learn.title, isDark),
+                  ),
+                  SizedBox(height: 16.h),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20.w),
+                    child: _buildLearningContent(learn),
+                  ),
+                ];
+              }(),
+              SizedBox(height: 32.h),
+              // ── 4. Get Support ──
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
+                child: _buildSectionHeader('Get Support', isDark),
+              ),
+              SizedBox(height: 16.h),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
+                child: _buildSupportSection(isDark),
+              ),
+            ],
+          ),
+        ),
+        // Footer Info
+        if (dashboard.footerInfo != null)
+          Container(
+            transform: dashboard.rateHistory != null
+                ? Matrix4.translationValues(0, -32.h, 0)
+                : null,
+            child: _buildFooterInfo(isDark, dashboard.footerInfo!),
+          ),
+        SizedBox(height: 120.h),
+      ],
+    );
+  }
+
+  Widget _buildDashboardError(WidgetRef ref, bool isDark, Object error) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 48.h),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 36.h),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(24.r),
+          border:
+              Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64.r,
+              height: 64.r,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFF1F0), Color(0xFFFFE4E1)],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(Icons.cloud_off_rounded,
+                  size: 28.sp, color: const Color(0xFFE85D5D)),
+            ),
+            SizedBox(height: 20.h),
+            Text(
+              'Unable to Connect',
+              style: GoogleFonts.lora(
+                fontSize: 17.sp,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1A1A2E),
+                letterSpacing: -0.3,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'Please check your internet\nconnection and try again',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.lora(
+                fontSize: 12.sp,
+                height: 1.5,
+                color: const Color(0xFF8E8E9A),
+              ),
+            ),
+            SizedBox(height: 28.h),
+            SizedBox(
+              width: double.infinity,
+              height: 48.h,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1B882C), Color(0xFF003716)],
+                  ),
+                  borderRadius: BorderRadius.circular(14.r),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1B882C).withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () => ref.invalidate(homeDashboardProvider),
+                  icon: Icon(Icons.refresh_rounded,
+                      size: 18.sp, color: Colors.white),
+                  label: Text(
+                    'Try Again',
+                    style: GoogleFonts.lora(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14.r)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeScreenSkeleton(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: 32.h),
+        // Growth Streak card skeleton
+        AppLoaders.sectionLoader(
+            height: 180.h,
+            width: double.infinity,
+            isDark: isDark,
+            borderRadius: 24),
+        SizedBox(height: 48.h),
+        // Section title skeleton (e.g. "Invest in Gold")
+        AppLoaders.sectionLoader(
+            height: 18.h, width: 140.w, isDark: isDark, borderRadius: 8),
+        SizedBox(height: 20.h),
+        // Invest Block skeleton
+        AppLoaders.sectionLoader(
+            height: 120.h,
+            width: double.infinity,
+            isDark: isDark,
+            borderRadius: 20),
+        SizedBox(height: 16.h),
+        AppLoaders.sectionLoader(
+            height: 120.h,
+            width: double.infinity,
+            isDark: isDark,
+            borderRadius: 20),
+        SizedBox(height: 48.h),
+        // Discover section title
+        AppLoaders.sectionLoader(
+            height: 18.h, width: 170.w, isDark: isDark, borderRadius: 8),
+        SizedBox(height: 20.h),
+        // Discover row
+        Row(
+          children: [
+            Expanded(
+                child: AppLoaders.sectionLoader(
+                    height: 100.h,
+                    width: double.infinity,
+                    isDark: isDark,
+                    borderRadius: 20)),
+            SizedBox(width: 16.w),
+            Expanded(
+                child: AppLoaders.sectionLoader(
+                    height: 100.h,
+                    width: double.infinity,
+                    isDark: isDark,
+                    borderRadius: 20)),
+          ],
+        ),
+        SizedBox(height: 80.h),
+      ],
+    );
+  }
+
+  /// Renders a full-width image card for each invest block.
+  /// Supports both asset paths (assets/...) and network URLs.
+  Widget _buildInvestBlock(InvestBlock block) {
+    final img = block.image ?? '';
+    if (img.isEmpty) return const SizedBox.shrink();
+
+    final isAsset = img.startsWith('assets/');
+    Widget image = isAsset
+        ? Image.asset(
+            img,
+            width: double.infinity,
+            fit: BoxFit.fitWidth,
+            errorBuilder: (_, __, ___) => _investBlockPlaceholder(),
+          )
+        : Image.network(
+            img,
+            width: double.infinity,
+            fit: BoxFit.fitWidth,
+            errorBuilder: (_, __, ___) => _investBlockPlaceholder(),
+          );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20.r),
+      child: image,
+    );
+  }
+
+  Widget _investBlockPlaceholder() => Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFF7ED), Color(0xFFFFEDD5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.image_not_supported_outlined,
+            color: const Color(0xFF91411D).withValues(alpha: 0.3),
+            size: 40.sp,
+          ),
+        ),
+      );
+
+  /// Renders invest section: static SVGs if empty, dynamic cards otherwise.
+  Widget _buildInvestContent(InvestSection section) {
+    if (section.blocks.isEmpty) {
+      return _buildStaticInvestBlocks();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: section.blocks.asMap().entries.map((entry) {
+        final isLast = entry.key == section.blocks.length - 1;
+        return Padding(
+          padding: EdgeInsets.only(bottom: isLast ? 0 : 16.h),
+          child: _buildInvestBlock(entry.value),
+        );
+      }).toList(),
+    );
+  }
+
+  /// Renders learning section: static SVG if empty, dynamic banners otherwise.
+  Widget _buildLearningContent(LearningSection section) {
+    if (section.banners.isEmpty) {
+      return _buildStaticLearningBanner();
+    }
+    return _buildLearningBanners(section.banners);
+  }
+
+  /// Static fallback invest cards when API blocks list is empty.
+  Widget _buildStaticInvestBlocks() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStaticInvestCard('assets/home/micro.png'),
+        SizedBox(height: 16.h),
+        _buildStaticInvestCard(
+          'assets/home/safe.gif',
+          title: 'Safe & Secure',
+          subtitle:
+              'Your assets are safely stored in secure vaults and\nare available for withdrawal anytime.',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStaticInvestCard(String imagePath,
+      {String? title, String? subtitle}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20.r),
+      child: Stack(
+        children: [
+          Image.asset(
+            imagePath,
+            width: double.infinity,
+            fit: BoxFit.fitWidth,
+            gaplessPlayback: true,
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('Invest card image error: $error');
+              return Container(
+                height: 160.h,
+                color: const Color(0xFFFFEFC0),
+                child: const Center(
+                  child: Icon(Icons.image_not_supported_outlined,
+                      color: Colors.amber, size: 48),
+                ),
+              );
+            },
+          ),
+          if (title != null || subtitle != null)
+            Positioned(
+              left: 20.w,
+              top: 24.h,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (title != null)
+                    Text(
+                      title,
+                      style: GoogleFonts.lora(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(
+                            0xFF643D41), // Deep premium red/brown matches yellow/gold theme
+                      ),
+                    ),
+                  if (subtitle != null) ...[
+                    SizedBox(height: 4.h),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.lora(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF643D41).withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ]
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildPremiumHeader(BuildContext context, bool isDark,
-      String customerName, String? photoUrl) {
+  /// Static fallback learning card when API banners list is empty.
+  Widget _buildStaticLearningBanner() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24.r),
+      child: Image.asset(
+        'assets/home/learn.png',
+        width: double.infinity,
+        fit: BoxFit.fitWidth,
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, bool isDark) {
+    return Text(
+      title,
+      style: GoogleFonts.lora(
+        fontSize: 16.sp,
+        fontWeight: FontWeight.w600, // SemiBold
+        color: isDark ? Colors.white : Colors.black87,
+        height: 1.0, // line-height: 100%
+        letterSpacing: 0, // letter-spacing: 0px
+      ),
+    );
+  }
+
+  Widget _buildLearningBanners(List<LearningBanner> banners) {
+    return SizedBox(
+      height: 160.h,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        itemCount: banners.length,
+        separatorBuilder: (_, __) => SizedBox(width: 16.w),
+        itemBuilder: (context, index) {
+          final banner = banners[index];
+          final isAsset = banner.image.startsWith('assets/');
+          final imageProvider = isAsset
+              ? AssetImage(banner.image) as ImageProvider
+              : NetworkImage(banner.image) as ImageProvider;
+
+          return Container(
+            width: 280.w,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24.r),
+              image: DecorationImage(
+                image: imageProvider,
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(
+                  Colors.black.withValues(alpha: 0.3),
+                  BlendMode.darken,
+                ),
+              ),
+            ),
+            padding: EdgeInsets.all(20.r),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (banner.title != null && banner.title!.isNotEmpty)
+                  Text(
+                    banner.title!,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18.sp,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDiscoverSection(bool isDark) {
+    final items = [
+      {
+        'title': 'Cash\nWithdrawal',
+        'svg': 'assets/home/cash.svg',
+        'route': AppRouter.withdrawal,
+      },
+      {
+        'title': 'Refer & Earn\nRewards',
+        'svg': 'assets/home/referearn.svg',
+        'route': AppRouter.referral,
+      },
+      {
+        'title': "FAQ's",
+        'svg': 'assets/home/faq.svg',
+        'route': AppRouter.faq,
+      },
+    ];
+
+    return IntrinsicHeight(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: items.map((item) {
+          return Expanded(
+            child: GestureDetector(
+              onTap: () {
+                final route = item['route'] as String?;
+                if (route != null) Navigator.pushNamed(context, route);
+              },
+              child: Container(
+                margin: EdgeInsets.symmetric(horizontal: 6.w),
+                padding: EdgeInsets.symmetric(vertical: 20.h, horizontal: 8.w),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(20.r),
+                  border: Border.all(
+                    color: const Color(0x1A414141),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SvgPicture.asset(
+                      item['svg'] as String,
+                      width: 36.r,
+                      height: 36.r,
+                    ),
+                    SizedBox(height: 12.h),
+                    Text(
+                      item['title'] as String,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.lora(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSupportSection(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Have a question or need help? Our support team is always ready to assist you.',
+          style: GoogleFonts.lora(
+            fontSize: 13.sp,
+            color: isDark ? Colors.white60 : Colors.black54,
+            height: 1.5,
+          ),
+        ),
+        SizedBox(height: 16.h),
+        GestureDetector(
+          onTap: () => Navigator.pushNamed(context, AppRouter.contact),
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 14.h),
+            decoration: BoxDecoration(
+              color:
+                  isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+              borderRadius: BorderRadius.circular(20.r),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white10
+                    : Colors.black.withValues(alpha: 0.06),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 24.sp,
+                  color: isDark ? Colors.white54 : const Color(0xFF6B7280),
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Text(
+                    'Need help?',
+                    style: GoogleFonts.lora(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 24.w, vertical: 10.h),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6D47C),
+                    borderRadius: BorderRadius.circular(100.r),
+                  ),
+                  child: Text(
+                    'Contact',
+                    style: GoogleFonts.lora(
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF6C4B08),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterInfo(bool isDark, FooterInfo info) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        image: isDark
+            ? null
+            : const DecorationImage(
+                image: AssetImage('assets/home/footerinfobg.png'),
+                fit: BoxFit.cover,
+              ),
+        color: isDark ? Colors.white.withValues(alpha: 0.06) : null,
+      ),
+      padding: EdgeInsets.fromLTRB(24.w, 40.h, 24.w, 48.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title
+          Text(
+            info.title,
+            style: GoogleFonts.lora(
+              fontSize: 26.sp,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+              height: 36 / 26, // line-height: 36px
+              letterSpacing: 0,
+            ),
+          ),
+          SizedBox(height: 16.h),
+          // Subtitle — auto-wrap
+          Text(
+            info.subtitle,
+            style: GoogleFonts.lora(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white70 : const Color(0xFF4B4B4B),
+              height: 20 / 13, // line-height: 20px
+              letterSpacing: 0,
+            ),
+          ),
+          SizedBox(height: 28.h),
+          // Compliance badges
+          SvgPicture.asset(
+            'assets/resources/splash_footer.svg',
+            height: 32.h,
+            fit: BoxFit.contain,
+            alignment: Alignment.centerLeft,
+          ),
+          SizedBox(height: 32.h),
+          // Company name
+          Text(
+            'startGOLD Capital Solutions Private Limited',
+            style: GoogleFonts.lora(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white70 : const Color(0xFF1A1A1A),
+              height: 1.0, // line-height: 100%
+              letterSpacing: 0,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          // Address
+          Text(
+            info.officeAddress,
+            style: GoogleFonts.lora(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white54 : const Color(0xFF4B4B4B),
+              height: 17 / 12, // line-height: 17px
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumHeader(
+      BuildContext context,
+      bool isDark,
+      String customerName,
+      String? photoUrl,
+      AsyncValue<MarketRates> marketRates,
+      CommodityType selected,
+      TimerState timerState) {
+    // Use locked rate when timer is active, else fall back to live socket rate.
+    final lockedRates = timerState.isActive ? timerState.lockedRates : null;
+    final rate = selected == CommodityType.gold
+        ? (lockedRates?.goldSell ?? marketRates.valueOrNull?.goldSell ?? 0.0)
+        : (lockedRates?.silverSell ??
+            marketRates.valueOrNull?.silverSell ??
+            0.0);
+    final formattedRate = rate.toStringAsFixed(2);
+
+    // Countdown timer text shown in the header pill (MM:SS format)
+    String? timerText;
+    if (timerState.isActive) {
+      final m = timerState.remainingSeconds ~/ 60;
+      final s = timerState.remainingSeconds % 60;
+      timerText =
+          '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+
     final statusBarHeight = MediaQuery.of(context).padding.top;
     return SliverPersistentHeader(
       pinned: true,
       delegate: PremiumHomeHeader(
-        expandedHeight: statusBarHeight + 175.h,
+        expandedHeight: statusBarHeight + 130.h,
         statusBarHeight: statusBarHeight,
         isDark: isDark,
         customerName: customerName,
         welcomeText: ref.tr('welcome'),
         photoUrl: photoUrl,
+        currentRate: '₹$formattedRate/gm',
+        timerText: timerText,
+        selected: selected,
       ),
     );
   }
 
-  Widget _buildSideMenu(BuildContext context,
-      {required String name, required String mobile, String? photoUrl}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Drawer(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(30),
-          bottomLeft: Radius.circular(30),
-        ),
-      ),
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
+  Widget _buildGrowthStreakCard(bool isDark, RateHistory history) {
+    final activeOrange = const Color(0xFFE2700D); // "Invest Now" button orange
+    final textGreen =
+        const Color(0xFF0F582E); // Deep green for big text and bars
+    final highlightYellow = const Color(0xFFECA41E); // "4X" highlight color
+
+    // Determine metal string from highlightText or title
+    final isSilver = history.title.toLowerCase().contains('silver');
+    final metalString = isSilver ? 'Silver' : 'Gold';
+
+    return SizedBox(
+      width: double.infinity,
+      height: 250.h,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          // Left Side Content
+          Positioned(
+            left: 4.w,
+            top: 0,
+            bottom: 0,
+            child: SizedBox(
+              width: 185.w,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: 16.h),
+                  // Plain label
+                  Text(
+                    history.title,
+                    style: GoogleFonts.lora(
+                      fontSize: 12.sp,
+                      color: const Color(0xFF6C4B08),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 12.h),
+
+                  // Main Title
+                  RichText(
+                    text: TextSpan(
+                      style: GoogleFonts.lora(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.w700,
+                        color: textGreen,
+                        height: 1.2,
+                      ),
+                      children: history.highlightText.contains('4X')
+                          ? [
+                              TextSpan(
+                                text: history.highlightText.split('4X').first,
+                              ),
+                              TextSpan(
+                                text: '4X',
+                                style: GoogleFonts.lora(color: highlightYellow),
+                              ),
+                              TextSpan(
+                                text: history.highlightText.split('4X').last,
+                              ),
+                            ]
+                          : [
+                              TextSpan(text: history.highlightText),
+                            ],
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+
+                  // Subtitle
+                  Text(
+                    'Start saving in ${metalString.toLowerCase()} today',
+                    style: GoogleFonts.lora(
+                      fontSize: 13.sp,
+                      color: textGreen.withValues(alpha: 0.8),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Spacer(),
+
+                  // Button — compact pill, not full width
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IntrinsicWidth(
+                      child: SizedBox(
+                        height: 40.h,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pushNamed(
+                              context, AppRouter.instantSaving),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: activeOrange,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 28.w),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(100.r)),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            'Invest Now',
+                            style: GoogleFonts.lora(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13.sp,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 21.h),
+                ],
+              ),
+            ),
+          ),
+
+          // Right Side Custom Bar Charts
+          Positioned(
+            right: 0,
+            bottom: 15.h,
+            top: 0,
+            width: 135.w,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // ── Short Bar (Start Year) ──
+                Positioned(
+                  left: 0,
+                  bottom: 0,
                   child: Column(
                     children: [
-                      SizedBox(height: 40.h),
-                      _buildDrawerHeader(isDark, name, photoUrl),
-                      SizedBox(height: 40.h),
-                      
-                      _buildDrawerSection(ref.tr('accountSection', fallback: 'ACCOUNT'), isDark),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.person_outline_rounded,
-                        title: ref.tr('myProfile'),
-                        subtitle: ref.tr('kycSettingsSubtitle'),
-                        route: AppRouter.profile,
+                      _buildChartDataPoint(
+                        '${history.startYear} : ₹${history.startRate % 1 == 0 ? history.startRate.toInt() : history.startRate}/g',
+                        backgroundColor: const Color(0xFFFFB10F),
+                        textColor: const Color(0xFF000000),
                       ),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.account_balance_wallet_outlined,
-                        title: ref.tr('statements'),
-                        subtitle: ref.tr('reportsTaxSubtitle'),
-                        route: AppRouter.statements,
+                      SizedBox(height: 6.h),
+                      Container(
+                        width: 38.w,
+                        height: 60.h,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment(-0.87, -0.5),
+                            end: Alignment(0.87, 0.5),
+                            colors: [Color(0xFF1B882C), Color(0xFF003716)],
+                            stops: [0.0223, 0.9399],
+                          ),
+                          borderRadius: BorderRadius.circular(4.r),
+                        ),
                       ),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.card_giftcard_outlined,
-                        title: ref.tr('referEarn'),
-                        subtitle: ref.tr('winGoldRewardsSubtitle'),
-                        route: AppRouter.referral,
-                      ),
-
-                      Divider(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05), height: 32.h, indent: 24.w, endIndent: 24.w),
-                      
-                      _buildDrawerSection(ref.tr('supportSection', fallback: 'SUPPORT & HELP'), isDark),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.help_outline_rounded,
-                        title: ref.tr('faqTitle', fallback: 'FAQs'),
-                        subtitle: ref.tr('faqSubtitle', fallback: 'Common questions & answers'),
-                        route: AppRouter.faq,
-                      ),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.contact_support_outlined,
-                        title: ref.tr('contactUsTitle', fallback: 'Contact Us'),
-                        subtitle: ref.tr('contactUsSubtitle', fallback: 'Get in touch with us'),
-                        route: AppRouter.contact,
-                      ),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.question_answer_outlined,
-                        title: ref.tr('myEnquiriesTitle', fallback: 'My Enquiries'),
-                        subtitle: ref.tr('myEnquiriesSubtitle', fallback: 'Track your support history'),
-                        route: AppRouter.enquiryList,
-                      ),
-
-                      Divider(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05), height: 32.h, indent: 24.w, endIndent: 24.w),
-
-                      _buildDrawerSection(ref.tr('legalSection', fallback: 'LEGAL & ABOUT'), isDark),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.info_outline_rounded,
-                        title: ref.tr('aboutUsTitle', fallback: 'About Us'),
-                        subtitle: ref.tr('aboutUsSubtitle', fallback: 'Our mission and story'),
-                        route: AppRouter.about,
-                      ),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.description_outlined,
-                        title: ref.tr('termsTitle', fallback: 'Terms & Conditions'),
-                        subtitle: ref.tr('termsSubtitle', fallback: 'Read our usage terms'),
-                        route: AppRouter.terms,
-                      ),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.privacy_tip_outlined,
-                        title: ref.tr('privacyTitle', fallback: 'Privacy Policy'),
-                        subtitle: ref.tr('privacySubtitle', fallback: 'How we protect your data'),
-                        route: AppRouter.privacy,
-                      ),
-
-                      Divider(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05), height: 32.h, indent: 24.w, endIndent: 24.w),
-
-                      _buildDrawerSection(ref.tr('preferencesSection', fallback: 'PREFERENCES'), isDark),
-                      _buildLanguageSelector(context),
-                      
-                      SizedBox(height: 32.h),
-                      _buildMenuItem(
-                        context,
-                        icon: Icons.logout_rounded,
-                        title: ref.tr('logout'),
-                        subtitle: ref.tr('secureSignOutSubtitle'),
-                        onTap: () => _handleLogout(context),
-                        isDestructive: true,
-                      ),
-                      SizedBox(height: 48.h),
                     ],
                   ),
                 ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
 
-<<<<<<< Updated upstream
-  // demo
-
-  Widget _buildDrawerHeader(bool isDark) {
-=======
-  void _showLanguageBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Consumer(builder: (context, ref, _) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return Container(
-          padding: EdgeInsets.all(24.w),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F172A) : Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(ref.tr('languageSelector', fallback: 'Change Language'),
-                  style: GoogleFonts.outfit(
-                    fontSize: 20.sp,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
-                  )),
-              SizedBox(height: 8.h),
-              Text(
-                ref.tr('chooseLanguagePref',
-                    fallback: 'Choose your preferred language'),
-                style: GoogleFonts.outfit(
-                  fontSize: 14.sp,
-                  color: Colors.grey,
-                ),
-              ),
-              SizedBox(height: 24.h),
-              _buildLangOption(context, ref, 'English', 'en', isDark),
-              _buildLangOption(context, ref, 'தமிழ் (Tamil)', 'ta', isDark),
-              _buildLangOption(context, ref, 'తెలుగు (Telugu)', 'te', isDark),
-              SizedBox(height: 16.h),
-            ],
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildLangOption(BuildContext context, WidgetRef ref, String title,
-      String code, bool isDark) {
-    final currentCode = ref.watch(languageProvider).currentLocale;
-    final isSelected = currentCode == code;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(title,
-          style: GoogleFonts.outfit(
-            fontSize: 16.sp,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-            color: isSelected
-                ? AppTheme.arcticBlue
-                : (isDark ? Colors.white70 : Colors.black87),
-          )),
-      trailing: isSelected
-          ? Icon(Icons.check_circle_rounded, color: AppTheme.arcticBlue)
-          : null,
-      onTap: () {
-        ref.read(languageProvider.notifier).setLanguage(code);
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  Widget _buildLanguageSelector(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return ListTile(
-      onTap: () => _showLanguageBottomSheet(context),
-      contentPadding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 8.h),
-      leading: Icon(
-        Icons.language_rounded,
-        color: isDark ? Colors.white70 : Colors.black54,
-        size: 26.sp,
-      ),
-      title: Text(
-        ref.tr('languageTitle', fallback: 'Language'),
-        style: GoogleFonts.outfit(
-          fontSize: 16.sp,
-          fontWeight: FontWeight.w700,
-          color: isDark ? Colors.white : const Color(0xFF0F172A),
-        ),
-      ),
-      subtitle: Text(
-        ref.tr('languageSubtitle', fallback: 'English / தமிழ் / తెలుగు'),
-        style: GoogleFonts.outfit(
-          fontSize: 12.sp,
-          color: isDark ? Colors.white54 : Colors.black45,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDrawerHeader(bool isDark, String name, String? photoUrl) {
->>>>>>> Stashed changes
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 24.w),
-      child: Row(
-        children: [
-          Container(
-            width: 60.w,
-            height: 60.w,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  colors: [AppTheme.arcticBlue, AppTheme.electricCyan]),
-              shape: BoxShape.circle,
-              image: photoUrl != null && photoUrl.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(photoUrl),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child: photoUrl == null || photoUrl.isEmpty
-                ? Icon(Icons.person, color: Colors.white, size: 30.sp)
-                : null,
-          ),
-          SizedBox(width: 16.w),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: GoogleFonts.outfit(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? Colors.white : Colors.black,
-                ),
-              ),
-              Text(
-                ref.tr('verifiedMember'),
-                style: GoogleFonts.outfit(
-                  fontSize: 13.sp,
-                  color: AppTheme.electricCyan,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerSection(String title, bool isDark) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 8.h),
-      child: Text(
-        title,
-        style: GoogleFonts.outfit(
-          fontSize: 11.sp,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.5,
-          color: isDark ? Colors.white24 : Colors.black26,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    String? route,
-    VoidCallback? onTap,
-    bool isDestructive = false,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ListTile(
-      contentPadding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 8.h),
-      leading: Icon(
-        icon,
-        color: isDestructive
-            ? Colors.redAccent
-            : (isDark ? Colors.white70 : Colors.black54),
-        size: 26.sp,
-      ),
-      title: Text(
-        title,
-        style: GoogleFonts.outfit(
-          fontSize: 16.sp,
-          fontWeight: FontWeight.w700,
-          color: isDestructive
-              ? Colors.redAccent
-              : (isDark ? Colors.white : Colors.black),
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: GoogleFonts.outfit(
-          fontSize: 12.sp,
-          color: isDark ? Colors.white38 : Colors.black38,
-        ),
-      ),
-      onTap: onTap ?? () => Navigator.pushNamed(context, route!),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, bool isDark) {
-    return FadeInAnimation(
-      delay: const Duration(milliseconds: 300),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: GoogleFonts.outfit(
-                fontSize: 22.sp,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          SizedBox(width: 8.w),
-          Text(
-            ref.tr('exploreAll', fallback: AppConstants.exploreAll),
-            style: GoogleFonts.outfit(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.arcticBlue,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryGrid(bool isDark) {
-    return FadeInAnimation(
-      delay: const Duration(milliseconds: 400),
-      child: GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        mainAxisSpacing: 20.w,
-        crossAxisSpacing: 20.w,
-        childAspectRatio: 0.82,
-        children: [
-          _buildCategoryCard(
-              ref.tr('artisanalGold'),
-              ref.tr('purest24KT'),
-              'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?q=80&w=800&auto=format&fit=crop',
-              isDark),
-          _buildCategoryCard(
-              ref.tr('silverElite'),
-              ref.tr('hallmark999'),
-              'https://images.unsplash.com/photo-1535556116002-6281ff3e9f36?q=80&w=800&auto=format&fit=crop',
-              isDark),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryCard(
-      String title, String desc, String image, bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.04) : Colors.white,
-        borderRadius: BorderRadius.circular(28.r),
-        border: Border.all(
-            color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
-        boxShadow: [
-          if (!isDark)
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(27.r)),
-              child: Image.network(
-                image,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color:
-                      isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
-                  child: Icon(Icons.image_rounded,
-                      color: isDark ? Colors.white24 : Colors.black12),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.all(16.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.outfit(
-                    fontSize: 15.sp,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: 2.h),
-                Text(
-                  desc,
-                  style: GoogleFonts.outfit(
-                    fontSize: 11.sp,
-                    color: isDark ? Colors.white38 : Colors.black38,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _handleLogout(BuildContext context) async {
-    await ref.read(authControllerProvider.notifier).logout();
-    if (context.mounted) {
-      Navigator.pushNamedAndRemoveUntil(
-          context, AppRouter.login, (route) => false);
-    }
-  }
-
-  Widget _buildBottomNav(bool isDark) {
-    return Positioned(
-      bottom: 24.h,
-      left: 24.w,
-      right: 24.w,
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-        decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF0F172A).withOpacity(0.8)
-              : Colors.white.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(100.r),
-          border: Border.all(
-              color: isDark ? Colors.white12 : Colors.black12, width: 1),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 20,
-                offset: const Offset(0, 5)),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(Icons.category_rounded, true, isDark),
-            _buildNavItem(Icons.pie_chart_outline_rounded, false, isDark),
-            _buildNavItem(Icons.lock_person_outlined, false, isDark),
-            _buildNavItem(Icons.person_outline_rounded, false, isDark),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, bool isActive, bool isDark) {
-    return Container(
-      padding: EdgeInsets.all(12.w),
-      decoration: isActive
-          ? BoxDecoration(
-              color: AppTheme.arcticBlue,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                    color: AppTheme.arcticBlue.withOpacity(0.3),
-                    blurRadius: 10,
-                    spreadRadius: 2),
-              ],
-            )
-          : null,
-      child: Icon(
-        icon,
-        color: isActive
-            ? Colors.white
-            : (isDark ? Colors.white38 : Colors.black38),
-        size: 24.sp,
-      ),
-    );
-  }
-
-  Widget _buildCommoditySelector(bool isDark, CommodityType selected,
-      AsyncValue<MarketRates> marketRates) {
-    final goldLabel = marketRates.valueOrNull?.goldName ?? 'Gold';
-    final silverLabel = marketRates.valueOrNull?.silverName ?? 'Silver';
-
-    return Container(
-      padding: EdgeInsets.all(6.w),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(30.r),
-      ),
-      child: Row(
-        children: [
-          _buildPill(isDark, goldLabel, selected == CommodityType.gold, true,
-              () {
-            ref
-                .read(commodityProvider.notifier)
-                .setCommodity(CommodityType.gold);
-          }),
-          _buildPill(
-              isDark, silverLabel, selected == CommodityType.silver, false, () {
-            ref
-                .read(commodityProvider.notifier)
-                .setCommodity(CommodityType.silver);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPill(bool isDark, String label, bool isSelected, bool isGold,
-      VoidCallback onTap) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          padding: EdgeInsets.symmetric(vertical: 14.h),
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? (isGold
-                    ? const LinearGradient(
-                        colors: [Color(0xFFFFD700), Color(0xFFFFB300)],
-                      )
-                    : const LinearGradient(
-                        colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD)],
-                      ))
-                : null,
-            color: isSelected ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(25.r),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    )
-                  ]
-                : [],
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.bold,
-              color: isSelected
-                  ? Colors.black
-                  : (isDark ? Colors.white54 : Colors.grey[700]),
-              fontSize: 15.sp,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLiveRateCard(bool isDark, AsyncValue<MarketRates> marketRates,
-      SocketStatus status, CommodityType type) {
-    return marketRates.when(
-      data: (rates) {
-        final price =
-            type == CommodityType.gold ? rates.goldSell : rates.silverSell;
-        return Container(
-          padding: EdgeInsets.all(24.w),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDark
-                  ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-                  : [Colors.white, const Color(0xFFF8FAFC)],
-            ),
-            borderRadius: BorderRadius.circular(32.r),
-            border: Border.all(
-                color: isDark
-                    ? Colors.white.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.05),
-                width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: (isDark ? Colors.black : const Color(0xFF6366F1))
-                    .withOpacity(0.1),
-                blurRadius: 40,
-                offset: const Offset(0, 20),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+                // ── Tall Bar (End Year) ──
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Column(
                     children: [
+                      _buildChartDataPoint(
+                        '${history.endYear} : ₹${history.endRate % 1 == 0 ? history.endRate.toInt() : history.endRate}/g',
+                        /*   backgroundColor: const Color(0xFFECA31E),
+                        textColor: const Color(0xFF6C4B08), */
+                        backgroundColor: const Color(0xFFFFB10F),
+                        textColor: const Color(0xFF000000),
+                      ),
+                      SizedBox(height: 6.h),
                       Container(
-                        width: 8.w,
-                        height: 8.w,
+                        width: 38.w,
+                        height: 145.h,
                         decoration: BoxDecoration(
-                          color: AppTheme.arcticBlue,
-                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            begin: Alignment(-0.87, -0.5),
+                            end: Alignment(0.87, 0.5),
+                            colors: [Color(0xFF1B882C), Color(0xFF003716)],
+                            stops: [0.0223, 0.9399],
+                          ),
+                          borderRadius: BorderRadius.circular(4.r),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.arcticBlue.withOpacity(0.4),
-                              blurRadius: 6,
-                              spreadRadius: 1,
-                            )
+                              color: const Color(0xFF003716)
+                                  .withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(3, 0),
+                            ),
                           ],
                         ),
                       ),
-                      SizedBox(width: 10.w),
-                      Text(
-                        ref.tr('liveMarketRate'),
-                        style: GoogleFonts.outfit(
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2,
-                          color: isDark ? Colors.white38 : Colors.black38,
-                        ),
-                      ),
                     ],
-                  ),
-                  _buildFluctuationBadge(
-                      type == CommodityType.gold
-                          ? rates.goldChange
-                          : rates.silverChange,
-                      type == CommodityType.gold
-                          ? rates.goldPercentage
-                          : rates.silverPercentage,
-                      isDark),
-                ],
-              ),
-              SizedBox(height: 20.h),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  '₹${price.toStringAsFixed(2)}',
-                  style: GoogleFonts.outfit(
-                    fontSize: 48.sp,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF020617),
-                    letterSpacing: -2,
-                    height: 1,
-                  ),
-                ),
-              ),
-              SizedBox(height: 16.h),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-                    decoration: BoxDecoration(
-                      color: (isDark ? Colors.white : Colors.black).withOpacity(0.04),
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                    child: Text(
-                      'Per 1 gram',
-                      style: GoogleFonts.outfit(
-                        fontSize: 10.sp,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white24 : Colors.black26,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '${AppConstants.lastUpdated} ${TimeOfDay.fromDateTime(rates.timestamp).format(context)}',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white38 : Colors.black38,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-      loading: () => _buildPortfolioLoading(isDark),
-      error: (e, st) => _buildPortfolioError(isDark),
-    );
-  }
-
-  Widget _buildJoinBanner(bool isDark) {
-    final denominations = ref.watch(amountDenominationsProvider);
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [const Color(0xFF4F46E5), const Color(0xFF312E81)]
-              : [const Color(0xFF6366F1), const Color(0xFF4338CA)],
-        ),
-        borderRadius: BorderRadius.circular(32.r),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6366F1).withValues(alpha: 0.3),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Decorative Background Aura
-          Positioned(
-            top: -50.h,
-            right: -50.w,
-            child: Container(
-              width: 200.w,
-              height: 200.w,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.white.withValues(alpha: 0.1),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.all(28.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            ref.tr('saveDailyMessage', args: {'amount': '50'}),
-                            style: GoogleFonts.outfit(
-                              color: Colors.white.withValues(alpha: 0.7),
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                          SizedBox(height: 4.h),
-                          Text(
-                            ref.tr('goldCoinsReward',
-                                args: {'count': '3', 'duration': '1 Year'}),
-                            style: GoogleFonts.outfit(
-                              color: Colors.white,
-                              fontSize: 22.sp,
-                              fontWeight: FontWeight.w900,
-                              height: 1.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: EdgeInsets.all(10.r),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.auto_graph_rounded,
-                          color: Colors.white, size: 20.sp),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 32.h),
-                Container(
-                  padding: EdgeInsets.all(20.w),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(24.r),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 12.w,
-                            height: 2.h,
-                            decoration: BoxDecoration(
-                              color: Colors.white38,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12.w),
-                            child: Text(
-                              ref.tr('chooseInvestment'),
-                              style: GoogleFonts.outfit(
-                                color: Colors.white70,
-                                fontSize: 10.sp,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            width: 12.w,
-                            height: 2.h,
-                            decoration: BoxDecoration(
-                              color: Colors.white38,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16.h),
-                      denominations.when(
-                        data: (list) => SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: list.take(4).map((denom) {
-                              final amt = '₹${denom.value.toInt()}';
-                              final isSelected = amt == _selectedDailyAmount;
-                              return Padding(
-                                padding: EdgeInsets.only(right: 12.w),
-                                child: GestureDetector(
-                                  onTap: () => setState(
-                                      () => _selectedDailyAmount = amt),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 16.w, vertical: 12.h),
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.white
-                                              .withValues(alpha: 0.08),
-                                      borderRadius: BorderRadius.circular(16.r),
-                                      boxShadow: isSelected
-                                          ? [
-                                              BoxShadow(
-                                                color: Colors.black12,
-                                                blurRadius: 10,
-                                                offset: const Offset(0, 4),
-                                              )
-                                            ]
-                                          : [],
-                                    ),
-                                    child: Text(
-                                      amt,
-                                      style: GoogleFonts.outfit(
-                                        color: isSelected
-                                            ? const Color(0xFF4F46E5)
-                                            : Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 16.sp,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                        loading: () => const Center(
-                            child: CircularProgressIndicator(
-                                color: Colors.white70)),
-                        error: (_, __) => const SizedBox(),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 28.h),
-                SizedBox(
-                  width: double.infinity,
-                  height: 60.h,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRouter.instantSaving,
-                        arguments: {
-                          'initialAmount':
-                              _selectedDailyAmount.replaceAll('₹', ''),
-                        },
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF4F46E5),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20.r)),
-                      elevation: 0,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              ref.tr('startDailySaving'),
-                              style: GoogleFonts.outfit(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 17.sp,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Container(
-                          padding: EdgeInsets.all(4.r),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4F46E5).withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.arrow_forward_ios_rounded,
-                              size: 14.sp, fontWeight: FontWeight.w900),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildChartDataPoint(String label,
+      {required Color backgroundColor, required Color textColor}) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(100.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.lora(
+          fontSize: 8.sp,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+        ),
       ),
     );
   }
 
   Widget _buildPortfolioOverview(bool isDark, PortfolioData data,
       CommodityType selected, AsyncValue<MarketRates> market) {
+    // ── Recalculate current value & growth from live rate when API returns 0 ──
+    final liveRate = selected == CommodityType.gold
+        ? (market.valueOrNull?.goldSell ?? 0.0)
+        : (market.valueOrNull?.silverSell ?? 0.0);
+
+    double currentValue = data.summary.currentValue;
+    double returns = data.summary.returns;
+    double returnsPct = data.summary.returnsPercentage;
+
+    if (currentValue == 0 && data.summary.balance > 0 && liveRate > 0) {
+      currentValue = data.summary.balance * liveRate;
+      returns = currentValue - data.summary.totalInvested;
+      returnsPct = data.summary.totalInvested > 0
+          ? ((returns / data.summary.totalInvested) * 100)
+          : 0.0;
+    }
+
+    final isPositive = returns >= 0;
+    // ── End recalculation ──
+
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF6366F1), Color(0xFF4F46E5), Color(0xFF312E81)],
+        color: const Color(0xFF1E5631).withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(24.r),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.05),
+          width: 1.0,
         ),
-        borderRadius: BorderRadius.circular(32.r),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6366F1).withValues(alpha: 0.3),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
-          ),
-        ],
       ),
-      child: Stack(
+      padding: EdgeInsets.symmetric(vertical: 18.h, horizontal: 24.w),
+      child: Column(
         children: [
-          Positioned(
-            right: -20,
-            bottom: 40,
-            child: Opacity(
-              opacity: 0.3,
-              child:
-                  Icon(Icons.auto_awesome, color: Colors.white, size: 120.sp),
+          Text(
+            selected == CommodityType.gold
+                ? 'Total Gold Savings'
+                : 'Total Silver Savings',
+            style: GoogleFonts.lora(
+              color: Colors.white.withValues(alpha: 0.9),
+              fontSize: 15.sp,
+              letterSpacing: 0.5,
             ),
           ),
-          Padding(
-            padding: EdgeInsets.all(24.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          SizedBox(height: 16.h),
+          // ── Balance + Growth pill in a Row (Figma layout) ──
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            market.maybeWhen(
-                              data: (rates) =>
-                                  'Your ${selected == CommodityType.gold ? rates.goldName : rates.silverName} Savings',
-                              orElse: () =>
-                                  'Your ${selected == CommodityType.gold ? "Gold" : "Silver"} Savings',
-                            ),
-                            style: GoogleFonts.outfit(
-                                color: Colors.white70,
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                // Gradient gm text
+                ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    begin: const Alignment(-0.87, -0.5),
+                    end: const Alignment(0.87, 0.5),
+                    colors: selected == CommodityType.gold
+                        ? const [Color(0xFFFFB500), Color(0xFFFFCA49)]
+                        : const [Color(0xFFB6B6B6), Color(0xFFE5E5E5)],
+                  ).createShader(bounds),
+                  blendMode: BlendMode.srcIn,
+                  child: Text(
+                    '${data.summary.balance.toStringAsFixed(4)} gm',
+                    style: GoogleFonts.lora(
+                      fontSize: 30.sp,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white, // placeholder, gradient paints over
                     ),
-                    SizedBox(height: 16.h),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('${data.summary.balance.toStringAsFixed(4)} g',
-                                style: GoogleFonts.outfit(
-                                    fontSize: 42.sp,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
-                                    letterSpacing: -1,
-                                    height: 1)),
-                            SizedBox(height: 8.h),
-                            Row(
-                              children: [
-                                FittedBox(
-                                  alignment: Alignment.centerLeft,
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                      '${ref.tr('totalInvestedLabel')}: ₹${data.summary.totalInvested.toStringAsFixed(0)}',
-                                      style: GoogleFonts.outfit(
-                                          color: Colors.white70,
-                                          fontSize: 13.sp,
-                                          fontWeight: FontWeight.w500)),
-                                ),
-                                SizedBox(width: 8.w),
-                                Icon(
-                                  data.summary.returns >= 0
-                                      ? Icons.arrow_upward_rounded
-                                      : Icons.arrow_downward_rounded,
-                                  color: data.summary.returns >= 0
-                                      ? Colors.greenAccent
-                                      : Colors.redAccent,
-                                  size: 14.sp,
-                                ),
-                                SizedBox(width: 2.w),
-                                Text(
-                                  '₹${data.summary.returns.abs().toStringAsFixed(0)} (${data.summary.returnsPercentage.toStringAsFixed(2)}%)',
-                                  style: GoogleFonts.outfit(
-                                      color: data.summary.returns >= 0
-                                          ? Colors.greenAccent
-                                          : Colors.redAccent,
-                                      fontSize: 13.sp,
-                                      fontWeight: FontWeight.w700),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                // Growth pill — Figma: bg #023A17, border 0.6px #0B7F03
+                Container(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF023A17),
+                    borderRadius: BorderRadius.circular(20.r),
+                    border: Border.all(
+                      color: const Color(0xFF0B7F03),
+                      width: 0.6,
                     ),
-                    SizedBox(height: 32.h),
-                    Row(
-                      children: [
-                        if (data.summary.hasActiveAccount) ...[
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () => Navigator.pushNamed(
-                                  context, AppRouter.withdrawal),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Colors.white.withValues(alpha: 0.1),
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(vertical: 16.h),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16.r),
-                                    side: const BorderSide(
-                                        color: Colors.white24)),
-                                elevation: 0,
-                              ),
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(ref.tr('withdraw'),
-                                    style: GoogleFonts.outfit(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 16.sp)),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 16.w),
-                        ],
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pushNamed(
-                                context, AppRouter.instantSaving),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: const Color(0xFF6366F1),
-                              padding: EdgeInsets.symmetric(vertical: 16.h),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16.r)),
-                              elevation: 0,
-                            ),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.flash_on, size: 16.sp),
-                                  SizedBox(width: 4.w),
-                                  Text(ref.tr('saveInstantly'),
-                                      style: GoogleFonts.outfit(
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 15.sp)),
-                                ],
-                              ),
-                            ),
-                          ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isPositive ? Icons.arrow_upward : Icons.arrow_downward,
+                        size: 13.sp,
+                        color: isPositive
+                            ? const Color(0xFF0ED500)
+                            : const Color(0xFFFF1A1A),
+                      ),
+                      SizedBox(width: 3.w),
+                      Text(
+                        '${returnsPct.toStringAsFixed(1)}%',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.bold,
+                          color: isPositive
+                              ? const Color(0xFF0ED500)
+                              : const Color(0xFFFF1A1A),
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
+          ),
+          SizedBox(height: 16.h),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRouter.withdrawal),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF335C41),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 15.h),
+                    minimumSize: Size(0, 36.h),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(100.r),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Withdrawal',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12.sp,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 16.w),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRouter.instantSaving),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF064E3B),
+                    padding: EdgeInsets.symmetric(vertical: 15.h),
+                    minimumSize: Size(0, 36.h),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(100.r),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Invest More',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12.sp,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          _buildCommodityToggle(selected),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommodityToggle(CommodityType selected) {
+    final isGold = selected == CommodityType.gold;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          ref.tr('goldLabel', fallback: 'Gold'),
+          style: GoogleFonts.lora(
+            fontSize: 16.sp,
+            color: Colors.white.withValues(alpha: isGold ? 1.0 : 0.6),
+          ),
+        ),
+        SizedBox(width: 12.w),
+        // Custom gradient toggle
+        GestureDetector(
+          onTap: () {
+            ref.read(commodityProvider.notifier).setCommodity(
+                  isGold ? CommodityType.silver : CommodityType.gold,
+                );
+          },
+          child: Container(
+            width: 52.w,
+            height: 28.h,
+            decoration: BoxDecoration(
+              gradient: isGold
+                  ? const LinearGradient(
+                      begin: Alignment(-0.87, -0.5),
+                      end: Alignment(0.87, 0.5),
+                      colors: [Color(0xFFFFB500), Color(0xFFFFCA49)],
+                    )
+                  : const LinearGradient(
+                      begin: Alignment(-0.87, -0.5),
+                      end: Alignment(0.87, 0.5),
+                      colors: [Color(0xFFA3A3A3), Color(0xFFE6E6E6)],
+                    ),
+              borderRadius: BorderRadius.circular(100.r),
+              border: Border.all(
+                color: const Color(0xFF0B7F03).withValues(alpha: 0.4),
+                width: 0.6,
+              ),
+            ),
+            child: Stack(
+              children: [
+                AnimatedAlign(
+                  alignment:
+                      isGold ? Alignment.centerLeft : Alignment.centerRight,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: Container(
+                    width: 24.w,
+                    height: 24.h,
+                    margin: EdgeInsets.symmetric(horizontal: 2.w),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 3.27,
+                          offset: const Offset(0, 1.09),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 8.73,
+                          offset: const Offset(0, 4.36),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(width: 12.w),
+        Text(
+          ref.tr('silverLabel', fallback: 'Silver'),
+          style: GoogleFonts.lora(
+            fontSize: 16.sp,
+            color: Colors.white.withValues(alpha: !isGold ? 1.0 : 0.6),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPortfolioSkeleton(bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E5631).withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(24.r),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.05),
+          width: 1.0,
+        ),
+      ),
+      padding: EdgeInsets.symmetric(vertical: 18.h, horizontal: 24.w),
+      child: Column(
+        children: [
+          // ── "Total Gold Savings" label placeholder ──
+          Center(
+            child: AppLoaders.headerShimmerBlock(
+                height: 14.h, width: 130.w, borderRadius: 6),
+          ),
+          SizedBox(height: 16.h),
+
+          // ── Balance grams + growth pill row ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AppLoaders.headerShimmerBlock(
+                  height: 28.h, width: 150.w, borderRadius: 8),
+              SizedBox(width: 10.w),
+              AppLoaders.headerShimmerPill(height: 24.h, width: 56.w),
+            ],
+          ),
+          SizedBox(height: 16.h),
+
+          // ── Two action buttons (Withdrawal / Invest More) ──
+          Row(
+            children: [
+              Expanded(
+                child: AppLoaders.headerShimmerPill(
+                    height: 44.h, width: double.infinity),
+              ),
+              SizedBox(width: 16.w),
+              Expanded(
+                child: AppLoaders.headerShimmerPill(
+                    height: 44.h, width: double.infinity),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+
+          // ── Commodity toggle placeholder ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AppLoaders.headerShimmerBlock(
+                  height: 14.h, width: 36.w, borderRadius: 6),
+              SizedBox(width: 12.w),
+              AppLoaders.headerShimmerPill(height: 28.h, width: 52.w),
+              SizedBox(width: 12.w),
+              AppLoaders.headerShimmerBlock(
+                  height: 14.h, width: 42.w, borderRadius: 6),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPortfolioLoading(bool isDark) =>
-      Center(child: CircularProgressIndicator(color: AppTheme.arcticBlue));
   Widget _buildPortfolioError(bool isDark) => Center(
       child: Text(ref.tr('portfolioError',
           fallback: 'Failed to load portfolio context.')));
 
-  Widget _buildFluctuationBadge(double change, double percentage, bool isDark) {
-    if (change == 0) return const SizedBox.shrink();
-
-    final isUp = change > 0;
-    // Premium theme colors
-    final baseColor = isUp ? const Color(0xFF10B981) : const Color(0xFFEF4444);
-    final icon = isUp ? Icons.trending_up_rounded : Icons.trending_down_rounded;
-
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-      decoration: BoxDecoration(
-        color: baseColor.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(100.r),
-        border: Border.all(color: baseColor.withOpacity(0.15), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: baseColor, size: 14.sp),
-          SizedBox(width: 6.w),
-          Text(
-            '${isUp ? "+" : ""}${percentage.toStringAsFixed(2)}%',
-            style: GoogleFonts.outfit(
-              color: baseColor,
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w900,
-            ),
+  Widget _buildNewCustomerBanner(BuildContext context, CommodityType selected) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 8.w),
+          decoration: const BoxDecoration(
+            color: Colors
+                .transparent, // Inherits the dark green from parent Container
           ),
-        ],
-      ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // ── Text + Button (left side) ──────────────────────────
+              Padding(
+                padding: EdgeInsets.only(right: 130.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        style: GoogleFonts.lora(
+                          fontSize: 19.sp,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          height: 1.3,
+                        ),
+                        children: [
+                          TextSpan(text: 'From pocket change\n'),
+                          TextSpan(
+                              text: selected == CommodityType.gold
+                                  ? 'to a golden future\n'
+                                  : 'to a shining future\n'),
+                          TextSpan(text: 'with just '),
+                          TextSpan(
+                            text: '₹10',
+                            style: TextStyle(
+                                fontFamily: 'Lora',
+                                color: const Color(0xFFFBBF24)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IntrinsicWidth(
+                        child: SizedBox(
+                          height: 40.h,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pushNamed(
+                                context, AppRouter.instantSaving),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: const Color(0xFF033214),
+                              padding: EdgeInsets.symmetric(horizontal: 28.w),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(100.r),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Invest Now',
+                              style: TextStyle(
+                                fontSize: 13.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // ── Jar GIF (right side, large) ────────────────────────
+              Positioned(
+                right: -4.w,
+                bottom: -10.h,
+                child: SizedBox(
+                  width: 115.w,
+                  height: 140.h,
+                  child: Image.asset(
+                    selected == CommodityType.gold
+                        ? 'assets/home/goldgf.gif'
+                        : 'assets/home/silvergf.gif',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(
+                            selected == CommodityType.gold
+                                ? Icons.savings
+                                : Icons.auto_awesome,
+                            color: const Color(0xFFFBBF24),
+                            size: 48.sp),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 16.h),
+        _buildCommodityToggle(selected),
+      ],
     );
   }
 }
@@ -1328,6 +1652,9 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
   final String customerName;
   final String welcomeText;
   final String? photoUrl;
+  final String? currentRate;
+  final String? timerText; // e.g. '02:00' — null if timer not active
+  final CommodityType selected;
 
   PremiumHomeHeader({
     required this.expandedHeight,
@@ -1336,167 +1663,50 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
     required this.customerName,
     required this.welcomeText,
     this.photoUrl,
+    this.currentRate,
+    this.timerText,
+    required this.selected,
   });
 
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final double range = maxExtent - minExtent;
-    final double percent =
-        range > 0 ? (shrinkOffset / range).clamp(0.0, 1.0) : 0.0;
-    final double opacity = (1 - percent).clamp(0.0, 1.0);
-    final double reverseOpacity = percent.clamp(0.0, 1.0);
-
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(
-            sigmaX: reverseOpacity * 10, sigmaY: reverseOpacity * 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF020617).withOpacity(0.8 + (percent * 0.2))
-                : Colors.white.withOpacity(0.8 + (percent * 0.2)),
-            border: Border(
-              bottom: BorderSide(
-                color: reverseOpacity > 0.1
-                    ? (isDark ? Colors.white10 : Colors.black.withOpacity(0.05))
-                    : Colors.transparent,
-                width: 1,
-              ),
-            ),
-            boxShadow: [
-              if (reverseOpacity > 0.5)
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-            ],
-          ),
-          child: Stack(
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          // CSS: linear-gradient(120deg, #003716 2.23%, #167525 93.99%)
+          begin: Alignment(-0.87, -0.5), // top-left → dark
+          end: Alignment(0.87, 0.5), // bottom-right → light
+          colors: [Color(0xFF003716), Color(0xFF167525)],
+          stops: [0.0223, 0.9399],
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(24.w, 10.h, 24.w, 4.h),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (opacity > 0.1)
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: opacity,
-                    child: const IgnorePointer(child: LiquidGoldAura()),
-                  ),
-                ),
-              Padding(
-                padding: EdgeInsets.only(
-                    top: statusBarHeight, left: 24.w, right: 24.w),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      height: 60.h,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Logo Left
-                          Row(
-                            children: [
-                              Image.asset(
-                                'assets/images/header.png',
-                                height: 28.h + (opacity * 4.h),
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Icon(Icons.diamond_rounded,
-                                        color: AppTheme.arcticBlue,
-                                        size: 24.sp),
-                              ),
-                              SizedBox(width: 12.w),
-                              Text(
-                                AppConstants.companyName,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.5,
-                                  color: isDark
-                                      ? Colors.white
-                                      : const Color(0xFF0F172A),
-                                ),
-                              ),
-                            ],
-                          ),
-                          // Actions Right
-                          Row(
-                            children: [
-                              _buildNotificationIcon(isDark),
-                              SizedBox(width: 16.w),
-                              Builder(
-                                builder: (context) => GestureDetector(
-                                  onTap: () =>
-                                      Scaffold.of(context).openEndDrawer(),
-                                  child: photoUrl != null &&
-                                          photoUrl!.isNotEmpty
-                                      ? Container(
-                                          width: 36.r,
-                                          height: 36.r,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                                color: AppTheme.arcticBlue
-                                                    .withOpacity(0.3),
-                                                width: 1.5),
-                                            image: DecorationImage(
-                                              image: NetworkImage(photoUrl!),
-                                              fit: BoxFit.cover,
-                                            ),
-                                          ),
-                                        )
-                                      : _buildActionIcon(
-                                          Icons.menu_rounded, isDark),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Hello, $customerName',
+                    style: GoogleFonts.lora(
+                      fontSize: 20.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
                     ),
-                    if (opacity > 0.5)
-                      Expanded(
-                        child: Opacity(
-                          opacity: ((opacity - 0.5) / 0.5).clamp(0.0, 1.0),
-                          child: Container(
-                            width: double.infinity,
-                            alignment: Alignment.centerLeft,
-                            child: SingleChildScrollView(
-                              physics: const NeverScrollableScrollPhysics(),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    welcomeText,
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.w500,
-                                      color: isDark
-                                          ? Colors.white54
-                                          : Colors.black54,
-                                    ),
-                                  ),
-                                  Text(
-                                    customerName,
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 32.sp,
-                                      fontWeight: FontWeight.w900,
-                                      color: isDark
-                                          ? Colors.white
-                                          : const Color(0xFF0F172A),
-                                      letterSpacing: -1,
-                                      height: 1.1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                  ),
+                  _buildActionIcon(
+                      isDark, Icons.notifications_none_rounded, Colors.white),
+                ],
               ),
+              SizedBox(height: 10.h),
+              if (currentRate != null)
+                Center(child: _buildLiveRatePill(currentRate!)),
+              // Timer runs silently — no countdown shown to user.
             ],
           ),
         ),
@@ -1504,120 +1714,112 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
     );
   }
 
-  Widget _buildNotificationIcon(bool isDark) {
-    return Stack(
-      children: [
-        _buildActionIcon(Icons.notifications_none_rounded, isDark),
-        Positioned(
-          right: 4.w,
-          top: 4.h,
-          child: Container(
-            width: 8.r,
-            height: 8.r,
-            decoration: const BoxDecoration(
-              color: Colors.redAccent,
-              shape: BoxShape.circle,
+  Widget _buildLiveRatePill(String rate) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+      decoration: BoxDecoration(
+        color: const Color(0xFF013916),
+        borderRadius: BorderRadius.circular(100.r),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF1A1A), // Red pill
+              borderRadius: BorderRadius.circular(100.r),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.sensors, color: Colors.white, size: 12.sp),
+                SizedBox(width: 4.w),
+                Text(
+                  'LIVE',
+                  style: TextStyle(
+                    fontSize: 10.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+          SizedBox(width: 16.w),
+          Text(
+            rate,
+            style: GoogleFonts.lora(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          ClipOval(
+            child: SizedBox(
+              width: 20.r,
+              height: 20.r,
+              child: Image.asset(
+                selected == CommodityType.gold
+                    ? 'assets/home/goldcoin.gif'
+                    : 'assets/home/silvercoin.gif',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 20.r,
+                  height: 20.r,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFACC15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '₹',
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF92400E),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildActionIcon(IconData icon, bool isDark) {
+  Widget _buildActionIcon(bool isDark, IconData icon, [Color? color]) {
     return Container(
       padding: EdgeInsets.all(8.r),
       decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withOpacity(0.05)
-            : Colors.black.withOpacity(0.04),
+        color: Colors.transparent,
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
         shape: BoxShape.circle,
       ),
-      child: Icon(
-        icon,
-        size: 20.sp,
-        color: isDark ? Colors.white : Colors.black87,
+      child: Center(
+        child: Icon(
+          icon,
+          size: 20.sp,
+          color: color ?? Colors.white,
+        ),
       ),
     );
   }
 
   @override
-  double get maxExtent => expandedHeight;
+  double get maxExtent => statusBarHeight + 125.h;
 
   @override
-  double get minExtent => statusBarHeight + 80.h;
+  double get minExtent => statusBarHeight + 125.h;
 
   @override
   bool shouldRebuild(SliverPersistentHeaderDelegate oldDelegate) => true;
-}
-
-class LiquidGoldAura extends StatefulWidget {
-  const LiquidGoldAura({super.key});
-
-  @override
-  State<LiquidGoldAura> createState() => _LiquidGoldAuraState();
-}
-
-class _LiquidGoldAuraState extends State<LiquidGoldAura>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0, -0.2),
-                  radius: 0.8 + (_controller.value * 0.2),
-                  colors: [
-                    AppTheme.arcticBlue
-                        .withOpacity(0.12 * (1 - _controller.value)),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-            // Floating Sparkle Particles (Simulated)
-            ...List.generate(5, (index) {
-              return Positioned(
-                left: (20 + (index * 60)).w,
-                top: (40 + (index * 20)).h,
-                child: Opacity(
-                  opacity: (0.1 + (_controller.value * 0.1)).clamp(0, 1),
-                  child: Container(
-                    width: 2.r,
-                    height: 2.r,
-                    decoration: const BoxDecoration(
-                      color: AppTheme.arcticBlue,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ],
-        );
-      },
-    );
-  }
 }

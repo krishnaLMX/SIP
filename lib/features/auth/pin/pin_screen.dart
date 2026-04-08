@@ -5,11 +5,13 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pinput/pinput.dart';
 import '../controller/auth_controller.dart';
+
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/animations.dart';
+import '../../../shared/widgets/app_toast.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../shared/theme/app_theme.dart';
-
 import '../../../core/localization/language_provider.dart';
 
 class PinScreen extends ConsumerStatefulWidget {
@@ -34,10 +36,16 @@ class _PinScreenState extends ConsumerState<PinScreen> {
     final authState = ref.watch(authControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    ref.listen<AuthState>(authControllerProvider, (prev, next) {
+      if (next.error != null && next.error != prev?.error && mounted) {
+        AppToast.show(context, next.error!, type: ToastType.error);
+      }
+    });
+
     final defaultPinTheme = PinTheme(
       width: 64.w,
       height: 72.h,
-      textStyle: GoogleFonts.outfit(
+      textStyle: GoogleFonts.lora(
         fontSize: 32.sp,
         fontWeight: FontWeight.w800,
         color: isDark ? Colors.white : const Color(0xFF0F172A),
@@ -53,15 +61,9 @@ class _PinScreenState extends ConsumerState<PinScreen> {
     );
 
     return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              color: isDark ? const Color(0xFF020617) : const Color(0xFFF8FAFC),
-            ),
-          ),
-          SafeArea(
-            child: SingleChildScrollView(
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -86,14 +88,11 @@ class _PinScreenState extends ConsumerState<PinScreen> {
                           delay: const Duration(milliseconds: 100),
                           child: Text(
                             ref.tr('welcomeBack'),
-                            style: GoogleFonts.outfit(
-                              fontSize: 42.sp,
-                              fontWeight: FontWeight.w900,
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF0F172A),
-                              height: 1.05,
-                              letterSpacing: -1.5,
+                            style: GoogleFonts.lora(
+                              fontSize: 28.sp,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              height: 1.15,
                             ),
                           ),
                         ),
@@ -102,7 +101,7 @@ class _PinScreenState extends ConsumerState<PinScreen> {
                           delay: const Duration(milliseconds: 200),
                           child: Text(
                             ref.tr('pinSubtitle'),
-                            style: GoogleFonts.outfit(
+                            style: GoogleFonts.lora(
                               fontSize: 17.sp,
                               color: isDark ? Colors.white54 : Colors.black45,
                               fontWeight: FontWeight.w400,
@@ -126,14 +125,14 @@ class _PinScreenState extends ConsumerState<PinScreen> {
                                 decoration:
                                     defaultPinTheme.decoration!.copyWith(
                                   color: isDark
-                                      ? AppTheme.arcticBlue.withOpacity(0.08)
+                                      ? AppTheme.primaryGreen.withOpacity(0.08)
                                       : Colors.white,
                                   border: Border.all(
-                                      color: AppTheme.arcticBlue, width: 2),
+                                      color: AppTheme.primaryGreen, width: 2),
                                   boxShadow: [
                                     BoxShadow(
                                       color:
-                                          AppTheme.arcticBlue.withOpacity(0.12),
+                                          AppTheme.primaryGreen.withOpacity(0.12),
                                       blurRadius: 20,
                                       offset: const Offset(0, 10),
                                     ),
@@ -144,55 +143,62 @@ class _PinScreenState extends ConsumerState<PinScreen> {
                             ),
                           ),
                         ),
-                        if (authState.error != null)
-                          Padding(
-                            padding: EdgeInsets.only(top: 32.h),
-                            child: Center(
-                              child: Text(authState.error!,
-                                  style: GoogleFonts.outfit(
-                                      color: Colors.redAccent,
-                                      fontWeight: FontWeight.w600)),
-                            ),
-                          ),
                         const Spacer(),
                         FadeInAnimation(
                           delay: const Duration(milliseconds: 400),
                           child: CustomButton(
                             text: ref.tr('secureAccess'),
                             isLoading: authState.isLoading,
+                            loadingText: 'Verifying...',
                             onPressed: _pinController.text.length == 4
                                 ? () => _handleVerifyPin(_pinController.text)
                                 : null,
-                            backgroundColor: _pinController.text.length == 4
-                                ? AppTheme.arcticBlue
-                                : (isDark
-                                    ? Colors.white.withOpacity(0.05)
-                                    : Colors.black.withOpacity(0.05)),
+                            gradient: LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: _pinController.text.length == 4
+                                  ? const [Color(0xFF1B882C), Color(0xFF003716)]
+                                  : [
+                                      const Color(0xFF1B882C).withOpacity(0.45),
+                                      const Color(0xFF003716).withOpacity(0.45),
+                                    ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF8F4C05).withOpacity(0.06),
+                                offset: const Offset(0, 4),
+                                blurRadius: 10,
+                              ),
+                            ],
+                            textColor: Colors.white,
                           ),
                         ),
                         SizedBox(height: 24.h),
                       ],
                     ),
                   ),
-                ),
-              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
   Future<void> _handleVerifyPin(String pin) async {
-    final success = await ref
-        .read(authControllerProvider.notifier)
-        .verifyPin(widget.mobile, pin);
+    try {
+      final success = await ref
+          .read(authControllerProvider.notifier)
+          .verifyPin(widget.mobile, pin);
 
-    if (success && mounted) {
-      Navigator.pushNamedAndRemoveUntil(
-          context, AppRouter.home, (route) => false);
-    } else {
-      _pinController.clear();
+      if (success && mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+            context, AppRouter.home, (route) => false);
+      } else {
+        _pinController.clear();
+      }
+    } catch (e) {
+      if (mounted) _pinController.clear();
     }
   }
 }
+

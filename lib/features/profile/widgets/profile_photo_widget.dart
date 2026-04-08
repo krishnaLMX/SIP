@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
-import 'package:permission_handler/permission_handler.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 import '../../../shared/theme/app_theme.dart';
+import '../../../shared/widgets/app_toast.dart';
 
 class ProfilePhotoWidget extends StatefulWidget {
   final String? initialPhotoUrl;
@@ -31,11 +32,9 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      // Check permissions
-      if (source == ImageSource.camera) {
-        final status = await Permission.camera.request();
-        if (status.isDenied) return;
-      }
+      // On Android 13+: image_picker uses the system Photo Picker — no permission needed.
+      // On Android ≤ 12: READ_EXTERNAL_STORAGE is declared with maxSdkVersion=32.
+      // Camera permission is handled automatically by image_picker.
 
       final XFile? image = await _picker.pickImage(
         source: source,
@@ -51,13 +50,7 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
 
         if (sizeInMb > 5) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Image is too large (Max 5MB)',
-                    style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
+            AppToast.show(context, 'Image is too large. Maximum allowed size is 5MB.', type: ToastType.error);
           }
           return;
         }
@@ -113,7 +106,7 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt, color: AppTheme.arcticBlue),
-              title: Text('Take Photo', style: GoogleFonts.outfit()),
+              title: Text('Take Photo', style: GoogleFonts.lora()),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.camera);
@@ -122,7 +115,7 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
             ListTile(
               leading:
                   const Icon(Icons.photo_library, color: AppTheme.arcticBlue),
-              title: Text('Choose from Gallery', style: GoogleFonts.outfit()),
+              title: Text('Choose from Gallery', style: GoogleFonts.lora()),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.gallery);
@@ -130,7 +123,7 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
             ),
             ListTile(
               leading: const Icon(Icons.cancel, color: Colors.grey),
-              title: Text('Cancel', style: GoogleFonts.outfit()),
+              title: Text('Cancel', style: GoogleFonts.lora()),
               onTap: () => Navigator.pop(context),
             ),
           ],
@@ -169,7 +162,7 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
               child: _selectedImage == null && widget.initialPhotoUrl == null
                   ? Text(
                       widget.initials,
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.lora(
                         fontSize: 36.sp,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.arcticBlue,
@@ -211,3 +204,4 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
     );
   }
 }
+

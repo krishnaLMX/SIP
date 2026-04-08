@@ -1,9 +1,9 @@
-import '../network/api_client.dart';
+﻿
 
 class LanguageService {
-  final ApiClient _apiClient = ApiClient();
-
   Future<Map<String, Map<String, String>>?> fetchMegaTranslations() async {
+    // Commented out as per user request: English by default for now
+    /*
     try {
       final response = await _apiClient.post('users/shared/all-translations');
 
@@ -24,6 +24,8 @@ class LanguageService {
     } catch (e) {
       print('Mega Localization fetch failed: $e');
     }
+    */
     return null;
   }
 }
+

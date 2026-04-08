@@ -1,4 +1,4 @@
-class MarketRates {
+﻿class MarketRates {
   final String goldName;
   final double goldBuy;
   final double goldSell;
@@ -42,8 +42,8 @@ class MarketRates {
         currency = 'INR';
 
   factory MarketRates.fromRawString(String rawData, MarketRates? previous,
-      {String goldId = '47',
-      String silverId = '48',
+      {String goldId = '1',
+      String silverId = '3',
       String goldName = 'Gold 24KT',
       String silverName = 'Silver 999'}) {
     final lines = rawData.split('\n');
@@ -58,12 +58,12 @@ class MarketRates {
       // Use pipe delimiter for KJPL native websocket
       final parts = line.split('|');
 
-      if (parts.length >= 4 && parts[0] == '3') {
+      if (parts.length >= 5 && parts[0] == '3') {
         final id = parts[1];
 
-        // Safely parse rates from parts[2] (buy) and parts[3] (sell)
-        final buyStr = parts[2];
-        final sellStr = parts[3];
+        // Safely parse rates from parts[3] (buy) and parts[4] (sell)
+        final buyStr = parts[3];
+        final sellStr = parts[4];
 
         double rate1 = double.tryParse(buyStr) ?? 0.0;
         double rate2 = double.tryParse(sellStr) ?? 0.0;
@@ -82,7 +82,8 @@ class MarketRates {
           sBuy = rate1;
           sSell = rate2;
         }
-      } else if (parts.length >= 4 && parts[0] == '1') {
+      } /*  else if (parts.length >= 4 && parts[0] == '1') {
+        // this is no needed .when go for production pls remove the part
         // Optional: Also parse live streaming rates if needed
         final symbol = parts[1];
         final buy = double.tryParse(parts[2]) ?? 0.0;
@@ -95,7 +96,7 @@ class MarketRates {
           sBuy = buy;
           sSell = sell;
         }
-      }
+      } */
     }
 
     // Calculate changes if we have previous rates

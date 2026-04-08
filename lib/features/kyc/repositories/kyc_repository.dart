@@ -1,7 +1,7 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../models/kyc_document.dart';
+import '../../../../core/security/encryption_service.dart';
 
 final kycRepositoryProvider = Provider((ref) => KycRepository());
 
@@ -26,31 +26,63 @@ class KycRepository {
   }
 
   Future<bool> uploadKyc({
-    required String customerId,
+    required String customerId, // Kept in case of need, but payload below follows user request
     required String requestFrom,
     required String documentId,
     required Map<String, dynamic> fields,
-    String? frontPath,
-    String? backPath,
   }) async {
-    final Map<String, dynamic> data = {
-      'id_customer': customerId,
-      'request_from': requestFrom,
+    // 1. Structure the data as per user request
+    final Map<String, dynamic> rawData = {
       'id_document': documentId,
-      'fields': fields, 
+      'request_from': requestFrom,
+      'fields': fields,
     };
 
-    if (frontPath != null) {
-      data['front_image'] = await MultipartFile.fromFile(frontPath);
+    // 2. Encrypt sensitive fields (Rule 3)
+    // We encrypt specifically for logging and to ensure structure matches
+    final Map<String, dynamic> encryptedFieldsMap =
+        EncryptionService.encryptJson(fields);
+
+    final Map<String, dynamic> postData = {
+      'id_document': documentId,
+      'request_from': requestFrom,
+      'fields': encryptedFieldsMap,
+    };
+
+    // 3. PRINT POST DATA (Requested by USER)
+    final displayData = Map<String, dynamic>.from(rawData);
+    final displayFields = Map<String, dynamic>.from(fields);
+    displayFields.forEach((key, value) {
+      if (key.contains('pan') || key.contains('aadhaar')) {
+        displayFields[key] = '********';
+      }
+    });
+    displayData['fields'] = displayFields;
+
+    print('--- KYC Upload API CALL ---');
+    print('URL: kyc/upload');
+    print('POST DATA (Logical Structure): $displayData');
+    print('ENCRYPTED FIELDS : $encryptedFieldsMap');
+
+    // 4. Send as JSON (Interceptor will also handle recursive encryption if needed)
+    final response = await _apiClient.post('kyc/upload', data: postData);
+
+    print('RESPONSE: ${response.data}');
+    print('---------------------------');
+
+    if (response.data['success'] == true) {
+      return true;
     }
 
-    if (backPath != null) {
-      data['back_image'] = await MultipartFile.fromFile(backPath);
-    }
+    // Extract the server's actual error message so the UI can display it.
+    final errorObj = response.data['error'];
+    final dataObj = response.data['data'];
+    final String serverMessage = (errorObj is Map ? errorObj['message'] : null) ??
+        (dataObj is Map ? dataObj['message'] : null) ??
+        response.data['message'] ??
+        'KYC verification failed. Please try again.';
 
-    final formData = FormData.fromMap(data);
-    final response = await _apiClient.post('kyc/upload', data: formData);
-
-    return response.data['success'] == true;
+    throw Exception(serverMessage);
   }
 }
+
