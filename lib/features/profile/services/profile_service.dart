@@ -96,7 +96,8 @@ class ProfileService {
       print('  format/ext: $ext');
       print('  file size: ${(fileSize / 1024).toStringAsFixed(1)} KB');
       print('  fields: ${formData.fields}');
-      print('  files: ${formData.files.map((f) => '${f.key}: ${f.value.filename} (contentType: ${f.value.contentType})').toList()}');
+      print(
+          '  files: ${formData.files.map((f) => '${f.key}: ${f.value.filename} (contentType: ${f.value.contentType})').toList()}');
       print('── End ──');
 
       final response = await _apiClient.post(

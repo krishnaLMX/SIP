@@ -85,7 +85,11 @@ class AppControlNotifier extends StateNotifier<AppControlState> {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
 
+      print('[AppControl] currentVersion: $currentVersion');
+      print('[AppControl] raw response: $raw');
+
       if (raw == null) {
+        print('[AppControl] raw is null — skipping');
         state = state.copyWith(isLoading: false, currentVersion: currentVersion);
         return;
       }
@@ -93,6 +97,9 @@ class AppControlNotifier extends StateNotifier<AppControlState> {
       final controlData = AppControlData.fromJson(raw);
       final versionInfo = controlData.versionInfo;
       final maintenance = controlData.maintenance;
+
+      print('[AppControl] versionInfo: ${versionInfo != null ? "parsed" : "null"}');
+      print('[AppControl] maintenance.isEnabled: ${maintenance.isEnabled}');
 
       // ── Maintenance takes priority over everything ──
       if (maintenance.isEnabled) {
@@ -111,14 +118,21 @@ class AppControlNotifier extends StateNotifier<AppControlState> {
         _maintenancePollTimer = null;
       }
 
-      // ── Version check ──
+      // ── Version check (per-platform) ──
       bool updateRequired = false;
       bool forceUpdate = false;
 
       if (versionInfo != null && currentVersion.isNotEmpty) {
-        updateRequired = _isLower(currentVersion, versionInfo.latestVersion);
+        final platformVersion = versionInfo.current;
+        print('[AppControl] platform latestVersion: ${platformVersion.latestVersion}');
+        print('[AppControl] platform minVersion: ${platformVersion.minVersion}');
+        print('[AppControl] platform storeUrl: ${platformVersion.storeUrl}');
+
+        updateRequired = _isLower(currentVersion, platformVersion.latestVersion);
         forceUpdate = versionInfo.forceUpdate ||
-            _isLower(currentVersion, versionInfo.minVersion);
+            _isLower(currentVersion, platformVersion.minVersion);
+
+        print('[AppControl] updateRequired: $updateRequired, forceUpdate: $forceUpdate');
       }
 
       final alert = controlData.alert;
@@ -133,7 +147,9 @@ class AppControlNotifier extends StateNotifier<AppControlState> {
         isMaintenance: false,
         currentVersion: currentVersion,
       );
-    } catch (_) {
+    } catch (e, stack) {
+      print('[AppControl] ERROR in _fetch: $e');
+      print('[AppControl] Stack: $stack');
       state = state.copyWith(isLoading: false);
     }
   }

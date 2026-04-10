@@ -6,6 +6,9 @@ import '../../core/security/secure_storage_service.dart';
 import '../../core/services/app_control_service.dart';
 import '../../core/models/app_control_model.dart';
 import '../../routes/app_router.dart';
+import '../../main.dart' show navigatorKey;
+import '../../shared/widgets/app_update_dialog.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,6 +21,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  AppVersionInfo? _versionInfo;
 
   @override
   void initState() {
@@ -63,16 +67,32 @@ class _SplashScreenState extends State<SplashScreen>
       nextRoute = AppRouter.mpin;
     }
 
-    // Maintenance gate
+    // Fetch app control data (maintenance + version check)
     Map<String, dynamic>? maintenanceArgs;
+    bool updateNeeded = false;
     try {
       final controlService = AppControlService();
       final raw = await controlService.fetchAppControl();
       if (raw != null) {
         final controlData = AppControlData.fromJson(raw);
+
+        // Maintenance gate
         if (controlData.maintenance.isEnabled) {
           maintenanceArgs = {'resumeRoute': nextRoute};
           nextRoute = AppRouter.maintenance;
+        }
+
+        // Version update gate — stay on splash so the update dialog
+        // appears on top of the splash background (not login/mpin)
+        final versionInfo = controlData.versionInfo;
+        if (versionInfo != null && !controlData.maintenance.isEnabled) {
+          final packageInfo = await PackageInfo.fromPlatform();
+          final currentVersion = packageInfo.version;
+          final platform = versionInfo.current;
+          if (_isLower(currentVersion, platform.latestVersion)) {
+            updateNeeded = true;
+            _versionInfo = versionInfo;
+          }
         }
       }
     } catch (_) {
@@ -83,11 +103,49 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
+    // If update is required, stay on splash and show the blocking
+    // update dialog directly. The wrapper does NOT handle version updates.
+    if (updateNeeded && _versionInfo != null) {
+      _showUpdateDialog();
+      return;
+    }
+
     Navigator.pushReplacementNamed(
       context,
       nextRoute,
       arguments: maintenanceArgs,
     );
+  }
+
+  /// Semantic version comparison: returns true if [a] < [b]
+  bool _isLower(String a, String b) {
+    try {
+      final av = a.split('.').map(int.parse).toList();
+      final bv = b.split('.').map(int.parse).toList();
+      for (int i = 0; i < 3; i++) {
+        final ai = i < av.length ? av[i] : 0;
+        final bi = i < bv.length ? bv[i] : 0;
+        if (ai < bi) return true;
+        if (ai > bi) return false;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Show the blocking update dialog on top of the splash screen.
+  void _showUpdateDialog() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navContext = navigatorKey.currentContext;
+      if (mounted && navContext != null && _versionInfo != null) {
+        AppUpdateDialog.show(
+          navContext,
+          versionInfo: _versionInfo!,
+          forceUpdate: true,
+        );
+      }
+    });
   }
 
   @override

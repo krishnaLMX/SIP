@@ -287,4 +287,3 @@ final profileProvider =
   final customerId = user?.id ?? '';
   return ProfileNotifier(service, customerId);
 });
-

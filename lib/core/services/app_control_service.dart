@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import '../config/app_config.dart';
 
 /// Fetches app runtime control data from the backend.
-/// Endpoint: GET app/control
+/// Endpoint: POST app/control
 /// No auth required — called before user is logged in.
 class AppControlService {
   final Dio _dio;
@@ -22,7 +22,7 @@ class AppControlService {
   /// Returns raw [Map] or null if network fails (handled gracefully).
   Future<Map<String, dynamic>?> fetchAppControl() async {
     try {
-      final response = await _dio.get('app/control');
+      final response = await _dio.post('app/control');
       if (response.statusCode == 200 && response.data is Map) {
         return response.data as Map<String, dynamic>;
       }

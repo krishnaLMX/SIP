@@ -1,0 +1,751 @@
+# StartGold — Comprehensive Security & Flow Audit
+
+> **Audit Date:** April 8, 2026  
+> **Scope:** Authentication, MPIN/Biometric, Home, Market Socket, Instant Saving, Payment, Withdrawal, UPI Selection, Security Layer  
+> **Codebase:** `d:\Git\SIP`
+
+---
+
+## Table of Contents
+
+1. [Login Flow](#1-login-flow)
+2. [Home Screen Flow](#2-home-screen-flow)
+3. [Market Socket Update Flow](#3-market-socket-update-flow)
+4. [Security Layer Flow](#4-security-layer-flow)
+5. [Instant Saving (Investment) Flow](#5-instant-saving-investment-flow)
+6. [Payment Integration Flow](#6-payment-integration-flow)
+7. [Withdrawal Flow](#7-withdrawal-flow)
+8. [Select UPI ID Flow](#8-select-upi-id-flow)
+9. [Withdrawal Success Flow](#9-withdrawal-success-flow)
+10. [MPIN Flow with Biometric](#10-mpin-flow-with-biometric)
+11. [Security Architecture Summary](#11-security-architecture-summary)
+12. [Findings & Recommendations](#12-findings--recommendations)
+
+---
+
+## 1. Login Flow
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant LoginScreen
+    participant AuthService
+    participant Interceptor as ApiSecurityInterceptor
+    participant Server
+
+    User->>LoginScreen: Enter mobile number
+    LoginScreen->>LoginScreen: Validate (10-digit, non-empty)
+    LoginScreen->>AuthService: generateOtp(mobile, countryCode, idCountry)
+    AuthService->>Interceptor: POST auth/generate-otp
+    Note over Interceptor: ✅ Encrypts 'mobile' field (RSA-OAEP-SHA256)
+    Interceptor->>Server: Encrypted payload
+    Server-->>AuthService: {otpReferenceId, success}
+    AuthService-->>LoginScreen: OTP reference ID
+    LoginScreen->>User: Navigate to OtpScreen
+```
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [login_screen.dart](file:///d:/Git/SIP/lib/features/auth/login/login_screen.dart) | UI — mobile number entry, country code picker |
+| [auth_service.dart](file:///d:/Git/SIP/lib/core/services/auth_service.dart) | API calls — `generateOtp()`, `verifyOtp()`, `register()` |
+| [api_interceptor.dart](file:///d:/Git/SIP/lib/core/security/api_interceptor.dart) | Encryption + auth header injection |
+| [otp_screen.dart](file:///d:/Git/SIP/lib/features/auth/otp/otp_screen.dart) | OTP verification + routing logic |
+
+### OTP Verification Sub-Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant OtpScreen
+    participant AuthService
+    participant SecureStorage
+    participant Navigator
+
+    User->>OtpScreen: Enter 6-digit OTP
+    OtpScreen->>AuthService: verifyOtp(mobile, otp, referenceId)
+    Note over AuthService: POST auth/verify-otp<br/>Fields encrypted: mobile, otp
+    AuthService-->>OtpScreen: Response {userExists, mpinEnabled, tokens...}
+
+    alt New User (userExists == false)
+        OtpScreen->>Navigator: → RegistrationScreen (temp_token)
+        Note over Navigator: Registration → PinCreationScreen → MPIN Setup → Home
+    else Existing User + MPIN Enabled
+        AuthService->>SecureStorage: Save access + refresh tokens
+        OtpScreen->>Navigator: → MpinScreen (unlock)
+    else Existing User + MPIN NOT Enabled
+        AuthService->>SecureStorage: Save tokens
+        OtpScreen->>Navigator: → MpinScreen (setup)
+    else Forgot PIN Flow
+        OtpScreen->>Navigator: → MpinScreen (reset_pin, temp_token)
+    end
+```
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Mobile number encrypted | ✅ | `mobile` is in `sensitiveFields` |
+| OTP encrypted | ✅ | `otp` is in `sensitiveFields` |
+| Endpoint in encrypted list | ✅ | `auth/generate-otp`, `auth/verify-otp` |
+| Auth header skipped for auth endpoints | ✅ | Interceptor excludes `/auth/` paths |
+| Token storage uses flutter_secure_storage | ✅ | Via `SecureStorageService` |
+| Rate limiting on OTP | ⚠️ | Client-side 30s cooldown only; server-side not verified |
+
+---
+
+## 2. Home Screen Flow
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant MainScreen
+    participant HomeScreen
+    participant PortfolioProvider
+    participant DashboardProvider
+    participant MarketSocket
+    participant ProfileProvider
+
+    User->>MainScreen: App opens → bottom nav index 0
+    MainScreen->>HomeScreen: Render HomeScreen tab
+    HomeScreen->>PortfolioProvider: ref.watch(portfolioProvider)
+    HomeScreen->>DashboardProvider: ref.watch(homeDashboardProvider)
+    HomeScreen->>MarketSocket: ref.watch(marketRatesStreamProvider)
+    HomeScreen->>ProfileProvider: ref.watch(profileProvider)
+
+    Note over HomeScreen: On tab switch back to Home (index 0):<br/>1. Refresh portfolio<br/>2. Invalidate dashboard<br/>3. Invalidate profile
+```
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [home_screen.dart](file:///d:/Git/SIP/lib/features/home/home_screen.dart) | Full dashboard UI — portfolio, rate history, learning, discover sections |
+| [main_screen.dart](file:///d:/Git/SIP/lib/features/main/main_screen.dart) | Bottom nav container, tab management |
+| [market_provider.dart](file:///d:/Git/SIP/lib/core/providers/market_provider.dart) | Socket connection → `marketRatesStreamProvider` |
+| [portfolio_provider.dart](file:///d:/Git/SIP/lib/core/providers/portfolio_provider.dart) | Portfolio data fetch |
+| [home_dashboard_provider.dart](file:///d:/Git/SIP/lib/core/providers/home_dashboard_provider.dart) | Dashboard sections (rate history, invest, learn, support) |
+
+### Key Behaviors
+
+- **Skeleton Loading**: Shows `_buildPortfolioSkeleton` / `_buildHomeScreenSkeleton` while data loads; no blocking spinner
+- **Stale Data Reuse**: If previous data exists during a refresh (`portfolioState.valueOrNull`), it displays the old data to prevent flicker
+- **Sell Rate Lock Timer**: `sellRateTimerProvider` locks the sell rate for a configurable duration from `savingConfig.sellRateLockSeconds`
+- **Pull-to-Refresh**: Triggers `portfolioProvider.fetchPortfolio()`
+- **Auto-Refresh on Tab Return**: When `selectedTabProvider` transitions to `0`, all 3 data sources refresh
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Portfolio API requires auth token | ✅ | Path doesn't start with `/auth/`, interceptor injects Bearer |
+| Dashboard API requires auth token | ✅ | Same |
+| No sensitive data displayed in plain text | ✅ | Only portfolio weights, values, growth % |
+| Error state gracefully handled | ✅ | Shows `_buildDashboardError` with retry button |
+
+---
+
+## 3. Market Socket Update Flow
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant NativeSocketService
+    participant WebSocket as ws://13.202.62.253:57200
+    participant MarketRates
+    participant UI as HomeScreen / InstantSaving
+
+    App->>NativeSocketService: connect()
+    NativeSocketService->>WebSocket: WebSocket.connect(url, protocols: [token])
+    WebSocket-->>NativeSocketService: Connected
+
+    loop Live Rate Updates
+        WebSocket-->>NativeSocketService: Raw string data (pipe-delimited)
+        NativeSocketService->>MarketRates: MarketRates.fromRawString(data)
+        Note over NativeSocketService: Only emits if isSignificantChange()
+        NativeSocketService->>UI: ratesStream → StreamProvider
+    end
+
+    alt Connection Lost
+        NativeSocketService->>NativeSocketService: _scheduleReconnect() → 5s delay → reconnect
+    end
+```
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [native_socket_service.dart](file:///d:/Git/SIP/lib/core/network/native_socket_service.dart) | WebSocket client — connect, parse, reconnect |
+| [market_provider.dart](file:///d:/Git/SIP/lib/core/providers/market_provider.dart) | Riverpod providers — `marketRatesStreamProvider`, `socketStatusProvider` |
+
+### Key Design Details
+
+- **Protocol Auth**: Socket uses a hardcoded protocol token: `0b286a8b1100f097e7c8e879dbd4174e468a9e92f888e6e289595efdd4747b89`
+- **Commodity Config**: `updateCommodityConfig()` dynamically sets gold/silver IDs from the commodities API response
+- **Reconnection**: Automatic 5-second retry on disconnect or error
+- **Rate Replay**: `ratesStream` getter yields `_lastRate` immediately before streaming, so new subscribers get the latest value instantly
+- **Significant Change Filter**: `isSignificantChange()` prevents unnecessary UI rebuilds for micro-fluctuations
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Socket does not send sensitive data | ✅ | Read-only stream. No user data sent |
+| No sensitive data logged | ✅ | `SecureLogger` used; only logs connection status |
+| Reconnect on failure | ✅ | 5-second auto-reconnect |
+| Socket URL uses plain `ws://` | ⚠️ | **Not WSS**. Data in transit is unencrypted |
+| Protocol token is hardcoded | ⚠️ | Should be fetched dynamically or stored securely |
+| Payload validation | ✅ | `fromRawString` has try-catch; unknown formats are ignored |
+
+---
+
+## 4. Security Layer Flow
+
+### Architecture
+
+```mermaid
+flowchart TD
+    A[ApiClient] --> B[Dio Instance]
+    B --> C[ApiSecurityInterceptor]
+    C --> D{Is offline?}
+    D -->|Yes| E[Reject with ConnectionError]
+    D -->|No| F{Is sensitive endpoint?}
+    F -->|Yes| G{RSA key ready?}
+    G -->|No| H[fetchAndCachePublicKey]
+    H --> I[Load from SecureStorage or fetch from server]
+    G -->|Yes| J[Encrypt sensitive fields via EncryptionService.encryptJson]
+    F -->|No| K[Pass through]
+    J --> L{Path contains /auth/?}
+    K --> L
+    L -->|Yes| M[Skip Authorization header]
+    L -->|No| N[Inject Bearer token from SecureStorageService]
+    M --> O[Send request]
+    N --> O
+
+    O --> P{Response 401?}
+    P -->|Yes| Q[Attempt silent token refresh]
+    Q -->|Success| R[Retry original request with new token]
+    Q -->|Failure| S[SessionManager.logout → redirect to login]
+    P -->|No| T[Return response]
+```
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [api_interceptor.dart](file:///d:/Git/SIP/lib/core/security/api_interceptor.dart) | Central request/response/error interceptor |
+| [encryption_service.dart](file:///d:/Git/SIP/lib/core/security/encryption_service.dart) | RSA-OAEP-SHA256 encryption of sensitive fields |
+| [secure_storage_service.dart](file:///d:/Git/SIP/lib/core/security/secure_storage_service.dart) | flutter_secure_storage wrapper for tokens, keys, flags |
+| [app_config.dart](file:///d:/Git/SIP/lib/core/config/app_config.dart) | Encrypted endpoints + sensitive fields lists |
+| [secure_logger.dart](file:///d:/Git/SIP/lib/core/security/secure_logger.dart) | Redacted logging (strips sensitive values) |
+
+### Encrypted Endpoints
+
+```
+auth/generate-otp     auth/verify-otp     auth/register
+savings/initiate      savings/check-eligibility
+submit-kyc            update-kyc          kyc/upload
+withdraw              verify-upi          verify-bank
+payment               investment
+mpin/create           mpin/validate       mpin/change       mpin/reset
+```
+
+### Sensitive Fields (Encrypted Before Transmission)
+
+```
+password    otp    login_pin    transaction_pin    mpin    old_mpin    new_mpin
+aadhaar_number    pan_number    pan    bank_account_number    account_no
+ifsc_code    upi_id    kyc_details    withdrawal_amount    payment_details
+amount    amount_inr    payment_pin    bank_details    mobile    weight    buy_rate
+```
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| RSA-OAEP-SHA256 encryption | ✅ | Using `pointycastle` + `encrypt` packages |
+| No hardcoded secret keys | ✅ | Public key fetched from `crypto/public-key` endpoint |
+| Key cached in secure storage | ✅ | Via `SecureStorageService.saveServerPublicKey()` |
+| Offline detection blocks requests | ✅ | `connectivity_plus` check in `onRequest` |
+| Silent token refresh on 401 | ✅ | Retries original request transparently |
+| Logout on refresh failure | ✅ | Calls `SessionManager.logout()` |
+| Recursive field encryption | ✅ | `encryptJson()` handles nested maps and lists |
+| Base URL uses HTTP | ❌ | **`http://startgoldapi.logimaxindia.com`** — Must use HTTPS in production |
+
+---
+
+## 5. Instant Saving (Investment) Flow
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant InstantSavingScreen
+    participant SavingService
+    participant Server
+    participant Navigator
+
+    User->>InstantSavingScreen: Select Gold/Silver, enter amount
+    InstantSavingScreen->>InstantSavingScreen: Validate min/max from SavingConfig
+    User->>InstantSavingScreen: Tap "Confirm Order"
+
+    InstantSavingScreen->>SavingService: checkEligibility(customerId, metalId, mobile, amount, rate)
+    Note over SavingService: POST savings/check-eligibility<br/>Encrypted: mobile, amount_inr
+    SavingService-->>InstantSavingScreen: {nextStep: 'PAYMENT'|'KYC_REQUIRED'|'UPI_LIST'}
+
+    alt KYC Required
+        InstantSavingScreen->>Navigator: → KycScreen
+    else Payment Ready
+        InstantSavingScreen->>Navigator: → PaymentMethodsScreen(amount, metalId, rate)
+    end
+```
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [instant_saving_screen.dart](file:///d:/Git/SIP/lib/features/instant_saving/instant_saving_screen.dart) | Main investment UI — commodity tabs, amount/weight input, denominations, GST breakdown |
+| [saving_service.dart](file:///d:/Git/SIP/lib/features/instant_saving/services/saving_service.dart) | API calls — config, eligibility, initiate, confirm, cancel |
+| [saving_controller.dart](file:///d:/Git/SIP/lib/features/instant_saving/controller/saving_controller.dart) | Riverpod providers — config, payment methods, state notifier |
+| [saving_models.dart](file:///d:/Git/SIP/lib/features/instant_saving/models/saving_models.dart) | Data models — SavingConfig, EligibilityResponse, PurchaseInitiateResponse |
+
+### Key Behaviors
+
+- **Mode Toggle**: "Buy in Rupees" vs "Buy in Grams" — affects calculation direction
+- **Denomination Chips**: Loaded from API, auto-selects "POPULAR" chip
+- **GST Calculation**: `goldValue = totalPayable / (1 + gstRate/100)`, displayed in expandable breakdown
+- **Sell Rate Lock**: Uses `sellRateTimerProvider` to lock rate for configured seconds
+- **Amount Validation**: Min/max from `SavingConfig`, prevents proceeding if invalid
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Eligibility endpoint encrypted | ✅ | `savings/check-eligibility` in encrypted list |
+| `mobile`, `amount_inr` encrypted | ✅ | Both in `sensitiveFields` |
+| Auth token attached | ✅ | Interceptor handles automatically |
+| Rate manipulation prevention | ✅ | Rate locked via timer + server validates rate |
+| `device_id` is a placeholder | ⚠️ | Using `'device-id-placeholder'` — should be real device ID |
+
+---
+
+## 6. Payment Integration Flow
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant PaymentMethodsScreen
+    participant SavingService
+    participant CashfreeSDK
+    participant Server
+
+    User->>PaymentMethodsScreen: Select payment method
+    User->>PaymentMethodsScreen: Tap "Proceed to Pay"
+
+    PaymentMethodsScreen->>SavingService: initiatePurchase(customerId, metalId, mobile, buyType, amount, rate, weight)
+    Note over SavingService: POST savings/initiate<br/>Encrypted: mobile, amount_inr, weight
+    SavingService-->>PaymentMethodsScreen: {orderId, sessionId, environment}
+
+    PaymentMethodsScreen->>CashfreeSDK: CFWebCheckoutPayment(session)
+    CashfreeSDK->>User: Cashfree payment page
+
+    alt Payment Success
+        CashfreeSDK->>PaymentMethodsScreen: onVerify(orderId)
+        PaymentMethodsScreen->>SavingService: confirmPayment(orderId)
+        Note over SavingService: POST savings/confirm-payment
+        SavingService-->>PaymentMethodsScreen: {success, grams_credited, ...}
+        PaymentMethodsScreen->>User: → PurchaseSuccessScreen
+    else Payment Failed
+        CashfreeSDK->>PaymentMethodsScreen: onError(errorResponse, orderId)
+        PaymentMethodsScreen->>SavingService: confirmPayment(orderId)
+        Note over SavingService: Server updates order status
+        PaymentMethodsScreen->>User: → PurchaseSuccessScreen (failure state)
+    end
+```
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [payment_methods_screen.dart](file:///d:/Git/SIP/lib/features/instant_saving/screens/payment_methods_screen.dart) | Payment method selection + Cashfree SDK integration |
+| [saving_service.dart](file:///d:/Git/SIP/lib/features/instant_saving/services/saving_service.dart) | `initiatePurchase()`, `confirmPayment()`, `cancelOrder()` |
+| [purchase_success_screen.dart](file:///d:/Git/SIP/lib/features/instant_saving/screens/purchase_success_screen.dart) | Success/failure result display |
+
+### Key Design Details
+
+- **Rate Locking**: Uses `sellRateTimerProvider` — if timer active, uses locked rate; else falls back to `widget.rate`
+- **Weight Calculation**: `rawWeight = (amount / (1 + gstRate)) / rate` — rounded to 4 decimals
+- **Cashfree Environment**: Dynamically set from API response (`PRODUCTION` or `SANDBOX`)
+- **Error on Payment Failure**: Still calls `confirmPayment` to sync status with server
+- **Rate Expiry During Payment**: Shows "Updating..." and refreshes config; blocks "Proceed to Pay" during refresh
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Purchase initiation encrypted | ✅ | `savings/initiate` in encrypted list |
+| `mobile`, `amount_inr`, `weight` encrypted | ✅ | All in `sensitiveFields` |
+| Payment handled by Cashfree SDK | ✅ | No card/bank data touches app code |
+| `confirmPayment` has no encryption | ✅ | Only sends `order_id` — not sensitive |
+| Verify overlay prevents double-tap | ✅ | `_isVerifying` / `_isLoading` flags |
+| `coupon_code` not encrypted | ✅ | Not sensitive data |
+
+---
+
+## 7. Withdrawal Flow
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant WithdrawalScreen
+    participant WithdrawalService
+    participant Server
+    participant Navigator
+
+    User->>WithdrawalScreen: Select commodity, enter amount (₹)
+    WithdrawalScreen->>WithdrawalScreen: Validate (min/max grams, balance check)
+    User->>WithdrawalScreen: Tap "Withdrawal"
+
+    WithdrawalScreen->>WithdrawalService: checkEligibility(customerId, mobile, amount, metalId)
+    Note over WithdrawalService: POST savings/check-eligibility<br/>Encrypted: mobile, amount_inr
+    WithdrawalService-->>WithdrawalScreen: {nextStep}
+
+    alt KYC Required
+        WithdrawalScreen->>Navigator: → KycScreen (request_from: 'withdraw')
+    else Eligible
+        WithdrawalScreen->>Navigator: → UpiSelectionScreen
+    end
+```
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [withdrawal_screen.dart](file:///d:/Git/SIP/lib/features/withdrawal/screens/withdrawal_screen.dart) | Amount input, commodity tabs, buy rate display |
+| [withdrawal_service.dart](file:///d:/Git/SIP/lib/features/withdrawal/services/withdrawal_service.dart) | API calls — eligibility, withdraw, verify UPI/bank |
+| [withdrawal_provider.dart](file:///d:/Git/SIP/lib/features/withdrawal/providers/withdrawal_provider.dart) | State management — amount, method, validation |
+
+### Validation Rules
+
+```dart
+minWithdrawalGrams  // from AppConstants
+maxWithdrawalGrams  // from AppConstants
+balance >= requested grams
+amount > 0
+```
+
+### Key Behaviors
+
+- **Buy Rate Lock**: Uses `buyRateTimerProvider` (separate from sell rate timer)
+- **Amount Resets on Commodity Switch**: `_amountController.clear()` + provider reset
+- **Only ₹ Input Supported**: No gram-based input mode on withdrawal screen
+- **Processing Guard**: `_isProcessing` disables button during API call
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Eligibility check encrypted | ✅ | `savings/check-eligibility` is encrypted endpoint |
+| `mobile` encrypted | ✅ | In `sensitiveFields` |
+| Client-side validation before API call | ✅ | `WithdrawalNotifier.validate()` |
+| No direct withdrawal API call here | ✅ | Only eligibility; actual submission in confirmation screen |
+
+---
+
+## 8. Select UPI ID Flow
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UpiSelectionScreen
+    participant WithdrawalService
+    participant Server
+
+    UpiSelectionScreen->>WithdrawalService: fetchAccountDetails(customerId, mobile)
+    Note over WithdrawalService: POST profile/accountdetails
+    WithdrawalService-->>UpiSelectionScreen: List<WithdrawalMethod>
+
+    UpiSelectionScreen->>UpiSelectionScreen: Auto-select first account
+
+    alt Add New UPI
+        User->>UpiSelectionScreen: Tap "Add Account" → "UPI Handle"
+        User->>UpiSelectionScreen: Enter UPI ID
+        UpiSelectionScreen->>WithdrawalService: verifyAndAddUpi(customerId, mobile, upiId)
+        Note over WithdrawalService: POST account/verify-upi<br/>Encrypted: mobile, upi_id
+        WithdrawalService-->>UpiSelectionScreen: {success, data}
+        UpiSelectionScreen->>UpiSelectionScreen: Refresh account list
+    end
+
+    alt Add Bank Account (Feature Disabled)
+        Note over UpiSelectionScreen: Bank account form exists in code<br/>but is commented out in UI (TODO)
+    end
+
+    User->>UpiSelectionScreen: Select account → Tap "Withdrawal"
+    UpiSelectionScreen->>Navigator: → WithdrawalConfirmationScreen
+```
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [upi_selection_screen.dart](file:///d:/Git/SIP/lib/features/withdrawal/screens/upi_selection_screen.dart) | Account list, add UPI form, add bank form |
+| [withdrawal_service.dart](file:///d:/Git/SIP/lib/features/withdrawal/services/withdrawal_service.dart) | `fetchAccountDetails()`, `verifyAndAddUpi()`, `verifyAndAddBank()` |
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| `verify-upi` endpoint encrypted | ✅ | `verify-upi` in `encryptedEndpoints` |
+| `upi_id` encrypted | ✅ | In `sensitiveFields` |
+| `verify-bank` endpoint encrypted | ✅ | `verify-bank` in `encryptedEndpoints` |
+| `account_no`, `ifsc_code` encrypted | ✅ | Both in `sensitiveFields` |
+| `fetchAccountDetails` not encrypted | ✅ | Only sends `id_customer` + `mobile` — `mobile` encrypted via interceptor |
+| Bank feature is disabled in UI | ✅ | Commented out — no accidental exposure |
+
+---
+
+## 9. Withdrawal Success Flow
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    participant ConfirmationScreen as WithdrawalConfirmationScreen
+    participant MpinScreen
+    participant WithdrawalService
+    participant Server
+    participant SuccessScreen as WithdrawalSuccessScreen
+    participant HomeScreen
+
+    ConfirmationScreen->>MpinScreen: Navigator.pushNamed(mpin, type: 'withdrawal_pin')
+    Note over MpinScreen: ⚠️ Biometric DISABLED for withdrawal_pin<br/>User must enter MPIN manually
+
+    MpinScreen-->>ConfirmationScreen: PIN (string) via Navigator.pop()
+
+    ConfirmationScreen->>WithdrawalService: submitWithdrawal(metalId, amount, weight, buyRate, methodId, method)
+    Note over WithdrawalService: POST withdrawal/withdraw<br/>Encrypted: amount, weight, buy_rate
+    WithdrawalService-->>ConfirmationScreen: {success, data}
+
+    alt Success
+        ConfirmationScreen->>SuccessScreen: pushNamedAndRemoveUntil(withdrawalSuccess, args)
+        SuccessScreen->>User: Show transaction ID, target account, amount
+        User->>SuccessScreen: Tap "Done"
+        SuccessScreen->>HomeScreen: pushNamedAndRemoveUntil(home)<br/>+ Refresh portfolio, dashboard, profile
+    else Failure
+        ConfirmationScreen->>User: AppToast error message
+    end
+```
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [withdrawal_confirmation_screen.dart](file:///d:/Git/SIP/lib/features/withdrawal/screens/withdrawal_confirmation_screen.dart) | Summary card, MPIN gate, submit API call |
+| [withdrawal_success_screen.dart](file:///d:/Git/SIP/lib/features/withdrawal/screens/withdrawal_success_screen.dart) | Success animation, transaction details, navigate home |
+| [mpin_screen.dart](file:///d:/Git/SIP/lib/features/mpin/mpin_screen.dart) | MPIN entry (biometric disabled for `withdrawal_pin` type) |
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| MPIN required before submission | ✅ | PIN returned via Navigator; submission only proceeds if `pin != null && pin.isNotEmpty` |
+| Biometric disabled for withdrawal | ✅ | `type: 'withdrawal_pin'` bypasses biometric trigger |
+| `withdrawal/withdraw` encrypted | ✅ | `withdraw` path matched in `encryptedEndpoints` |
+| `amount`, `weight`, `buy_rate` encrypted | ✅ | All in `sensitiveFields` |
+| `withdrawal_method_id` not encrypted | ✅ | Non-sensitive identifier |
+| Timer must be active for submission | ✅ | Guards against stale/expired rates |
+| Stack cleared on success | ✅ | `pushNamedAndRemoveUntil` prevents back-navigation to sensitive screens |
+| Home data refreshed post-withdrawal | ✅ | Portfolio + dashboard + profile invalidated before navigating |
+
+---
+
+## 10. MPIN Flow with Biometric
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant MpinScreen
+    participant SecureStorage
+    participant LocalAuth as local_auth
+    participant MpinService
+    participant Navigator
+
+    App->>MpinScreen: Navigate with args {type: 'unlock' | 'withdrawal_pin' | 'setup' | 'reset_pin' | 'verify_only'}
+    MpinScreen->>SecureStorage: Check isMpinEnabled, isBiometricEnabled
+    MpinScreen->>LocalAuth: canCheckBiometrics + isDeviceSupported
+
+    alt type != 'withdrawal_pin' && type != 'verify_only' && biometric enabled
+        MpinScreen->>LocalAuth: authenticate(localizedReason: "Verify your identity")
+        alt Biometric Success
+            MpinScreen->>MpinService: verifyMpin (server-side validation may be skipped)
+            MpinScreen->>Navigator: → MainScreen (unlock) or pop(pin)
+        else Biometric Cancelled / Failed
+            MpinScreen->>User: Fall back to keypad entry
+        end
+    end
+
+    alt Manual MPIN Entry
+        User->>MpinScreen: Enter 4-digit PIN on shuffled keypad
+        MpinScreen->>MpinService: verifyMpin(pin)
+        Note over MpinService: POST mpin/validate<br/>Encrypted: mpin
+        MpinService-->>MpinScreen: success/failure
+
+        alt Success
+            MpinScreen->>Navigator: Navigate based on type
+        else Failure
+            MpinScreen->>MpinScreen: Increment failedAttempts (5 = lock)
+        end
+    end
+```
+
+### MPIN Types & Routing
+
+| `type` Argument | Purpose | Biometric Allowed | After Success |
+|----------------|---------|:-----------------:|---------------|
+| `null` / `unlock` | App unlock | ✅ | → MainScreen |
+| `setup` | First-time PIN creation | ❌ | → MainScreen + save `mpin_enabled` |
+| `withdrawal_pin` | Authorize withdrawal | ❌ | `Navigator.pop(pin)` |
+| `verify_only` | Verify identity | ❌ | `Navigator.pop(pin)` |
+| `reset_pin` | After forgot-PIN OTP | ❌ | → MainScreen + save `mpin_enabled` |
+
+### Files Involved
+
+| File | Role |
+|------|------|
+| [mpin_screen.dart](file:///d:/Git/SIP/lib/features/mpin/mpin_screen.dart) | Full MPIN UI — shuffled keypad, biometric trigger, state machine |
+| [mpin_service.dart](file:///d:/Git/SIP/lib/core/services/mpin_service.dart) | API calls — `setMpin`, `verifyMpin`, `changeMpin`, `resetMpin`, `hasMpinSet` |
+| [change_mpin_screen.dart](file:///d:/Git/SIP/lib/features/mpin/change_mpin_screen.dart) | Change MPIN flow (old PIN → new PIN → confirm) |
+
+### Security Assessment
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Keypad shuffled per session | ✅ | `_shuffleKeypad()` randomizes digit order |
+| `mpin` field encrypted | ✅ | `mpin`, `old_mpin`, `new_mpin` in `sensitiveFields` |
+| All MPIN endpoints encrypted | ✅ | `mpin/create`, `mpin/validate`, `mpin/change`, `mpin/reset` |
+| Account lockout after 5 failures | ✅ | `failedAttempts >= 5 → isLocked = true` |
+| Screenshot protection | ✅ | `screen_protector` package — `avoidScreenshot()`, blur on app switch |
+| Biometric disabled for sensitive ops | ✅ | `withdrawal_pin` and `verify_only` force manual entry |
+| PIN length enforced (4 digits) | ✅ | `pinLength = 4` constant in `MpinNotifier` |
+| Brute-force on device | ✅ | Server-side validation + client lock after 5 attempts |
+| Forgot PIN requires fresh OTP | ✅ | Re-enters OTP flow → gets `temp_token` → `mpin/reset` |
+
+---
+
+## 11. Security Architecture Summary
+
+### Layered Security Model
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PRESENTATION LAYER                       │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐ │
+│  │ Screen   │  │ MPIN     │  │ Biometric│  │ Screenshot │ │
+│  │ Protector│  │ Keypad   │  │ Gate     │  │ Guard      │ │
+│  └──────────┘  └──────────┘  └──────────┘  └────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                    BUSINESS LOGIC LAYER                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐ │
+│  │ State    │  │ Timer    │  │ Session  │  │ Offline    │ │
+│  │ Notifiers│  │ Providers│  │ Manager  │  │ Detection  │ │
+│  └──────────┘  └──────────┘  └──────────┘  └────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                    SECURITY LAYER                           │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │              ApiSecurityInterceptor                    │ │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌───────────────┐ │ │
+│  │  │ Connectivity│  │ RSA-OAEP    │  │ Token Refresh │ │ │
+│  │  │ Guard       │  │ Encryption  │  │ (Silent 401)  │ │ │
+│  │  └─────────────┘  └─────────────┘  └───────────────┘ │ │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌───────────────┐ │ │
+│  │  │ Secure      │  │ Secure      │  │ Root          │ │ │
+│  │  │ Storage     │  │ Logger      │  │ Detection     │ │ │
+│  │  └─────────────┘  └─────────────┘  └───────────────┘ │ │
+│  └────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                    NETWORK LAYER                            │
+│  ┌──────────┐  ┌──────────────────┐  ┌──────────────────┐ │
+│  │ ApiClient│  │ NativeSocketSvc  │  │ Cashfree SDK    │ │
+│  │ (Dio)    │  │ (WebSocket)      │  │ (3rd-party)     │ │
+│  └──────────┘  └──────────────────┘  └──────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Root Detection
+
+| Check | Status |
+|-------|--------|
+| `RootDetectionService.isDeviceCompromised()` runs at startup | ✅ |
+| Compromised device → `CompromisedDeviceScreen` (app blocked) | ✅ |
+
+### App Lifecycle Security
+
+| Check | Status |
+|-------|--------|
+| `AppLifecycleObserver` watches app state | ✅ |
+| `AppControlWrapper` wraps entire app | ✅ |
+| Portrait-only orientation enforced | ✅ |
+
+---
+
+## 12. Findings & Recommendations
+
+### ❌ Critical Issues
+
+| # | Issue | Location | Risk | Recommendation |
+|---|-------|----------|------|----------------|
+| **C1** | **HTTP Base URL** | [app_config.dart:4](file:///d:/Git/SIP/lib/core/config/app_config.dart#L4) | All API traffic is plaintext; RSA encryption only protects individual fields, not the full HTTP payload or headers | **Switch to HTTPS immediately** for production |
+| **C2** | **Socket uses `ws://` not `wss://`** | [native_socket_service.dart:9](file:///d:/Git/SIP/lib/core/network/native_socket_service.dart#L9) | Market rate data can be intercepted/manipulated via MITM | Use `wss://` with TLS |
+
+### ⚠️ Medium Issues
+
+| # | Issue | Location | Risk | Recommendation |
+|---|-------|----------|------|----------------|
+| **M1** | **Hardcoded socket protocol token** | [native_socket_service.dart:10-12](file:///d:/Git/SIP/lib/core/network/native_socket_service.dart#L10-L12) | Token leaked in source code; can be extracted from APK | Fetch auth token dynamically from server after login |
+| **M2** | **`device_id` is placeholder** | [saving_service.dart:30](file:///d:/Git/SIP/lib/features/instant_saving/services/saving_service.dart#L30) | Device fingerprinting for fraud detection is non-functional | Use `device_info_plus` package for real device ID |
+| **M3** | **Cert pinning placeholders** | [app_config.dart:28-30](file:///d:/Git/SIP/lib/core/config/app_config.dart#L28-L30) | No certificate pinning → vulnerable to MITM even with HTTPS | Implement real cert fingerprints when moving to HTTPS |
+| **M4** | **`id_customer` commented out** in withdrawal APIs | [withdrawal_service.dart:34,45,92,109](file:///d:/Git/SIP/lib/features/withdrawal/services/withdrawal_service.dart#L34) | Server may not be validating which customer is requesting the withdrawal | Ensure server extracts customer ID from the auth token |
+| **M5** | **Biometric auth doesn't re-verify MPIN on server** | [mpin_screen.dart](file:///d:/Git/SIP/lib/features/mpin/mpin_screen.dart) | On biometric success for unlock, the MPIN isn't sent to server; relies on local biometric only | For unlock scenarios this is acceptable; for any transactional flow, MPIN must be verified server-side |
+| **M6** | **`profile/accountdetails`** not in encrypted endpoints | [withdrawal_service.dart:15](file:///d:/Git/SIP/lib/features/withdrawal/services/withdrawal_service.dart#L15) | `mobile` field will still be encrypted (it's in `sensitiveFields`), but endpoint itself isn't flagged | Consider adding to encrypted endpoints if response contains bank details |
+
+### ℹ️ Low / Informational Issues
+
+| # | Issue | Location | Notes |
+|---|-------|----------|-------|
+| **L1** | OTP rate limiting is client-side only | `otp_screen.dart` | 30-second cooldown; server should enforce its own limits |
+| **L2** | `debugPrint` statements remain in MPIN screen | `mpin_screen.dart:77-99` | Should be removed or replaced with `SecureLogger` in release |
+| **L3** | Encrypt log shows `AES-256-CBC` when RSA is active | `api_interceptor.dart:115` | The log label references AES but RSA is actually used; cosmetic issue |
+| **L4** | Bank account add feature is disabled | `upi_selection_screen.dart:455-467` | Commented out — no security risk, but code remains in binary |
+| **L5** | `cancelOrder` API exists but has no UI trigger | `saving_service.dart:69-74` | Order cancellation may be needed for timeout scenarios |
+| **L6** | `amount` field appears in multiple APIs | `app_config.dart:69` | Encrypting `amount` broadly could impact display-only APIs — verify no false positives |
+
+### ✅ Strengths
+
+| # | Strength | Details |
+|---|----------|---------|
+| **S1** | RSA key management | Dynamic key exchange, no hardcoded secrets, cached in secure storage |
+| **S2** | Silent token refresh | 401 → auto-refresh → retry; seamless UX |
+| **S3** | Recursive field encryption | Handles nested JSON + arrays properly |
+| **S4** | MPIN security | Shuffled keypad, 5-attempt lockout, screenshot protection, biometric gating |
+| **S5** | Withdrawal requires manual MPIN | No biometric shortcut for financial operations |
+| **S6** | Root detection at startup | Blocks compromised devices entirely |
+| **S7** | Offline detection | Prevents failed requests from polluting UX |
+| **S8** | Rate locking system | Prevents rate manipulation between screens |
+| **S9** | Secure logging | `SecureLogger` redacts sensitive data from all log output |
+| **S10** | Stack management on success | `pushNamedAndRemoveUntil` prevents back-navigation to confirmation |

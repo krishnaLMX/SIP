@@ -2,15 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/app_control_provider.dart';
 import '../../routes/app_router.dart';
+import '../../main.dart' show navigatorKey;
 import '../widgets/offline_banner.dart';
 import '../widgets/app_alert_banner.dart';
-import '../widgets/app_update_dialog.dart';
 
 /// Root-level wrapper that injects global runtime controls:
 ///   • Offline / slow network banner
 ///   • Backend-driven alert banner
-///   • App version update dialog (force / optional)
 ///   • Maintenance redirect (pushes /maintenance when flag becomes enabled while in-app)
+///
+/// NOTE: Version update dialog is handled exclusively by SplashScreen at
+/// app startup. The 5-minute polling here is only for alerts and maintenance.
+///
+/// IMPORTANT: This widget sits ABOVE the Navigator (inside MaterialApp.builder),
+/// so we must use [navigatorKey] to get a context that has a Navigator ancestor
+/// for pushing routes.
 class AppControlWrapper extends ConsumerStatefulWidget {
   final Widget child;
   const AppControlWrapper({super.key, required this.child});
@@ -20,7 +26,6 @@ class AppControlWrapper extends ConsumerStatefulWidget {
 }
 
 class _AppControlWrapperState extends ConsumerState<AppControlWrapper> {
-  bool _updateDialogShown = false;
   bool _maintenanceRedirected = false;
 
   @override
@@ -39,8 +44,9 @@ class _AppControlWrapperState extends ConsumerState<AppControlWrapper> {
     if (appControl.isMaintenance && !_maintenanceRedirected) {
       _maintenanceRedirected = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil(
+        final nav = navigatorKey.currentState;
+        if (mounted && nav != null) {
+          nav.pushNamedAndRemoveUntil(
             AppRouter.maintenance,
             (route) => false,
             arguments: {'resumeRoute': AppRouter.login},
@@ -51,22 +57,6 @@ class _AppControlWrapperState extends ConsumerState<AppControlWrapper> {
     // Reset so it can re-trigger if maintenance toggles again
     if (!appControl.isMaintenance) {
       _maintenanceRedirected = false;
-    }
-
-    // ── Update dialog (once per session) ──────────────────────────────────
-    if (appControl.updateRequired && !_updateDialogShown) {
-      _updateDialogShown = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && appControl.versionInfo != null) {
-          AppUpdateDialog.show(
-            context,
-            versionInfo: appControl.versionInfo!,
-            forceUpdate: appControl.forceUpdate,
-            onDismiss: () =>
-                ref.read(appControlProvider.notifier).dismissUpdate(),
-          );
-        }
-      });
     }
 
     return Stack(

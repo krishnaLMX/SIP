@@ -1,8 +1,22 @@
 class AppConfig {
   static const String appName = 'startGOLD';
-  static const String baseUrl =
-      'http://startgoldapi.logimaxindia.com/api/api/v1/'; // Fixed trailing slash http://192.168.1.72:8000/api/v1/
-  //  http://startgoldapi.logimaxindia.com/api/v1/
+
+  /// Current environment name (dev | staging | production).
+  /// Override at build time: --dart-define=ENV=dev
+  static const String environment =
+      String.fromEnvironment('ENV', defaultValue: 'production');
+
+  /// Base URL – dynamically set via build flag.
+  ///
+  /// Usage:
+  ///   flutter run   --dart-define=BASE_URL=http://192.168.1.72:8000/api/v1/
+  ///   flutter build --dart-define=BASE_URL=https://prod.example.com/api/v1/
+  ///
+  /// If no flag is passed the production URL is used as default.
+  static const String baseUrl = String.fromEnvironment(
+    'BASE_URL',
+    defaultValue: 'http://startgoldapi.logimaxindia.com/api/api/v1/',
+  );
 
   // Storage Keys
   static const String keyHasSeenOnboarding = 'hasSeenOnboarding';

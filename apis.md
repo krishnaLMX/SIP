@@ -62,7 +62,7 @@ This document summarizes the complete set of API endpoints required for the Star
 ## 0.2 🌐 App Runtime Control
 
 ### 0.2.1 Fetch App Control Data
-*   **Endpoint:** `GET app/control`
+*   **Endpoint:** `POST app/control`
 *   **Authorization:** None (public endpoint — called before login and periodically while app is open)
 *   **Purpose:** Central runtime control gate. Returns current version info (with platform-specific popups) and any live global alerts.
 *   **Polling:** App polls this endpoint every **5 minutes** while active to pick up live alert changes without requiring a restart.
@@ -72,16 +72,19 @@ This document summarizes the complete set of API endpoints required for the Star
       "success": true,
       "data": {
         "version": {
-          "latest_version": "2.1.0",
-          "min_version": "1.5.0",
-          "store_url": "https://play.google.com/store/apps/details?id=com.startgold",
           "force_update": false,
           "android": {
+            "latest_version": "2.1.0",
+            "min_version": "1.5.0",
+            "store_url": "https://play.google.com/store/apps/details?id=com.startgold",
             "title": "New Update Available",
             "message": "We've added exciting new features. Update now for the best experience.",
             "button_text": "Update Now"
           },
           "ios": {
+            "latest_version": "2.0.0",
+            "min_version": "1.3.0",
+            "store_url": "https://apps.apple.com/app/startgold/id123456",
             "title": "Update Available",
             "message": "A new version of StartGold is available on the App Store.",
             "button_text": "Go to App Store"
@@ -108,9 +111,9 @@ This document summarizes the complete set of API endpoints required for the Star
 #### Version Update Logic (Client-Side)
 | Condition | Behaviour |
 |---|---|
-| `current < min_version` | **Force update** — dialog shown, app unusable until updated |
-| `current < latest_version` | **Optional update** — dialog with "Later" skip option |
-| `current >= latest_version` | No popup shown |
+| `current < android.min_version` (or `ios.min_version`) | **Force update** — dialog shown, app unusable until updated |
+| `current < android.latest_version` (or `ios.latest_version`) | **Optional update** — dialog with "Later" skip option |
+| `current >= platform.latest_version` | No popup shown |
 
 #### Alert `type` Values
 | Value | Color | Dismissible |

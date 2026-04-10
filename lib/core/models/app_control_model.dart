@@ -1,57 +1,96 @@
 import 'dart:io';
 
-/// Platform-specific version/alert payload
-class PlatformMessage {
+/// Platform-specific version + popup configuration.
+/// Each platform (Android / iOS) now carries its own version numbers,
+/// store URL, and user-facing popup text.
+class PlatformVersionInfo {
+  final String latestVersion;
+  final String minVersion;
+  final String storeUrl;
   final String title;
   final String message;
   final String buttonText;
 
-  const PlatformMessage({
+  const PlatformVersionInfo({
+    required this.latestVersion,
+    required this.minVersion,
+    required this.storeUrl,
     required this.title,
     required this.message,
     required this.buttonText,
   });
 
-  factory PlatformMessage.fromJson(Map<String, dynamic> json) =>
-      PlatformMessage(
+  factory PlatformVersionInfo.fromJson(
+    Map<String, dynamic> json, {
+    // Fallbacks from the parent level (backward compatibility)
+    String? fallbackLatest,
+    String? fallbackMin,
+    String? fallbackStoreUrl,
+  }) =>
+      PlatformVersionInfo(
+        latestVersion:
+            json['latest_version'] ?? fallbackLatest ?? '',
+        minVersion: json['min_version'] ?? fallbackMin ?? '',
+        storeUrl: json['store_url'] ?? fallbackStoreUrl ?? '',
         title: json['title'] ?? '',
         message: json['message'] ?? '',
         buttonText: json['button_text'] ?? 'Update',
       );
+
+  static const PlatformVersionInfo empty = PlatformVersionInfo(
+    latestVersion: '',
+    minVersion: '',
+    storeUrl: '',
+    title: '',
+    message: '',
+    buttonText: 'Update',
+  );
 }
 
-/// Version info returned by backend
+/// Version info returned by backend.
+///
+/// Supports two API shapes:
+/// 1. **Per-platform** (recommended):
+///    `android.latest_version`, `android.min_version`, `android.store_url`, etc.
+/// 2. **Legacy / shared** (backward compat):
+///    Top-level `latest_version`, `min_version`, `store_url` used as fallback
+///    when the platform block doesn't contain its own version fields.
 class AppVersionInfo {
-  final String latestVersion;
-  final String minVersion;
-  final String storeUrl;
   final bool forceUpdate;
-  final PlatformMessage android;
-  final PlatformMessage ios;
+  final PlatformVersionInfo android;
+  final PlatformVersionInfo ios;
 
   const AppVersionInfo({
-    required this.latestVersion,
-    required this.minVersion,
-    required this.storeUrl,
     required this.forceUpdate,
     required this.android,
     required this.ios,
   });
 
   factory AppVersionInfo.fromJson(Map<String, dynamic> json) {
+    // Legacy top-level fallbacks
+    final fallbackLatest = json['latest_version'] as String?;
+    final fallbackMin = json['min_version'] as String?;
+    final fallbackStoreUrl = json['store_url'] as String?;
+
     return AppVersionInfo(
-      latestVersion: json['latest_version'] ?? '',
-      minVersion: json['min_version'] ?? '',
-      storeUrl: json['store_url'] ?? '',
       forceUpdate: json['force_update'] == true,
-      android: PlatformMessage.fromJson(
-          (json['android'] as Map<String, dynamic>?) ?? {}),
-      ios: PlatformMessage.fromJson(
-          (json['ios'] as Map<String, dynamic>?) ?? {}),
+      android: PlatformVersionInfo.fromJson(
+        (json['android'] as Map<String, dynamic>?) ?? {},
+        fallbackLatest: fallbackLatest,
+        fallbackMin: fallbackMin,
+        fallbackStoreUrl: fallbackStoreUrl,
+      ),
+      ios: PlatformVersionInfo.fromJson(
+        (json['ios'] as Map<String, dynamic>?) ?? {},
+        fallbackLatest: fallbackLatest,
+        fallbackMin: fallbackMin,
+        fallbackStoreUrl: fallbackStoreUrl,
+      ),
     );
   }
 
-  PlatformMessage get platformMessage =>
+  /// Returns the correct platform block for the running OS.
+  PlatformVersionInfo get current =>
       Platform.isAndroid ? android : ios;
 }
 

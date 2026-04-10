@@ -1,12 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/app_control_model.dart';
 
-/// Platform-aware app update dialog.
-/// - [forceUpdate] = true → no dismiss button, modal barrier impenetrable
-/// - [forceUpdate] = false → shows "Later" skip option
+/// Blocking app update dialog.
+///
+/// When an update is available the user MUST update.
+/// - "Update Now" → opens the store
+/// - Hardware back button / system back → exits the app
+/// - No "Remind me later" option
 class AppUpdateDialog extends StatelessWidget {
   final AppVersionInfo versionInfo;
   final bool forceUpdate;
@@ -38,14 +43,22 @@ class AppUpdateDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final msg = versionInfo.platformMessage;
+    final msg = versionInfo.current;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF1A2332) : Colors.white;
     final textPrimary = isDark ? Colors.white : const Color(0xFF1A2332);
     final textSecondary = isDark ? Colors.white60 : const Color(0xFF666666);
 
-    return WillPopScope(
-      onWillPop: () async => !forceUpdate,
+    return PopScope(
+      // Back button → exit the app
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          if (Platform.isAndroid) {
+            SystemNavigator.pop();
+          }
+        }
+      },
       child: Dialog(
         backgroundColor: bg,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
@@ -97,7 +110,7 @@ class AppUpdateDialog extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20.r),
                 ),
                 child: Text(
-                  'v${versionInfo.latestVersion}',
+                  'v${msg.latestVersion}',
                   style: GoogleFonts.lora(
                     fontSize: 12.sp,
                     color: const Color(0xFF1B882C),
@@ -132,7 +145,7 @@ class AppUpdateDialog extends StatelessWidget {
                     borderRadius: BorderRadius.circular(50.r),
                   ),
                   child: ElevatedButton(
-                    onPressed: () => _openStore(versionInfo.storeUrl),
+                    onPressed: () => _openStore(msg.storeUrl),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
@@ -151,24 +164,6 @@ class AppUpdateDialog extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // ── Later button (optional update only) ───────────────
-              if (!forceUpdate) ...[
-                SizedBox(height: 12.h),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    onDismiss?.call();
-                  },
-                  child: Text(
-                    'Remind me later',
-                    style: GoogleFonts.lora(
-                      fontSize: 13.sp,
-                      color: textSecondary,
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
