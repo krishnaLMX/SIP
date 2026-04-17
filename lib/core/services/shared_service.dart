@@ -174,7 +174,9 @@ final countryCodesProvider =
   return service.getCountryCodes();
 });
 
-final commoditiesProvider = FutureProvider.autoDispose<List<Commodity>>((ref) {
+// Non-disposing: stays alive for the full app session so selectedMetalIdProvider
+// always has the real id_metal ready for denomination providers on first load.
+final commoditiesProvider = FutureProvider<List<Commodity>>((ref) {
   final service = ref.watch(sharedServiceProvider);
   return service.getCommodities();
 });

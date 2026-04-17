@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pinput/pinput.dart';
 import 'package:screen_protector/screen_protector.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../controller/auth_controller.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -128,12 +129,22 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SizedBox(height: 16.h),
-                      IconButton(
-                        icon: Icon(Icons.arrow_back,
-                            size: 24.sp, color: primaryTextColor),
-                        onPressed: () => Navigator.pop(context),
-                        padding: EdgeInsets.zero,
-                        alignment: Alignment.centerLeft,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.arrow_back,
+                                size: 24.sp, color: primaryTextColor),
+                            onPressed: () => Navigator.pop(context),
+                            padding: EdgeInsets.zero,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          SvgPicture.asset(
+                            'assets/images/startGold.svg',
+                            height: 85.h,
+                            fit: BoxFit.contain,
+                          ),
+                        ],
                       ),
 
                       SizedBox(height: 32.h),
@@ -217,59 +228,65 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                               ),
                             ],
                           ),
-                          child: Pinput(
-                            length: 6,
-                            controller: _otpController,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
-                            ],
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            preFilledWidget: Text(
-                              '•',
-                              style: GoogleFonts.lora(
-                                fontSize: 22.sp,
-                                color: primaryTextColor.withOpacity(0.25),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8.w, vertical: 4.h),
+                            child: Pinput(
+                              length: 6,
+                              controller: _otpController,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly
+                              ],
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceEvenly,
+                              preFilledWidget: Text(
+                                '•',
+                                style: GoogleFonts.lora(
+                                  fontSize: 22.sp,
+                                  color:
+                                      primaryTextColor.withOpacity(0.25),
+                                ),
                               ),
+                              defaultPinTheme: PinTheme(
+                                width: 45.w,
+                                height: 52.h,
+                                textStyle: GoogleFonts.lora(
+                                  fontSize: 20.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: primaryTextColor,
+                                ),
+                                decoration: const BoxDecoration(),
+                              ),
+                              focusedPinTheme: PinTheme(
+                                width: 45.w,
+                                height: 52.h,
+                                textStyle: GoogleFonts.lora(
+                                  fontSize: 20.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: accentGreen,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                      bottom: BorderSide(
+                                          color: accentGreen, width: 2)),
+                                ),
+                              ),
+                              onCompleted: _verifyOtp,
                             ),
-                            defaultPinTheme: PinTheme(
-                              width: 45.w,
-                              height: 60.h,
-                              textStyle: GoogleFonts.lora(
-                                fontSize: 20.sp,
-                                fontWeight: FontWeight.w600,
-                                color: primaryTextColor,
-                              ),
-                              decoration: const BoxDecoration(),
-                            ),
-                            focusedPinTheme: PinTheme(
-                              width: 45.w,
-                              height: 60.h,
-                              textStyle: GoogleFonts.lora(
-                                fontSize: 20.sp,
-                                fontWeight: FontWeight.w800,
-                                color: accentGreen,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                    bottom: BorderSide(
-                                        color: accentGreen, width: 2)),
-                              ),
-                            ),
-                            onCompleted: _verifyOtp,
                           ),
                         ),
                       ),
 
-                      SizedBox(height: 24.h),
+                      SizedBox(height: 32.h),
 
                       // Resend Timer
                       FadeInAnimation(
                         delay: const Duration(milliseconds: 300),
-                        child: Row(
+                        child: Wrap(
                           children: [
                             Text(
-                              "Didn’t receive the OTP? ",
+                              "Didn't receive the OTP? ",
                               style: GoogleFonts.lora(
                                   fontSize: 14.sp, color: secondaryTextColor),
                             ),

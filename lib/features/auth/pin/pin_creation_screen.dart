@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../controller/auth_controller.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -141,20 +142,30 @@ class _PinCreationScreenState extends ConsumerState<PinCreationScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(height: 16.h),
-                    IconButton(
-                      icon: Icon(Icons.arrow_back_ios_new_rounded,
-                          size: 22.sp, color: textColor),
-                      onPressed: () {
-                        if (_isConfirming) {
-                          setState(() {
-                            _isConfirming = false;
-                            _confirmPin = '';
-                          });
-                          _shuffleKeypad();
-                        } else {
-                          Navigator.pop(context);
-                        }
-                      },
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.arrow_back_ios_new_rounded,
+                              size: 22.sp, color: textColor),
+                          onPressed: () {
+                            if (_isConfirming) {
+                              setState(() {
+                                _isConfirming = false;
+                                _confirmPin = '';
+                              });
+                              _shuffleKeypad();
+                            } else {
+                              Navigator.pop(context);
+                            }
+                          },
+                        ),
+                        SvgPicture.asset(
+                          'assets/images/startGold.svg',
+                          height: 85.h,
+                          fit: BoxFit.contain,
+                        ),
+                      ],
                     ),
                     SizedBox(height: 24.h),
 

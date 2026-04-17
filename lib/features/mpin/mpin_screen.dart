@@ -78,7 +78,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
     debugPrint('  mpinEnabled: $enabled');
     debugPrint('  bioEnabled (storage): $bioEnabled');
     debugPrint('  canUseBiometrics (device): $canUseBiometrics');
-    debugPrint('  final _isBiometricEnabled: ${bioEnabled && canUseBiometrics}');
+    debugPrint(
+        '  final _isBiometricEnabled: ${bioEnabled && canUseBiometrics}');
 
     if (mounted) {
       setState(() {
@@ -95,7 +96,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       final String? type = args['type'];
 
       debugPrint('  route type: $type');
-      debugPrint('  will auto-trigger: ${_isBiometricEnabled && _isMpinEnabledCount && type != 'withdrawal_pin' && type != 'verify_only'}');
+      debugPrint(
+          '  will auto-trigger: ${_isBiometricEnabled && _isMpinEnabledCount && type != 'withdrawal_pin' && type != 'verify_only'}');
       debugPrint('── End ──');
 
       if (_isBiometricEnabled &&
@@ -126,7 +128,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
         } else if (type == 'verify_only') {
           Navigator.pop(context, true);
         } else {
-          Navigator.pushReplacementNamed(context, AppRouter.main);
+          Navigator.pushNamedAndRemoveUntil(
+              context, AppRouter.main, (route) => false);
         }
       }
     } on Exception catch (e) {
@@ -206,6 +209,22 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       }
     });
 
+    // Auto-submit when 4 digits entered for login / reset flows.
+    // Withdrawal stays manual (user must consciously tap Confirm).
+    // Setup stays manual (user reviews before activating PIN).
+    ref.listen<MpinState>(mpinProvider, (prev, next) {
+      if (next.isComplete && !(prev?.isComplete ?? false) && !next.isLocked) {
+        final args = ModalRoute.of(context)?.settings.arguments
+                as Map<String, dynamic>? ??
+            {};
+        final String? type = args['type'];
+        // Auto-submit for: app unlock (null), reset_pin, and withdrawal_pin
+        if (type == null || type == 'reset_pin' || type == 'withdrawal_pin') {
+          _handleAction();
+        }
+      }
+    });
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
@@ -243,13 +262,13 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                           child: Center(
                             child: SvgPicture.asset(
                               'assets/images/startGold.svg',
-                              height: 80.h,
+                              height: 85.h,
                               fit: BoxFit.contain,
                             ),
                           ),
                         ),
 
-                        SizedBox(height: 40.h),
+                        SizedBox(height: 24.h),
 
                         // 3. Luxury Branding Header
                         FadeInAnimation(
@@ -260,20 +279,38 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                     .arguments as Map<String, dynamic>? ??
                                 {};
                             final String? routeType = args['type'];
+
                             final isWithdrawal =
                                 routeType == 'withdrawal_pin' ||
                                     routeType == 'authorize_withdrawal';
+                            final isBiometric = routeType == 'verify_only';
+                            final isSetup = routeType == 'setup';
+                            final isReset = routeType == 'reset_pin';
+
+                            final String title = isWithdrawal
+                                ? AppConstants.mpinWithdrawalTitle
+                                : isBiometric
+                                    ? AppConstants.mpinBiometricTitle
+                                    : isSetup
+                                        ? 'Set Your PIN'
+                                        : isReset
+                                            ? 'Reset Your PIN'
+                                            : AppConstants.mpinTitle;
+
+                            final String subtitle = isWithdrawal
+                                ? AppConstants.mpinWithdrawalSubtitle
+                                : isBiometric
+                                    ? AppConstants.mpinBiometricSubtitle
+                                    : isSetup
+                                        ? 'Create a 4-digit PIN for quick & secure access.'
+                                        : isReset
+                                            ? 'Enter your new 4-digit security PIN.'
+                                            : AppConstants.mpinSubtitle;
 
                             return Column(
                               children: [
                                 Text(
-                                  isWithdrawal
-                                      ? 'AUTHORIZE WITHDRAWAL'
-                                      : routeType == 'setup'
-                                          ? 'SET YOUR PIN'
-                                          : routeType == 'reset_pin'
-                                              ? 'RESET YOUR PIN'
-                                              : AppConstants.mpinTitle,
+                                  title,
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.lora(
                                     fontSize: 24.sp,
@@ -286,13 +323,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                 ),
                                 SizedBox(height: 8.h),
                                 Text(
-                                  isWithdrawal
-                                      ? 'Enter your 4-digit PIN to securely authorize this transaction.'
-                                      : routeType == 'setup'
-                                          ? 'Create a 4-digit PIN for quick & secure access.'
-                                          : routeType == 'reset_pin'
-                                              ? 'Enter your new 4-digit security PIN.'
-                                              : AppConstants.mpinSubtitle,
+                                  subtitle,
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.lora(
                                     fontSize: 14.sp,
@@ -307,7 +338,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                           }),
                         ),
 
-                        SizedBox(height: 28.h),
+                        SizedBox(height: 16.h),
 
                         // 4. Premium Glowing PIN Indicators
                         FadeInAnimation(
@@ -360,56 +391,36 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                           ),
                         ),
 
-                        SizedBox(height: 32.h),
+                        SizedBox(height: 20.h),
 
-                        // 5. Glassmorphic Keypad Card
+                        // 5. Number Keypad
                         FadeInAnimation(
                           delay: const Duration(milliseconds: 400),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(32.r),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                              child: Container(
-                                key: UniqueKey(),
-                                padding: EdgeInsets.all(24.w),
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? Colors.white.withOpacity(0.035)
-                                      : Colors.black.withOpacity(0.02),
-                                  borderRadius: BorderRadius.circular(32.r),
-                                  border: Border.all(
-                                    color: isDark
-                                        ? Colors.white.withOpacity(0.08)
-                                        : Colors.black.withOpacity(0.05),
-                                  ),
-                                ),
-                                child: Column(
+                          child: Padding(
+                            key: UniqueKey(),
+                            padding: EdgeInsets.symmetric(horizontal: 16.w),
+                            child: Column(
+                              children: [
+                                _buildNumRow(_shuffledNumbers.sublist(0, 3)),
+                                SizedBox(height: 16.h),
+                                _buildNumRow(_shuffledNumbers.sublist(3, 6)),
+                                SizedBox(height: 16.h),
+                                _buildNumRow(_shuffledNumbers.sublist(6, 9)),
+                                SizedBox(height: 16.h),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
                                   children: [
-                                    _buildNumRow(
-                                        _shuffledNumbers.sublist(0, 3)),
-                                    SizedBox(height: 20.h),
-                                    _buildNumRow(
-                                        _shuffledNumbers.sublist(3, 6)),
-                                    SizedBox(height: 20.h),
-                                    _buildNumRow(
-                                        _shuffledNumbers.sublist(6, 9)),
-                                    SizedBox(height: 20.h),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceEvenly,
-                                      children: [
-                                        _buildBiometricHint(),
-                                        _buildNumberKey(_shuffledNumbers[9]),
-                                        _buildBackspaceKey(),
-                                      ],
-                                    ),
+                                    _buildBiometricHint(),
+                                    _buildNumberKey(_shuffledNumbers[9]),
+                                    _buildBackspaceKey(),
                                   ],
                                 ),
-                              ),
+                              ],
                             ),
                           ),
                         ),
-                        SizedBox(height: 40.h),
+                        SizedBox(height: 16.h),
                       ],
                     ),
                   ),
@@ -418,7 +429,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                 // 8. CTA Section
                 Padding(
                   padding:
-                      EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
+                      EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
                   child: FadeInAnimation(
                     delay: const Duration(milliseconds: 500),
                     child: Builder(
@@ -562,14 +573,14 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
         !_isMpinEnabledCount ||
         type == 'withdrawal_pin' ||
         type == 'verify_only') {
-      return SizedBox(height: 68.w, width: 68.w);
+      return SizedBox(height: 60.w, width: 60.w);
     }
 
     return GestureDetector(
       onTap: _authenticateBiometric,
       child: SizedBox(
-        height: 68.w,
-        width: 68.w,
+        height: 60.w,
+        width: 60.w,
         child: Center(
             child: Icon(Icons.fingerprint,
                 color: AppTheme.arcticBlue.withOpacity(0.8), size: 32.sp)),
@@ -599,8 +610,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       // User verified identity via OTP, now setting a new PIN
       final tempToken = args['temp_token'] ?? '';
       final mobile = args['mobile'] as String?;
-      final success =
-          await ref.read(mpinProvider.notifier).resetMpin(tempToken, mobile: mobile);
+      final success = await ref
+          .read(mpinProvider.notifier)
+          .resetMpin(tempToken, mobile: mobile);
       if (success && mounted) {
         await SecureStorageService.setMpinEnabled(true);
         // Navigate to MPIN verify — user must validate new PIN
@@ -627,7 +639,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
         } else if (type == 'verify_only') {
           Navigator.pop(context, true);
         } else {
-          Navigator.pushReplacementNamed(context, AppRouter.main);
+          Navigator.pushNamedAndRemoveUntil(
+              context, AppRouter.main, (route) => false);
         }
       } else {
         _shuffleKeypad();
@@ -640,8 +653,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
     final mobile = await SecureStorageService.getMobile();
     if (mobile == null || mobile.isEmpty) {
       if (mounted) {
-        AppToast.show(
-            context, 'Unable to verify identity. Please login again.',
+        AppToast.show(context, 'Unable to verify identity. Please login again.',
             type: ToastType.error);
         Navigator.pushReplacementNamed(context, AppRouter.login);
       }
@@ -682,8 +694,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
           },
         );
       } else if (mounted) {
-        AppToast.show(
-            context, result['message'] ?? 'Failed to send OTP.',
+        AppToast.show(context, result['message'] ?? 'Failed to send OTP.',
             type: ToastType.error);
       }
     } catch (e) {
@@ -760,50 +771,38 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
         ref.read(mpinProvider.notifier).addKey(number);
       },
       behavior: HitTestBehavior.opaque,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 1.0, end: 1.0),
-        duration: const Duration(milliseconds: 100),
-        builder: (context, scale, child) {
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            height: 68.w,
-            width: 68.w,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isDark ? Colors.white.withOpacity(0.04) : Colors.white,
-              border: Border.all(
-                color: isDark ? Colors.white10 : Colors.black12,
-                width: 1,
-              ),
-              boxShadow: isDark
-                  ? [
-                      BoxShadow(
-                        color: Colors.white.withOpacity(0.01),
-                        blurRadius: 10,
-                      )
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      )
-                    ],
+      child: Container(
+        height: 64.w,
+        width: 64.w,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isDark ? Colors.white.withOpacity(0.04) : Colors.white,
+          border: Border.all(
+            color: isDark ? Colors.white10 : Colors.black12,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.white.withOpacity(0.01)
+                  : Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-            child: Center(
-              child: Text(
-                number,
-                style: GoogleFonts.lora(
-                  fontSize: 28.sp,
-                  fontWeight: FontWeight.w600,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.9)
-                      : const Color(0xFF0F172A),
-                ),
-              ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            number,
+            style: GoogleFonts.lora(
+              fontSize: 28.sp,
+              fontWeight: FontWeight.w600,
+              color: isDark
+                  ? Colors.white.withOpacity(0.9)
+                  : const Color(0xFF0F172A),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
@@ -817,8 +816,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       },
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        height: 68.w,
-        width: 68.w,
+        height: 60.w,
+        width: 60.w,
         child: Center(
           child: Icon(
             Icons.backspace_outlined,

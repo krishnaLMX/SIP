@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../controller/auth_controller.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -107,22 +108,31 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(height: 16.h),
-                        IconButton(
-                          icon: Icon(Icons.arrow_back, color: primaryTextColor),
-                          onPressed: () => Navigator.pop(context),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.arrow_back, color: primaryTextColor),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                            SvgPicture.asset(
+                              'assets/images/startGold.svg',
+                              height: 85.h,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
                         ),
                         SizedBox(height: 32.h),
 
-                        // Title — matches Figma: 2-line wrap, serif bold
+                        // Title
                         FadeInAnimation(
                           delay: const Duration(milliseconds: 100),
                           child: Text(
-                            'Enter full name exactly as on \nPAN Card',
+                            'Personal Information',
                             style: GoogleFonts.lora(
-                              fontSize: 20.sp,
+                              fontSize: 30.sp,
                               fontWeight: FontWeight.bold,
                               color: primaryTextColor,
-                              height: 1.35,
                             ),
                           ),
                         ),
@@ -133,11 +143,15 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         SizedBox(height: 8.h),
                         _buildClassicTextField(
                           controller: _nameController,
-                          hint: 'Enter your full name',
+                          hint: 'Enter Your Full Name',
                           bgColor: inputBgColor,
                           textColor: primaryTextColor,
                           textCapitalization: TextCapitalization.words,
                           inputFormatters: [
+                            // Allow only letters and spaces — no special characters
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r"[a-zA-Z ]")),
+                            // Capitalise first letter of every word
                             TextInputFormatter.withFunction((oldValue, newValue) {
                               final text = newValue.text;
                               if (text.isEmpty) return newValue;
@@ -150,6 +164,28 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                           ],
                           validator: (v) =>
                               v == null || v.isEmpty ? 'Required' : null,
+                        ),
+                        SizedBox(height: 6.h),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 14.sp,
+                              color: const Color(0xFFD97706),
+                            ),
+                            SizedBox(width: 6.w),
+                            Expanded(
+                              child: Text(
+                                'Note: Enter full name exactly as on your PAN Card.',
+                                style: GoogleFonts.lora(
+                                  fontSize: 11.sp,
+                                  color: isDark ? Colors.white54 : const Color(0xFF92400E),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
 
                         SizedBox(height: 24.h),
@@ -174,24 +210,24 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         SizedBox(height: 24.h),
 
                         // Email Field
-                        _buildInputLabel('Email *', primaryTextColor),
+                        _buildInputLabel('E-Mail *', primaryTextColor),
                         SizedBox(height: 8.h),
                         _buildClassicTextField(
                           controller: _emailController,
-                          hint: 'Enter your email',
+                          hint: 'Enter Your E-Mail',
                           bgColor: inputBgColor,
                           textColor: primaryTextColor,
                           keyboardType: TextInputType.emailAddress,
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) {
-                              return 'Email is required';
+                              return 'E-Mail is required';
                             }
                             // RFC-compliant email pattern
                             final emailRegex = RegExp(
                               r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
                             );
                             if (!emailRegex.hasMatch(v.trim())) {
-                              return 'Enter a valid email address';
+                              return 'Enter a valid e-mail address';
                             }
                             return null;
                           },
@@ -205,7 +241,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                         SizedBox(height: 8.h),
                         _buildClassicTextField(
                           controller: _referralController,
-                          hint: 'Enter referral code',
+                          hint: 'Enter Referral Code',
                           bgColor: inputBgColor,
                           textColor: primaryTextColor,
                           textCapitalization: TextCapitalization.characters,

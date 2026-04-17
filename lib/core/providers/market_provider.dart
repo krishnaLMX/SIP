@@ -48,3 +48,12 @@ final socketStatusProvider = StreamProvider<SocketStatus>((ref) {
   final service = ref.watch(socketIOServiceProvider);
   return service.statusStream;
 });
+
+/// Provides per-commodity market open/close status from the socket.
+/// Key   = commodity ID string (e.g. '1' for Gold 24K, '3' for Silver).
+/// Value = true (open) / false (closed).
+/// Commodity absent from map → assume open (no signal received yet).
+final marketStatusProvider = StreamProvider<Map<String, bool>>((ref) {
+  final service = ref.watch(socketIOServiceProvider);
+  return service.marketStatusStream;
+});

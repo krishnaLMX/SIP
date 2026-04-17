@@ -12,10 +12,12 @@ import 'package:startgold/shared/widgets/custom_button.dart';
 import '../controller/saving_controller.dart';
 import 'package:startgold/core/providers/user_provider.dart';
 import 'package:startgold/core/providers/timer_provider.dart';
+import 'package:startgold/core/providers/market_provider.dart';
 import 'package:startgold/core/error/failures.dart';
 import '../models/saving_models.dart';
 import './purchase_success_screen.dart';
 import 'package:startgold/shared/widgets/gradient_header.dart';
+import 'package:startgold/features/market/models/market_rates.dart';
 
 class PaymentMethodsScreen extends ConsumerStatefulWidget {
   final double amount;
@@ -47,10 +49,27 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
   void initState() {
     super.initState();
     _cfPaymentGatewayService.setCallback(_verifyPayment, _onPaymentError);
+
+    // Immediately lock the freshest live rate when this screen opens.
+    // The rate was locked on the Instant Saving screen up to 80s ago —
+    // refresh it now so the "Live Price / Gm" card is always up to date.
+    // Only do this when the market is open (skip if closed).
+    Future.microtask(() {
+      if (!mounted) return;
+      final statusMap =
+          ref.read(marketStatusProvider).valueOrNull ?? const {};
+      final isMarketOpen = statusMap[widget.metalId] != false;
+      if (isMarketOpen) {
+        _handleRateExpiry();
+      }
+    });
   }
 
   void _verifyPayment(String orderId) async {
-    setState(() => _isVerifying = true);
+    setState(() {
+      _isLoading = false;
+      _isVerifying = true;
+    });
     try {
       final response =
           await ref.read(savingServiceProvider).confirmPayment(orderId);
@@ -125,7 +144,10 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
     String failureMessage =
         'Payment failed for order $orderId.\n${errorResponse.getMessage()}';
 
-    setState(() => _isVerifying = true);
+    setState(() {
+      _isLoading = false;
+      _isVerifying = true;
+    });
     try {
       final response =
           await ref.read(savingServiceProvider).confirmPayment(orderId);
@@ -205,7 +227,9 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      // Only reset _isLoading if Cashfree was NOT launched.
+      // If Cashfree launched, _isLoading stays true until callbacks fire.
+      // _startCashfreePayment handles its own error cases.
     }
   }
 
@@ -232,6 +256,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
       _cfPaymentGatewayService.doPayment(cfWebCheckoutPayment);
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         String message = (e is Failure)
             ? e.message
             : 'Payment initiation failed. Please try again.';
@@ -239,8 +264,6 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
           SnackBar(content: Text(message)),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -252,6 +275,10 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
     setState(() {
       _isRefreshing = true;
     });
+    // Force a fresh config fetch so _onRateUpdated is triggered when it resolves.
+    // Without this, _isRefreshing stays true forever (stuck "Updating...")
+    // because savingConfigProvider never changes on its own.
+    ref.invalidate(savingConfigProvider);
   }
 
   void _onRateUpdated(SavingConfig config) {
@@ -314,25 +341,84 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
     ref.listen<AsyncValue<SavingConfig>>(savingConfigProvider, (prev, next) {
       final config = next.valueOrNull;
       if (config != null) {
-        if (!ref.read(sellRateTimerProvider).isActive) {
-          if (_isRefreshing) {
-            _onRateUpdated(config);
-          } else {
-            ref
-                .read(sellRateTimerProvider.notifier)
-                .startOrRefresh(config.sellRateLockSeconds);
-          }
+        if (_isRefreshing) {
+          // Rate expiry (or market reopen clear) triggered a refresh.
+          // Resolve the "Updating..." state immediately when config resolves,
+          // regardless of whether the timer is currently active.
+          _onRateUpdated(config);
+        } else if (!ref.read(sellRateTimerProvider).isActive) {
+          // No refresh pending but timer stopped — restart it.
+          ref
+              .read(sellRateTimerProvider.notifier)
+              .startOrRefresh(config.sellRateLockSeconds);
         }
       }
     });
 
-    // Listen to timer expiration
+    // Listen to timer expiration / instant market-closed signal
     ref.listen<TimerState>(sellRateTimerProvider, (prev, next) {
       if (prev != null &&
           prev.remainingSeconds > 0 &&
           next.remainingSeconds <= 0) {
         _handleRateExpiry();
       }
+    });
+
+    // ── Per-commodity market status ────────────────────────────────
+    // widget.metalId '1' = Gold, '3' = Silver — matches socket commodity IDs
+    final marketStatusMap =
+        ref.watch(marketStatusProvider).valueOrNull ?? const {};
+    final isCurrentMarketClosed = marketStatusMap[widget.metalId] == false;
+
+    // Market re-opened while user is on this screen →
+    // restart the timer so the rate chip shows a fresh live rate lock.
+    ref.listen<AsyncValue<Map<String, bool>>>(marketStatusProvider,
+        (prev, next) {
+      next.whenData((statusMap) {
+        final wasOpen = prev?.valueOrNull?[widget.metalId] != false;
+        final isNowOpen = statusMap[widget.metalId] != false;
+        if (!wasOpen && isNowOpen && mounted) {
+          ref.read(sellRateTimerProvider.notifier).clear();
+          final config = ref.read(savingConfigProvider).valueOrNull;
+          if (config != null) {
+            ref
+                .read(sellRateTimerProvider.notifier)
+                .startOrRefresh(config.sellRateLockSeconds);
+          }
+        }
+      });
+    });
+
+    // ── Race-condition guard: market-reopen vs first rate frame ─────────
+    // `5|...|1` fires before `3|...` rate arrives — sellRateTimer may lock 0.
+    // Restart (or call _onRateUpdated) as soon as a valid rate arrives.
+    ref.listen<AsyncValue<MarketRates>>(marketRatesStreamProvider, (prev, next) {
+      next.whenData((rates) {
+        if (!mounted) return;
+        final isMarketOpen =
+            (ref.read(marketStatusProvider).valueOrNull ?? {})[widget.metalId]
+                != false;
+        if (!isMarketOpen) return;
+        final liveRate =
+            widget.metalId == '1' ? rates.goldSell : rates.silverSell;
+        if (liveRate <= 0) return;
+        final tState = ref.read(sellRateTimerProvider);
+        final lockedRate = widget.metalId == '1'
+            ? (tState.lockedRates?.goldSell ?? 0.0)
+            : (tState.lockedRates?.silverSell ?? 0.0);
+        if (tState.isActive && lockedRate <= 0) {
+          final config = ref.read(savingConfigProvider).valueOrNull;
+          if (config != null) {
+            if (_isRefreshing) {
+              _onRateUpdated(config); // clears _isRefreshing too
+            } else {
+              ref
+                  .read(sellRateTimerProvider.notifier)
+                  .startOrRefresh(config.sellRateLockSeconds);
+            }
+          }
+        }
+      });
     });
 
     return Scaffold(
@@ -352,8 +438,43 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                   title: 'Select Payment Method',
                   onBack: () => Navigator.pop(context),
                 ),
-                // ── Body ────────────────────────────────────────────────────
-                _buildAmountHeader(isDark, timerState, configAsync),
+
+                // ── Market Closed Amber Banner ───────────────────────────
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: isCurrentMarketClosed
+                      ? Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 20.w, vertical: 10.h),
+                          color: const Color(0xFFFEF3C7),
+                          child: Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded,
+                                  color: const Color(0xFFB45309),
+                                  size: 16.sp),
+                              SizedBox(width: 8.w),
+                              Expanded(
+                                child: Text(
+                                  '${widget.metalId == '1' ? 'Gold' : 'Silver'} market is closed. Rates resume when market opens.',
+                                  style: GoogleFonts.lora(
+                                    fontSize: 11.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF92400E),
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+
+                // ── Body ──────────────────────────────────────────────────
+                _buildAmountHeader(isDark, timerState, configAsync,
+                    isCurrentMarketClosed),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,7 +483,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                         padding: EdgeInsets.symmetric(
                             horizontal: 24.w, vertical: 8.h),
                         child: Text(
-                          'RECOMMENDED PAYMENT GATEWAY',
+                          'Recommended Payment Gateway',
                           style: GoogleFonts.lora(
                             fontSize: 11.sp,
                             fontWeight: FontWeight.w800,
@@ -374,10 +495,34 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                       Expanded(
                         child: methodsAsync.when(
                           data: (methods) => ListView.builder(
-                            padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 24.w),
-                            itemCount: methods.length,
-                            itemBuilder: (context, index) =>
-                                _buildMethodTile(methods[index], isDark),
+                            padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 8.h),
+                            itemCount: methods.length + 1,
+                            itemBuilder: (context, index) {
+                              if (index < methods.length) {
+                                return _buildMethodTile(methods[index], isDark);
+                              }
+                              // Footer: 100% Secure — right below last card
+                              return Padding(
+                                padding: EdgeInsets.only(top: 8.h, bottom: 16.h),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.security_rounded,
+                                        color: const Color(0xFF1B882C),
+                                        size: 14.sp),
+                                    SizedBox(width: 8.w),
+                                    Text(
+                                      '100% Secure Payments',
+                                      style: GoogleFonts.lora(
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF1B882C),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                           loading: () =>
                               const Center(child: CircularProgressIndicator()),
@@ -425,21 +570,28 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomAction(isDark),
+      bottomNavigationBar:
+          _buildBottomAction(isDark, isCurrentMarketClosed),
     );
   }
 
   Widget _buildAmountHeader(bool isDark, TimerState timerState,
-      AsyncValue<SavingConfig> configAsync) {
-    // Timer logic removed as requested, but keeping rates/weight for display
+      AsyncValue<SavingConfig> configAsync, bool isCurrentMarketClosed) {
     final gstRate = (configAsync.valueOrNull?.gst ?? 3.0) / 100;
-    final currentRate = timerState.isActive
+    // Rate resolution priority:
+    //   1. Market open + timer active  → use locked rate (stable for 80s)
+    //   2. Market CLOSED               → 0.0 (socket already zeroed the rate)
+    //   3. Market open + timer inactive → widget.rate (rate from prev screen)
+    final currentRate = (!isCurrentMarketClosed && timerState.isActive)
         ? (widget.metalId == '1'
             ? timerState.lockedRates!.goldSell
             : timerState.lockedRates!.silverSell)
-        : widget.rate;
+        : isCurrentMarketClosed
+            ? 0.0
+            : widget.rate;
     final goldValueWithoutTax = widget.amount / (1 + gstRate);
-    final weight = goldValueWithoutTax / currentRate;
+    // Guard against division by zero when rate is 0 (market closed)
+    final weight = currentRate > 0 ? goldValueWithoutTax / currentRate : 0.0;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 20.h),
@@ -482,7 +634,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('TOTAL PAYABLE',
+                        Text('Total Payable',
                             style: GoogleFonts.lora(
                                 fontSize: 10.sp,
                                 color: Colors.white.withOpacity(0.6),
@@ -538,8 +690,10 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                       Expanded(
                         flex: 11,
                         child: _buildSummaryItem(
-                          'WT. ACCUMULATED',
-                          '${_isRefreshing ? "..." : weight.toStringAsFixed(4)} gm',
+                          'Wt. Accumulated',
+                          isCurrentMarketClosed
+                              ? '—'
+                              : '${_isRefreshing ? "..." : weight.toStringAsFixed(4)} gm',
                           true,
                           Icons.scale_rounded,
                         ),
@@ -553,10 +707,12 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                       Expanded(
                         flex: 10,
                         child: _buildSummaryItem(
-                          'LIVE PRICE / GM',
-                          _isRefreshing
-                              ? "Updating..."
-                              : '₹${currentRate.toStringAsFixed(2)}',
+                          isCurrentMarketClosed ? 'Rate' : 'Live Price / Gm',
+                          isCurrentMarketClosed
+                              ? 'Unavailable'
+                              : (_isRefreshing
+                                  ? 'Updating...'
+                                  : '₹${currentRate.toStringAsFixed(2)}'),
                           true,
                           Icons.trending_up_rounded,
                         ),
@@ -701,7 +857,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(method.name.toUpperCase(),
+                    Text(method.name,
                         style: GoogleFonts.lora(
                             fontSize: 14.sp,
                             fontWeight: FontWeight.w700,
@@ -746,8 +902,12 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
     return Icons.payment_rounded;
   }
 
-  Widget _buildBottomAction(bool isDark) {
-    final isDisabled = _isLoading || _isRefreshing || _selectedMethodId == null;
+  Widget _buildBottomAction(bool isDark, bool isCurrentMarketClosed) {
+    // Disable when loading, refreshing, no method selected, OR market is closed
+    final isDisabled = _isLoading ||
+        _isRefreshing ||
+        _selectedMethodId == null ||
+        isCurrentMarketClosed;
     return SafeArea(
       top: false,
       child: Container(
@@ -756,21 +916,38 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.security_rounded,
-                    color: const Color(0xFF1B882C), size: 14.sp),
-                SizedBox(width: 8.w),
-                Text(
-                  '100% Secure Payments',
-                  style: GoogleFonts.lora(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1B882C),
-                  ),
+            // ── Transaction Charges Info Note ──
+            Container(
+              padding:
+                  EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(14.r),
+                border: Border.all(
+                  color: const Color(0xFFF59E0B).withOpacity(0.35),
                 ),
-              ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(Icons.lightbulb_outline_rounded,
+                      size: 16.sp, color: const Color(0xFFD97706)),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: Text(
+                      'Transaction charges may vary based on your chosen '
+                      'payment method and may include gateway fees. Please '
+                      'verify the final payable amount before proceeding.',
+                      style: GoogleFonts.lora(
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF92400E),
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             SizedBox(height: 16.h),
             CustomButton(

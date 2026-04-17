@@ -101,7 +101,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       children: [
                         SizedBox(height: 16.h),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             SvgPicture.asset(
                               'assets/images/startGold.svg',
@@ -110,7 +110,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ],
                         ),
-                        SizedBox(height: 48.h),
+                        SizedBox(height: 24.h),
                         FadeInAnimation(
                           delay: const Duration(milliseconds: 100),
                           child: Column(
@@ -194,7 +194,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         FadeInAnimation(
                           delay: const Duration(milliseconds: 200),
                           child: Text(
-                            'Phone number*',
+                            'Phone Number*',
                             style: TextStyle(
                               fontSize: 20.sp,
                               fontWeight: FontWeight.bold,
@@ -269,7 +269,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       setState(() {});
                                     },
                                     decoration: InputDecoration(
-                                      hintText: 'Enter your phone number',
+                                      hintText: 'Enter Your Phone Number',
                                       hintStyle: TextStyle(
                                         fontSize: 16.sp,
                                         color:
@@ -293,7 +293,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
               // ── Pinned Footer ───────────────────────────────────────
               Padding(
-                padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
+                padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 24.h),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -338,7 +338,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             children: [
                               const TextSpan(
-                                  text: 'By proceeding, you accept our '),
+                                  text: 'By Proceeding, You Accept Our '),
                               TextSpan(
                                 text: 'Terms and Conditions.',
                                 style: const TextStyle(
@@ -375,37 +375,73 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _buildCountryPicker(
       List<CountryCode> codes, bool isDark, Color textColor) {
-    return DropdownButton<String>(
-      value: _countryCode,
-      underline: const SizedBox(),
-      icon: Icon(Icons.keyboard_arrow_down,
-          size: 18.sp, color: textColor.withOpacity(0.4)),
-      items: codes
-          .map((c) => DropdownMenuItem(
-                value: c.prefix,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(c.flag, style: TextStyle(fontSize: 18.sp)),
-                    SizedBox(width: 8.w),
-                    Text(c.prefix,
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16.sp,
-                            color: textColor)),
-                  ],
-                ),
-              ))
-          .toList(),
-      onChanged: (val) {
-        if (val != null) {
-          final selected = codes.firstWhere((c) => c.prefix == val);
-          setState(() {
-            _countryCode = val;
-            _selectedCountryId = selected.id;
-          });
-        }
+    return PopupMenuButton<String>(
+      onSelected: (val) {
+        final selected = codes.firstWhere((c) => c.prefix == val);
+        setState(() {
+          _countryCode = val;
+          _selectedCountryId = selected.id;
+        });
       },
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.r),
+        side: BorderSide(color: textColor.withOpacity(0.08)),
+      ),
+      offset: Offset(0, 48.h),
+      constraints: BoxConstraints(minWidth: 160.w, maxWidth: 200.w),
+      itemBuilder: (_) => codes
+          .map(
+            (c) => PopupMenuItem<String>(
+              value: c.prefix,
+              height: 44.h,
+              child: Row(
+                children: [
+                  Text(c.flag, style: TextStyle(fontSize: 20.sp)),
+                  SizedBox(width: 10.w),
+                  Text(
+                    c.prefix,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w700,
+                      color: textColor,
+                    ),
+                  ),
+                  if (c.prefix == _countryCode) ...[
+                    const Spacer(),
+                    Icon(Icons.check_rounded,
+                        size: 16.sp, color: const Color(0xFF1B882C)),
+                  ],
+                ],
+              ),
+            ),
+          )
+          .toList(),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // find current flag
+          Builder(builder: (_) {
+            final current =
+                codes.firstWhere((c) => c.prefix == _countryCode,
+                    orElse: () => codes.first);
+            return Text(current.flag, style: TextStyle(fontSize: 20.sp));
+          }),
+          SizedBox(width: 6.w),
+          Text(
+            _countryCode,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16.sp,
+              color: textColor,
+            ),
+          ),
+          SizedBox(width: 2.w),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              size: 18.sp, color: textColor.withOpacity(0.4)),
+        ],
+      ),
     );
   }
 

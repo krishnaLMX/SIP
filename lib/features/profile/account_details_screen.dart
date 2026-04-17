@@ -30,6 +30,14 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
   bool _isPincodeChecking = false;
   String? _emailError;
 
+  // Returns true only when all mandatory fields have content
+  bool get _canSave {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final pincode = _pincodeController.text.trim();
+    return name.isNotEmpty && email.isNotEmpty && pincode.length == 6;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +49,28 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
     _stateController = TextEditingController(text: user.state);
     _cityController = TextEditingController(text: user.city);
     _addressController = TextEditingController(text: user.address);
+
+    // Rebuild whenever mandatory fields change so Save button reacts live
+    _nameController.addListener(() => setState(() {}));
+    _emailController.addListener(() => setState(() {}));
+    _pincodeController.addListener(() => setState(() {}));
+
+    // Always re-fetch on screen entry — profileProvider is a persistent singleton
+    // so its constructor only runs once; we must manually refresh each visit.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(profileProvider.notifier).fetchProfileDetails().then((_) {
+        if (!mounted) return;
+        // Sync controllers with freshly loaded data
+        final updated = ref.read(profileProvider).user;
+        _nameController.text = updated.name;
+        _emailController.text = updated.email;
+        _dobController.text = updated.dob;
+        _pincodeController.text = updated.pincode;
+        _stateController.text = updated.state;
+        _cityController.text = updated.city;
+        _addressController.text = updated.address;
+      });
+    });
   }
 
   @override
@@ -81,23 +111,41 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
   }
 
   Future<void> _handleSubmit() async {
-    // Validate email
+    // ── Validate Name ──────────────────────────────────────────────────
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      AppToast.show(context, 'Name as per PAN is required', type: ToastType.error);
+      return;
+    }
+
+    // ── Validate Email ─────────────────────────────────────────────────
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      setState(() => _emailError = 'Email is required');
+      setState(() => _emailError = 'E-Mail is required');
       return;
     }
     if (!_isValidEmail(email)) {
-      setState(() => _emailError = 'Enter a valid email address');
+      setState(() => _emailError = 'Enter a valid e-mail address');
       return;
     }
     setState(() => _emailError = null);
 
+    // ── Validate Pincode ───────────────────────────────────────────────
+    final pincode = _pincodeController.text.trim();
+    if (pincode.isEmpty) {
+      AppToast.show(context, 'Pincode is required', type: ToastType.error);
+      return;
+    }
+    if (pincode.length != 6) {
+      AppToast.show(context, 'Please enter a valid 6-digit pincode', type: ToastType.error);
+      return;
+    }
+
     final success = await ref.read(profileProvider.notifier).updateProfile(
-          name: _nameController.text,
+          name: name,
           email: email,
           dob: _dobController.text,
-          pincode: _pincodeController.text,
+          pincode: pincode,
           stateVal: _stateController.text,
           city: _cityController.text,
           address: _addressController.text,
@@ -144,8 +192,22 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
           GradientHeader(
             title: 'Account Details',
             trailing: TextButton.icon(
-              onPressed: () =>
-                  ref.read(profileProvider.notifier).setEditing(!profileState.isEditing),
+              onPressed: () {
+                if (profileState.isEditing) {
+                  // Block cancel if mandatory fields are empty
+                  final name = _nameController.text.trim();
+                  final pincode = _pincodeController.text.trim();
+                  if (name.isEmpty) {
+                    AppToast.show(context, 'Name as per PAN is required', type: ToastType.error);
+                    return;
+                  }
+                  if (pincode.length != 6) {
+                    AppToast.show(context, 'Please enter a valid 6-digit pincode', type: ToastType.error);
+                    return;
+                  }
+                }
+                ref.read(profileProvider.notifier).setEditing(!profileState.isEditing);
+              },
               icon: Icon(
                 profileState.isEditing ? Icons.close_rounded : Icons.edit_rounded,
                 color: Colors.white,
@@ -186,9 +248,9 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                           ),
                         ),
                         SizedBox(height: 32.h),
-                        _buildInputField(label: 'Name as per PAN *', controller: _nameController, isEditable: profileState.isEditing, isDark: isDark, textCapitalization: TextCapitalization.words, inputFormatters: [_UpperCaseWordsFormatter()]),
+                        _buildInputField(label: 'Name as per PAN *', controller: _nameController, isEditable: profileState.isEditing, isDark: isDark, textCapitalization: TextCapitalization.words, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z ]')), _UpperCaseWordsFormatter()]),
                         _buildInputField(label: 'Phone Number *', hint: MaskingUtils.maskMobile(user.phone), isEditable: false, isDark: isDark),
-                        _buildInputField(label: 'Email *', controller: _emailController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.emailAddress, errorText: _emailError, onChanged: (_) { if (_emailError != null) setState(() => _emailError = null); }),
+                        _buildInputField(label: 'E-Mail *', controller: _emailController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.emailAddress, errorText: _emailError, onChanged: (_) { if (_emailError != null) setState(() => _emailError = null); }),
                         _buildInputField(label: 'DOB *', hint: user.dob, isEditable: false, isDark: isDark),
                         _buildInputField(label: 'Pincode *', controller: _pincodeController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.number, actionLabel: 'Check', onAction: _handlePincodeCheck, isActionLoading: _isPincodeChecking),
                         _buildInputField(label: 'State', controller: _stateController, isEditable: false, isDark: isDark),
@@ -210,19 +272,28 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                 child: CustomButton(
                   text: 'Save',
                   isLoading: profileState.isLoading,
-                  onPressed: profileState.isLoading ? null : _handleSubmit,
-                  gradient: const LinearGradient(
+                  onPressed: (profileState.isLoading || !_canSave)
+                      ? null
+                      : _handleSubmit,
+                  gradient: LinearGradient(
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
-                    colors: [Color(0xFF1B882C), Color(0xFF003716)],
+                    colors: _canSave
+                        ? const [Color(0xFF1B882C), Color(0xFF003716)]
+                        : [
+                            const Color(0xFF1B882C).withOpacity(0.4),
+                            const Color(0xFF003716).withOpacity(0.4),
+                          ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF1B882C).withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  boxShadow: _canSave
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF1B882C).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : [],
                   textColor: Colors.white,
                 ),
               ),
@@ -322,17 +393,28 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
 }
 
 /// Capitalizes the first letter of every word as the user types.
+/// Also strips any character that is not a letter or a space (defense-in-depth).
 class _UpperCaseWordsFormatter extends TextInputFormatter {
+  // Allow only a-z, A-Z and space
+  static final _allowed = RegExp(r'[a-zA-Z ]');
+
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    final text = newValue.text;
-    if (text.isEmpty) return newValue;
+    // Strip disallowed characters first
+    final cleaned = newValue.text.split('').where((ch) => _allowed.hasMatch(ch)).join();
+
+    if (cleaned.isEmpty) {
+      return newValue.copyWith(
+        text: '',
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+    }
 
     final buf = StringBuffer();
     bool capitalizeNext = true;
-    for (int i = 0; i < text.length; i++) {
-      final ch = text[i];
+    for (int i = 0; i < cleaned.length; i++) {
+      final ch = cleaned[i];
       if (ch == ' ') {
         capitalizeNext = true;
         buf.write(ch);
@@ -345,9 +427,11 @@ class _UpperCaseWordsFormatter extends TextInputFormatter {
     }
 
     final newText = buf.toString();
+    // Clamp the cursor so it never goes out of bounds after stripping
+    final offset = newValue.selection.end.clamp(0, newText.length) as int;
     return newValue.copyWith(
       text: newText,
-      selection: newValue.selection,
+      selection: TextSelection.collapsed(offset: offset),
     );
   }
 }

@@ -18,6 +18,7 @@ class UserProfile {
   final String idCity;
   final String? photoUrl;
   final int kycStatus;
+  final String referralMessage; // from API referral_message field
 
   UserProfile({
     required this.id,
@@ -34,6 +35,7 @@ class UserProfile {
     required this.idCity,
     this.photoUrl,
     this.kycStatus = 0,
+    this.referralMessage = '',
   });
 
   UserProfile copyWith({
@@ -50,6 +52,7 @@ class UserProfile {
     String? idCity,
     String? photoUrl,
     int? kycStatus,
+    String? referralMessage,
   }) {
     return UserProfile(
       id: this.id,
@@ -66,6 +69,7 @@ class UserProfile {
       idCity: idCity ?? this.idCity,
       photoUrl: photoUrl ?? this.photoUrl,
       kycStatus: kycStatus ?? this.kycStatus,
+      referralMessage: referralMessage ?? this.referralMessage,
     );
   }
 }
@@ -138,8 +142,8 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
             phone: data['mobile'] ?? data['phone'] ?? '',
             dob: data['dob'] ?? '',
             pincode: data['pincode'] ?? '',
-            state: data['state'] ?? '',
-            city: data['city'] ?? '',
+            state: data['state'] ?? data['state_name'] ?? '',
+            city: data['city'] ?? data['city_name'] ?? '',
             address: data['address'] ?? '',
             idCountry: data['id_country']?.toString() ?? '101',
             idState: data['id_state']?.toString() ?? '',
@@ -148,6 +152,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
             kycStatus: data['kyc_status'] != null
                 ? int.tryParse(data['kyc_status'].toString()) ?? 0
                 : 0,
+            referralMessage: data['referral_message']?.toString() ?? '',
           ),
           isLoading: false,
         );

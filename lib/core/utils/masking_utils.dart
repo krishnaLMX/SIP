@@ -1,11 +1,38 @@
 class MaskingUtils {
-  /// Mask a mobile number to show only the last 5 digits.
-  /// Example: 1234567890 -> xxxxx67890
+  /// Mask a mobile number:
+  /// - Strips country code prefix (+91, +1, etc.) only when preceded by '+'.
+  /// - Masks the FIRST 6 digits of the local number with '●'.
+  /// - Shows the LAST 4 digits in plain text.
+  ///
+  /// Examples:
+  ///   +91 9488577633  →  ●●●●●●7633
+  ///   +919488577633   →  ●●●●●●7633
+  ///   9488577633      →  ●●●●●●7633
   static String maskMobile(String mobile) {
-    if (mobile.length < 5) return mobile;
-    final lastPart = mobile.substring(mobile.length - 5);
-    final maskedPart = 'x' * (mobile.length - 5);
-    return '$maskedPart$lastPart';
+    String digits;
+
+    if (mobile.startsWith('+')) {
+      // International format: strip '+' + country code digits + optional space
+      // e.g. "+91 9488577633" → "9488577633"
+      //      "+919488577633"  → "9488577633"
+      digits = mobile.replaceFirst(RegExp(r'^\+\d{1,3}\s*'), '').trim();
+    } else {
+      // Bare number — keep as-is (strip any non-digit chars like spaces/dashes)
+      digits = mobile.replaceAll(RegExp(r'\D'), '');
+    }
+
+    // Safety: if more than 10 digits, take last 10
+    if (digits.length > 10) {
+      digits = digits.substring(digits.length - 10);
+    }
+
+    if (digits.length <= 4) return digits;
+
+    // Mask first (length - 4) digits with ●, show last 4
+    final maskedCount = digits.length - 4;
+    final visible = digits.substring(maskedCount); // last 4
+    final masked = 'X' * maskedCount;              // first 6
+    return '$masked$visible';
   }
 
   /// Mask a bank account number to show only the last 4 digits.

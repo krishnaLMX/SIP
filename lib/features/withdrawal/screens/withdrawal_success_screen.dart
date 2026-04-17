@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:startgold/shared/widgets/animations.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../routes/app_router.dart';
 import '../../../core/providers/portfolio_provider.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
@@ -18,183 +18,329 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryText = isDark ? Colors.white : const Color(0xFF1A1A2E);
+    final secondaryText = isDark ? Colors.white54 : const Color(0xFF6B7280);
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          // Background Glow
-          Positioned(
-            top: -100,
-            right: -100,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.greenAccent.withOpacity(0.05),
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: Padding(
-              padding: EdgeInsets.all(24.w),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Spacer(),
-
-                  // Success Animation / Icon
-                  ScaleAnimation(
-                    child: Container(
-                      padding: EdgeInsets.all(32.w),
-                      decoration: BoxDecoration(
-                        color: Colors.greenAccent.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.check_circle_rounded,
-                        color: Colors.greenAccent,
-                        size: 80.sp,
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+        child: Column(
+          children: [
+            // ── Non-scrollable content (fits the screen) ────────
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24.w),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // ── Success icon (animated) ──────────────
+                    SizedBox(
+                      width: 90.w,
+                      height: 90.w,
+                      child: Image.asset(
+                        'assets/withdraw/successtik.gif',
+                        fit: BoxFit.contain,
                       ),
                     ),
-                  ),
 
-                  SizedBox(height: 32.h),
+                    SizedBox(height: 16.h),
 
-                  FadeInAnimation(
-                    child: Text(
-                      'Redemption Initiated!',
+                    // ── Title ───────────────────────────────────
+                    Text(
+                      'Withdrawal Successful!',
                       style: GoogleFonts.lora(
-                        fontSize: 28.sp,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : Colors.black,
+                        fontSize: 22.sp,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF003716),
                       ),
                     ),
-                  ),
 
-                  SizedBox(height: 12.h),
+                    SizedBox(height: 6.h),
 
-                  FadeInAnimation(
-                    delay: const Duration(milliseconds: 200),
-                    child: Text(
-                      'Your request for ₹${data['amount']} is being processed. The amount will be credited to your account within 24-48 hours.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.lora(
-                        fontSize: 15.sp,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                        height: 1.5,
+                    // ── Subtitle ────────────────────────────────
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12.w),
+                      child: Text(
+                        'Your withdrawal request has been successfully processed. The amount will be credited to your account.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.lora(
+                          fontSize: 12.sp,
+                          color: secondaryText,
+                          height: 1.4,
+                        ),
                       ),
                     ),
-                  ),
 
-                  const Spacer(),
+                    SizedBox(height: 20.h),
 
-                  // Transaction Summary Card
-                  FadeInAnimation(
-                    delay: const Duration(milliseconds: 400),
-                    child: Container(
-                      padding: EdgeInsets.all(24.w),
+                    // ── Dark green summary card ─────────────────
+                    Container(
+                      width: double.infinity,
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withOpacity(0.03)
-                            : Colors.white,
                         borderRadius: BorderRadius.circular(24.r),
-                        border: Border.all(
-                            color: isDark
-                                ? Colors.white10
-                                : Colors.black.withOpacity(0.05)),
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFF0D4A1A),
+                            Color(0xFF002E0F),
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF003716).withOpacity(0.4),
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
                       ),
                       child: Column(
                         children: [
-                          _buildDetailRow('Transaction ID',
-                              data['txnId'] ?? 'TXN_9823412', isDark),
-                          Divider(
-                              height: 32.h,
+                          // ─ Top section: commodity + amount ──
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(24.w, 18.h, 24.w, 14.h),
+                            child: Column(
+                              children: [
+                                // Commodity badge
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 14.w, vertical: 5.h),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(20.r),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.auto_awesome,
+                                        color: const Color(0xFFFFD700),
+                                        size: 13.sp,
+                                      ),
+                                      SizedBox(width: 6.w),
+                                      Text(
+                                        _getCommodityLabel(),
+                                        style: GoogleFonts.lora(
+                                          fontSize: 12.sp,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                SizedBox(height: 12.h),
+
+                                // Amount
+                                Text(
+                                  '₹${data['amount'] ?? '0.00'}',
+                                  style: GoogleFonts.lora(
+                                    fontSize: 32.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(height: 2.h),
+                                Text(
+                                  'Total Amount',
+                                  style: GoogleFonts.lora(
+                                    fontSize: 12.sp,
+                                    color: Colors.white.withOpacity(0.6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // ─ Bottom section: detail rows ──────
+                          Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 20.w, vertical: 8.h),
+                            decoration: BoxDecoration(
                               color: isDark
-                                  ? Colors.white10
-                                  : Colors.black.withOpacity(0.05)),
-                          _buildDetailRow('Target Account',
-                              data['account'] ?? 'UPI Handle', isDark),
+                                  ? Colors.white.withOpacity(0.06)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.only(
+                                bottomLeft: Radius.circular(24.r),
+                                bottomRight: Radius.circular(24.r),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                _detailRow(
+                                  icon: Icons.receipt_long_outlined,
+                                  label: 'Transaction ID',
+                                  value: _truncateId(data['txnId'] ?? '—'),
+                                  primaryText: primaryText,
+                                  secondaryText: secondaryText,
+                                  showCopy: (data['txnId'] ?? '').toString().isNotEmpty,
+                                  fullValue: data['txnId'] ?? '',
+                                  context: context,
+                                ),
+                                _rowDivider(isDark),
+                                _detailRow(
+                                  icon: Icons.account_balance_wallet_outlined,
+                                  label: 'Target Account',
+                                  value: data['account'] ?? '—',
+                                  primaryText: primaryText,
+                                  secondaryText: secondaryText,
+                                  context: context,
+                                ),
+                                _rowDivider(isDark),
+                                _detailRow(
+                                  icon: Icons.check_circle_outline,
+                                  label: 'Status',
+                                  value: data['status'] ?? 'COMPLETED',
+                                  primaryText: primaryText,
+                                  secondaryText: secondaryText,
+                                  valueColor: const Color(0xFF16A34A),
+                                  context: context,
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ),
+                  ],
+                ),
+              ),
+            ),
 
-                  SizedBox(height: 16.h),
+            // ── Done button ──────────────────────────────────────
+            Padding(
+              padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
+              child: CustomButton(
+                text: 'BACK TO HOME',
+                onPressed: () => _navigateHome(context, ref),
+                gradient: const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [Color(0xFF1B882C), Color(0xFF003716)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1B882C).withOpacity(0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
                 ],
+                textColor: Colors.white,
+              ),
+            ),
+          ],
+        ),    // closes Column
+      ),      // closes SafeArea (body:)
+    ),        // closes Scaffold (child:)
+  );          // closes PopScope
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────
+
+  String _getCommodityLabel() {
+    final commodity = (data['commodity'] ?? '').toString().toUpperCase().trim();
+    if (commodity.contains('GOLD')) return 'Gold 24K';
+    if (commodity.contains('SILVER')) return 'Silver 999';
+    // Fallback: return the raw value from API if available
+    return commodity.isNotEmpty ? commodity : 'Gold 24K';
+  }
+
+  String _truncateId(String id) {
+    if (id.length > 12) return '${id.substring(0, 12)}...';
+    return id;
+  }
+
+  Widget _detailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color primaryText,
+    required Color secondaryText,
+    required BuildContext context,
+    Color? valueColor,
+    bool showCopy = false,
+    String fullValue = '',
+  }) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 10.h),
+      child: Row(
+        children: [
+          Container(
+            width: 36.w,
+            height: 36.w,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B882C).withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Icon(icon, size: 18.sp, color: const Color(0xFF1B882C)),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.lora(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w500,
+                color: secondaryText,
               ),
             ),
           ),
+          Text(
+            value,
+            style: GoogleFonts.lora(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w700,
+              color: valueColor ?? primaryText,
+            ),
+          ),
+          if (showCopy) ...[
+            SizedBox(width: 6.w),
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: fullValue));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Transaction ID copied',
+                        style: GoogleFonts.lora(fontSize: 13.sp)),
+                    duration: const Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              child: Icon(
+                Icons.copy_rounded,
+                size: 16.sp,
+                color: secondaryText.withOpacity(0.6),
+              ),
+            ),
+          ],
         ],
       ),
-      bottomNavigationBar: _buildFooter(context, ref),
     );
   }
 
-  Widget _buildFooter(BuildContext context, WidgetRef ref) {
-    return SafeArea(
-      top: false,
-      child: Container(
-      padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 16.h),
-      decoration: const BoxDecoration(color: Colors.transparent),
-      child: CustomButton(
-        text: 'Done',
-        onPressed: () {
-          final container = ProviderScope.containerOf(context);
-
-          // Refresh all Home APIs before navigating
-          container.read(portfolioProvider.notifier).fetchPortfolio();
-          container.invalidate(homeDashboardProvider);
-          container.invalidate(profileProvider);
-
-          // Navigate to home (fresh stack since success screen cleared it)
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            AppRouter.home,
-            (route) => false,
-          );
-        },
-        gradient: const LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [Color(0xFF1B882C), Color(0xFF003716)],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1B882C).withOpacity(0.35),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        textColor: Colors.white,
-      ),
-    ),
+  Widget _rowDivider(bool isDark) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF3F4F6),
     );
   }
 
-  Widget _buildDetailRow(String label, String value, bool isDark) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.lora(
-            fontSize: 14.sp,
-            color: isDark ? Colors.white38 : Colors.black38,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.lora(
-            fontSize: 14.sp,
-            color: isDark ? Colors.white : Colors.black,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
+  void _navigateHome(BuildContext context, WidgetRef ref) {
+    final container = ProviderScope.containerOf(context);
+    container.read(portfolioProvider.notifier).fetchPortfolio();
+    container.invalidate(homeDashboardProvider);
+    container.invalidate(profileProvider);
+
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRouter.home,
+      (route) => false,
     );
   }
 }

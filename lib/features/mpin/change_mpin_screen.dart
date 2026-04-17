@@ -210,8 +210,8 @@ class _ChangeMpinScreenState extends ConsumerState<ChangeMpinScreen> {
                       child: Text(
                         _stepTitle,
                         style: GoogleFonts.lora(
-                          fontSize: 26.sp,
-                          fontWeight: FontWeight.w900,
+                          fontSize: 24.sp,
+                          fontWeight: FontWeight.w600,
                           color: isDark ? Colors.white : const Color(0xFF1E293B),
                         ),
                       ),

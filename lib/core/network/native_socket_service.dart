@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../features/market/models/market_rates.dart';
 import '../security/secure_logger.dart';
@@ -6,7 +6,8 @@ import '../security/secure_logger.dart';
 enum SocketStatus { connecting, connected, disconnected, error }
 
 class NativeSocketService {
-  final String _wsUrl = 'ws://13.202.62.253:57200';
+  // final String _wsUrl = 'wss://sgbackoffice.startgold.com/ws/'; //  Live
+  final String _wsUrl = 'ws://13.202.62.253:57200'; //  Staging
   final List<String> _protocols = [
     '0b286a8b1100f097e7c8e879dbd4174e468a9e92f888e6e289595efdd4747b89'
   ];
@@ -15,6 +16,7 @@ class NativeSocketService {
 
   final _ratesController = StreamController<MarketRates>.broadcast();
   final _statusController = StreamController<SocketStatus>.broadcast();
+  final _marketStatusController = StreamController<Map<String, bool>>.broadcast();
 
   Stream<MarketRates> get ratesStream async* {
     if (_lastRate != null) {
@@ -24,6 +26,16 @@ class NativeSocketService {
   }
 
   Stream<SocketStatus> get statusStream => _statusController.stream;
+
+  /// Emits the full commodity→open map whenever any commodity status changes.
+  /// Key = commodity ID from the socket frame (e.g. '1' for Gold, '3' for Silver).
+  /// Value = true (market open) / false (market closed).
+  /// Default: commodity not in map = market open (no signal received yet).
+  Stream<Map<String, bool>> get marketStatusStream =>
+      _marketStatusController.stream;
+
+  /// Current per-commodity open status (used for UI replay on new listeners).
+  Map<String, bool> _commodityOpenStatus = {};
 
   bool _isDisposed = false;
   MarketRates? _lastRate;
@@ -103,7 +115,6 @@ class NativeSocketService {
 
   void _handleRateUpdate(dynamic data) {
     try {
-      MarketRates newRates;
       String rawData;
 
       if (data is String) {
@@ -114,11 +125,69 @@ class NativeSocketService {
         return; // Ignore unknown payloads
       }
 
-      newRates = MarketRates.fromRawString(rawData, _lastRate,
-          goldId: goldId,
-          silverId: silverId,
-          goldName: goldName,
-          silverName: silverName);
+      // ── Step 1: Parse market status (parts[0] == '5') ─────────────
+      // Format: 5|commodity_id|commodity_name|market_status
+      // market_status: 0 = closed, 1 = open
+      // Each commodity tracks its own open/closed state independently.
+      for (final line in rawData.split('\n')) {
+        final parts = line.split('|');
+        if (parts.length >= 4 && parts[0] == '5') {
+          final commodityId = parts[1].trim();
+          final isOpen = parts[3].trim() == '1';
+
+          if (_commodityOpenStatus[commodityId] != isOpen) {
+            _commodityOpenStatus = Map.from(_commodityOpenStatus)
+              ..[commodityId] = isOpen;
+
+            if (!_marketStatusController.isClosed) {
+              _marketStatusController.add(Map.from(_commodityOpenStatus));
+            }
+
+            // Zero only the rates for the commodity that just closed.
+            // The other commodity's rates are preserved.
+            if (!isOpen && !_ratesController.isClosed) {
+              final goldClosed = commodityId == goldId;
+              final silverClosed = commodityId == silverId;
+              final zeroRates = MarketRates(
+                goldName: _lastRate?.goldName ?? goldName,
+                goldBuy:
+                    goldClosed ? 0.0 : (_lastRate?.goldBuy ?? 0.0),
+                goldSell:
+                    goldClosed ? 0.0 : (_lastRate?.goldSell ?? 0.0),
+                goldChange: 0.0,
+                goldPercentage: 0.0,
+                silverName: _lastRate?.silverName ?? silverName,
+                silverBuy:
+                    silverClosed ? 0.0 : (_lastRate?.silverBuy ?? 0.0),
+                silverSell:
+                    silverClosed ? 0.0 : (_lastRate?.silverSell ?? 0.0),
+                silverChange: 0.0,
+                silverPercentage: 0.0,
+                timestamp: DateTime.now(),
+                currency: 'INR',
+              );
+              _lastRate = zeroRates;
+              _ratesController.add(zeroRates);
+            }
+
+            SecureLogger.d(
+              'Market status [commodity $commodityId]: '
+              '${isOpen ? "OPEN" : "CLOSED"} '
+              '(${parts.length > 2 ? parts[2] : "?"})',
+            );
+          }
+        }
+      }
+
+      // ── Step 2: Parse rate data (parts[0] == '3') ─────────────────
+      final MarketRates newRates = MarketRates.fromRawString(
+        rawData,
+        _lastRate,
+        goldId: goldId,
+        silverId: silverId,
+        goldName: goldName,
+        silverName: silverName,
+      );
 
       if (_lastRate == null || newRates.isSignificantChange(_lastRate!)) {
         _lastRate = newRates;
@@ -141,5 +210,6 @@ class NativeSocketService {
     disconnect();
     _ratesController.close();
     _statusController.close();
+    _marketStatusController.close();
   }
 }

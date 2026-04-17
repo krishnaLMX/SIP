@@ -17,7 +17,7 @@ import '../../../routes/app_router.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../shared/widgets/custom_button.dart';
-
+import '../../market/models/market_rates.dart';
 
 class WithdrawalConfirmationScreen extends ConsumerStatefulWidget {
   const WithdrawalConfirmationScreen({super.key});
@@ -34,7 +34,18 @@ class _WithdrawalConfirmationScreenState
   @override
   void initState() {
     super.initState();
-    // No local timer init needed
+    // Immediately lock freshest live rate when confirmation screen opens.
+    // Only trigger when market is open for the current commodity.
+    Future.microtask(() {
+      if (!mounted) return;
+      final type = ref.read(commodityProvider);
+      final commodityId = type == CommodityType.gold ? '1' : '3';
+      final statusMap =
+          ref.read(marketStatusProvider).valueOrNull ?? const {};
+      if (statusMap[commodityId] != false) {
+        _handleRateExpiry();
+      }
+    });
   }
 
   bool _isRefreshing = false;
@@ -47,6 +58,9 @@ class _WithdrawalConfirmationScreenState
       _isRefreshing = true;
       _showUpdateSuccess = false;
     });
+    // Force config re-fetch so _onRateUpdated is triggered when it resolves.
+    // Without this, _isRefreshing stays true and 'Updating...' is stuck.
+    ref.invalidate(savingConfigProvider);
   }
 
   void _onRateUpdated(SavingConfig config) {
@@ -75,26 +89,81 @@ class _WithdrawalConfirmationScreenState
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final withdrawal = ref.watch(withdrawalProvider);
     final timerState = ref.watch(buyRateTimerProvider);
-    final market = timerState.isActive
-        ? AsyncData(timerState.lockedRates!)
-        : ref.watch(marketRatesStreamProvider);
     final type = ref.watch(commodityProvider);
 
-    // Watch config to trigger the API fetch
-    final configAsync = ref.watch(savingConfigProvider);
+    // Per-commodity market status
+    final marketStatusMap =
+        ref.watch(marketStatusProvider).valueOrNull ?? const {};
+    final commodityId = type == CommodityType.gold ? '1' : '3';
+    final isCurrentMarketClosed = marketStatusMap[commodityId] == false;
 
-    // Sync timer with config if not active
-    ref.listen<AsyncValue<SavingConfig>>(savingConfigProvider, (prev, next) {
-      final config = next.valueOrNull;
-      if (config != null) {
-        if (!ref.read(buyRateTimerProvider).isActive) {
-          if (_isRefreshing) {
-            _onRateUpdated(config);
-          } else {
+    // Bypass stale locked rate when market is closed
+    final market = (!isCurrentMarketClosed && timerState.isActive)
+        ? AsyncData(timerState.lockedRates!)
+        : ref.watch(marketRatesStreamProvider);
+
+    // Market reopen → restart timer
+    ref.listen<AsyncValue<Map<String, bool>>>(marketStatusProvider,
+        (prev, next) {
+      next.whenData((statusMap) {
+        final wasOpen = prev?.valueOrNull?[commodityId] != false;
+        final isNowOpen = statusMap[commodityId] != false;
+        if (!wasOpen && isNowOpen && mounted) {
+          ref.read(buyRateTimerProvider.notifier).clear();
+          final config = ref.read(savingConfigProvider).valueOrNull;
+          if (config != null) {
             ref
                 .read(buyRateTimerProvider.notifier)
                 .startOrRefresh(config.buyRateLockSeconds);
           }
+        }
+      });
+    });
+
+    // ── Race-condition guard: market-reopen vs first rate frame ─────────
+    // `5|...|1` fires before `3|...` rate arrives — buyRateTimer may lock 0.
+    // Restart as soon as the first valid buy rate is received from the socket.
+    ref.listen<AsyncValue<MarketRates>>(marketRatesStreamProvider, (prev, next) {
+      next.whenData((rates) {
+        if (!mounted) return;
+        final isMarketOpen =
+            (ref.read(marketStatusProvider).valueOrNull ?? {})[commodityId] != false;
+        if (!isMarketOpen) return;
+        final liveRate = type == CommodityType.gold ? rates.goldBuy : rates.silverBuy;
+        if (liveRate <= 0) return;
+        final tState = ref.read(buyRateTimerProvider);
+        final lockedRate = type == CommodityType.gold
+            ? (tState.lockedRates?.goldBuy ?? 0.0)
+            : (tState.lockedRates?.silverBuy ?? 0.0);
+        if (tState.isActive && lockedRate <= 0) {
+          final config = ref.read(savingConfigProvider).valueOrNull;
+          if (config != null) {
+            if (_isRefreshing) {
+              _onRateUpdated(config); // also clears _isRefreshing
+            } else {
+              ref
+                  .read(buyRateTimerProvider.notifier)
+                  .startOrRefresh(config.buyRateLockSeconds);
+            }
+          }
+        }
+      });
+    });
+
+    // Watch config to trigger the API fetch
+    final configAsync = ref.watch(savingConfigProvider);
+
+    // Sync timer with config — prioritise _isRefreshing over timer.isActive
+    // so _onRateUpdated fires even after our clear()+startOrRefresh() cycle.
+    ref.listen<AsyncValue<SavingConfig>>(savingConfigProvider, (prev, next) {
+      final config = next.valueOrNull;
+      if (config != null) {
+        if (_isRefreshing) {
+          _onRateUpdated(config);
+        } else if (!ref.read(buyRateTimerProvider).isActive && !isCurrentMarketClosed) {
+          ref
+              .read(buyRateTimerProvider.notifier)
+              .startOrRefresh(config.buyRateLockSeconds);
         }
       }
     });
@@ -102,7 +171,8 @@ class _WithdrawalConfirmationScreenState
     // Also start timer immediately if config is already loaded
     if (configAsync.hasValue &&
         configAsync.value != null &&
-        !timerState.isActive) {
+        !timerState.isActive &&
+        !isCurrentMarketClosed) {
       Future.microtask(() {
         ref
             .read(buyRateTimerProvider.notifier)
@@ -129,6 +199,38 @@ class _WithdrawalConfirmationScreenState
             onBack: () => Navigator.pop(context),
           ),
 
+          // Market Closed amber banner
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: isCurrentMarketClosed
+                ? Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 20.w, vertical: 10.h),
+                    color: const Color(0xFFFEF3C7),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            color: const Color(0xFFB45309), size: 16.sp),
+                        SizedBox(width: 8.w),
+                        Expanded(
+                          child: Text(
+                            '${type == CommodityType.gold ? 'Gold' : 'Silver'} market is closed. Confirmation unavailable.',
+                            style: GoogleFonts.lora(
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF92400E),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+
           // ── Body ────────────────────────────────────────────────────────
           Expanded(
             child: market.when(
@@ -139,9 +241,10 @@ class _WithdrawalConfirmationScreenState
                 final amountInINR = withdrawal.isGrams
                     ? withdrawal.amount * price
                     : withdrawal.amount;
+                // Guard: price may be 0.0 when market is closed — avoid Infinity
                 final amountInGrams = withdrawal.isGrams
                     ? withdrawal.amount
-                    : withdrawal.amount / price;
+                    : (price > 0 ? withdrawal.amount / price : 0.0);
 
                 return Padding(
                   padding: EdgeInsets.all(24.w),
@@ -161,7 +264,8 @@ class _WithdrawalConfirmationScreenState
                         ),
                       SizedBox(height: 24.h),
                       _buildSummaryCard(
-                          isDark, amountInINR, amountInGrams, price, type),
+                          isDark, amountInINR, amountInGrams, price, type,
+                          isCurrentMarketClosed, withdrawal.isGrams),
                       SizedBox(height: 24.h),
                       _buildDestinationCard(isDark, withdrawal.selectedMethod),
                     ],
@@ -175,12 +279,24 @@ class _WithdrawalConfirmationScreenState
           ),
         ],
       ),
-      bottomNavigationBar: _buildFinalAction(context),
+      bottomNavigationBar: _buildFinalAction(context, isCurrentMarketClosed),
     );
   }
 
   Widget _buildSummaryCard(bool isDark, double amountINR, double amountGrams,
-      double rate, CommodityType type) {
+      double rate, CommodityType type, bool isCurrentMarketClosed, bool isGrams) {
+    // When market is closed: weight and rate can't be calculated reliably.
+    final weightText = isCurrentMarketClosed
+        ? '—'
+        : '${amountGrams.toStringAsFixed(4)} g';
+    final rateText = isCurrentMarketClosed
+        ? 'Market Closed'
+        : '₹${rate.toStringAsFixed(2)} / g';
+    // Suppress INR display in grams mode when market is closed (amountINR = 0)
+    final amountText = (isGrams && isCurrentMarketClosed)
+        ? '—'
+        : '₹${amountINR.toStringAsFixed(2)}';
+
     return Container(
       padding: EdgeInsets.all(24.w),
       decoration: BoxDecoration(
@@ -200,19 +316,19 @@ class _WithdrawalConfirmationScreenState
                   color: isDark ? Colors.white54 : Colors.black54,
                   fontSize: 14.sp)),
           SizedBox(height: 8.h),
-          Text('₹${amountINR.toStringAsFixed(2)}',
+          Text(amountText,
               style: GoogleFonts.lora(
                   fontSize: 36.sp,
                   fontWeight: FontWeight.w900,
-                  color: AppTheme.arcticBlue)),
+                  color: isCurrentMarketClosed
+                      ? Colors.grey
+                      : AppTheme.arcticBlue)),
           SizedBox(height: 24.h),
           const Divider(),
           SizedBox(height: 24.h),
-          _buildSummaryRow(
-              'Selling weight', '${amountGrams.toStringAsFixed(4)} g', isDark),
+          _buildSummaryRow('Weight', weightText, isDark),
           SizedBox(height: 16.h),
-          _buildSummaryRow(
-              'Selling rate', '₹${rate.toStringAsFixed(2)} / g', isDark),
+          _buildSummaryRow('Withdrawal Rate', rateText, isDark),
           SizedBox(height: 16.h),
           _buildSummaryRow('Commodity',
               type == CommodityType.gold ? 'Gold 24KT' : 'Silver 999', isDark),
@@ -266,7 +382,8 @@ class _WithdrawalConfirmationScreenState
     );
   }
 
-  Widget _buildFinalAction(BuildContext context) {
+  Widget _buildFinalAction(BuildContext context, bool isCurrentMarketClosed) {
+    final isDisabled = _isRefreshing || _isSubmitting || isCurrentMarketClosed;
     return SafeArea(
       top: false,
       child: Container(
@@ -278,7 +395,8 @@ class _WithdrawalConfirmationScreenState
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.security, color: Colors.greenAccent[400], size: 16.sp),
+                Icon(Icons.security,
+                    color: Colors.greenAccent[400], size: 16.sp),
                 SizedBox(width: 8.w),
                 Text('Secure Bank Transfer',
                     style: GoogleFonts.lora(
@@ -292,22 +410,23 @@ class _WithdrawalConfirmationScreenState
               text: 'Confirm Sale & Transfer',
               isLoading: _isSubmitting,
               loadingText: 'Processing...',
-              onPressed:
-                  (_isRefreshing || _isSubmitting) ? null : () => _completeWithdrawal(context),
+              onPressed: isDisabled ? null : () => _completeWithdrawal(context),
               gradient: LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: (_isRefreshing || _isSubmitting)
+                colors: isDisabled
                     ? const [Color(0xFF9CA3AF), Color(0xFF6B7280)]
                     : const [Color(0xFF1B882C), Color(0xFF003716)],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF1B882C).withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: isDisabled
+                  ? []
+                  : [
+                      BoxShadow(
+                        color: const Color(0xFF1B882C).withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
               textColor: Colors.white,
             ),
           ],
@@ -336,7 +455,9 @@ class _WithdrawalConfirmationScreenState
     final amountInINR =
         withdrawal.isGrams ? withdrawal.amount * price : withdrawal.amount;
     final amountInGrams = double.parse(
-        (withdrawal.isGrams ? withdrawal.amount : withdrawal.amount / price)
+        (withdrawal.isGrams
+                ? withdrawal.amount
+                : (price > 0 ? withdrawal.amount / price : 0.0))
             .toStringAsFixed(4));
 
     final pin = await Navigator.pushNamed(
@@ -368,18 +489,26 @@ class _WithdrawalConfirmationScreenState
             AppRouter.withdrawalSuccess,
             (route) => false,
             arguments: {
-              'amount': responseData['amount']?.toString() ?? amountInINR.toStringAsFixed(2),
-              'txnId': responseData['transfer_id']?.toString() ?? responseData['withdrawal_id']?.toString() ?? '',
+              'amount': responseData['amount']?.toString() ??
+                  amountInINR.toStringAsFixed(2),
+              'txnId': responseData['transfer_id']?.toString() ??
+                  responseData['withdrawal_id']?.toString() ??
+                  '',
               'account': withdrawal.selectedMethod?.identifier ?? '',
               'status': responseData['status']?.toString() ?? 'COMPLETED',
-              'commodity': responseData['commodity']?.toString() ?? (commodity == CommodityType.gold ? 'GOLD' : 'SILVER'),
+              'commodity': responseData['commodity']?.toString() ??
+                  (commodity == CommodityType.gold ? 'GOLD' : 'SILVER'),
             },
           );
         } else {
           if (mounted) {
             setState(() => _isSubmitting = false);
-            AppToast.show(context, response['message'] ?? 'Withdrawal failed',
-                type: ToastType.error);
+            // Extract message from nested error or data fields
+            final errorMsg = response['error']?['message']?.toString()
+                ?? response['data']?['message']?.toString()
+                ?? response['message']?.toString()
+                ?? 'Withdrawal failed. Please try again.';
+            AppToast.show(context, errorMsg, type: ToastType.error);
           }
         }
       } catch (e) {

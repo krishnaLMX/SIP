@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/providers/user_provider.dart';
+import '../../../core/providers/commodity_provider.dart';
 import '../models/withdrawal_method.dart';
 
 class WithdrawalService {
@@ -31,8 +32,6 @@ class WithdrawalService {
   }
 
   Future<Map<String, dynamic>> submitWithdrawal({
-    // required String customerId,
-    // required String mobile,
     required String metalId,
     required double amount,
     required double weight,
@@ -42,8 +41,6 @@ class WithdrawalService {
   }) async {
     try {
       final response = await _apiClient.post('withdrawal/withdraw', data: {
-        // 'id_customer': customerId,
-        //  'mobile': mobile,
         'id_metal': metalId,
         'amount': amount,
         'weight': weight,
@@ -89,7 +86,6 @@ class WithdrawalService {
     required String upiId,
   }) async {
     final response = await _apiClient.post('account/verify-upi', data: {
-      // 'id_customer': customerId,
       'mobile': mobile,
       'upi_id': upiId,
     });
@@ -106,7 +102,6 @@ class WithdrawalService {
     required String ifsc,
   }) async {
     final response = await _apiClient.post('account/verify-bank', data: {
-      // 'id_customer': customerId,
       'mobile': mobile,
       'account_holder': holderName,
       'bank_name': bankName,
@@ -114,6 +109,34 @@ class WithdrawalService {
       'ifsc_code': ifsc,
     });
     return response.data ?? {};
+  }
+
+  /// Fetch withdrawable balance for the selected metal.
+  /// Endpoint: POST referrals/reward-balance
+  /// Payload:  { "id_metal": "1" }
+  /// Response: data is a List — returns first element containing
+  ///   withdrawable_qty, total_qty, on_hold_qty, commodity_name.
+  Future<Map<String, dynamic>> fetchRewardBalance({
+    required String metalId,
+  }) async {
+    try {
+      final response =
+          await _apiClient.post('referrals/reward-balance', data: {
+        'id_metal': metalId,
+      });
+      if (response.data != null && response.data['success'] == true) {
+        final rawData = response.data['data'];
+        if (rawData is List && rawData.isNotEmpty) {
+          return Map<String, dynamic>.from(rawData.first);
+        }
+        if (rawData is Map) {
+          return Map<String, dynamic>.from(rawData);
+        }
+      }
+      return {};
+    } catch (e) {
+      return {};
+    }
   }
 }
 
@@ -127,5 +150,15 @@ final accountDetailsProvider =
   return ref.read(withdrawalServiceProvider).fetchAccountDetails(
         customerId: user.id,
         mobile: user.mobile,
+      );
+});
+
+/// Fetches the referral reward balance for the currently selected metal.
+/// Auto-disposes and rebuilds whenever the commodity tab changes.
+final rewardBalanceProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+  final metalId = ref.watch(selectedMetalIdProvider);
+  return ref.read(withdrawalServiceProvider).fetchRewardBalance(
+        metalId: metalId,
       );
 });

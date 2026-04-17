@@ -161,7 +161,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _buildSettingTile(
                     icon: Icons.lock_outline,
                     title: 'Enable MPIN',
-                    subtitle: 'Secure app access with a 4-digit PIN',
+                    subtitle: 'Secure App Access With A 4-Digit PIN',
                     trailing: Switch.adaptive(
                       value: _isMpinEnabled,
                       onChanged: _toggleMpin,
@@ -175,7 +175,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _buildSettingTile(
                     icon: Icons.notifications_none_rounded,
                     title: 'Push Notifications',
-                    subtitle: 'Alerts for investments & rewards',
+                    subtitle: 'Alerts For Investments & Rewards',
                     trailing: Icon(Icons.chevron_right_rounded,
                         color: Colors.grey.shade400),
                     isDark: isDark,
@@ -195,7 +195,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _buildSettingTile(
                     icon: Icons.dark_mode_outlined,
                     title: 'Dark Mode',
-                    subtitle: 'Toggle app theme appearance',
+                    subtitle: 'Toggle App Theme Appearance',
                     trailing: Icon(Icons.chevron_right_rounded,
                         color: Colors.grey.shade400),
                     isDark: isDark,

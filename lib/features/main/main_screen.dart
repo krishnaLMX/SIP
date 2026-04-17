@@ -195,10 +195,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     svgAsset,
                     width: 22.sp,
                     height: 22.sp,
-                    colorFilter: ColorFilter.mode(
-                      isActive ? AppTheme.primaryGreen : inactiveColor,
-                      BlendMode.srcIn,
-                    ),
+                    colorFilter: isActive
+                        ? null
+                        : ColorFilter.mode(
+                            inactiveColor,
+                            BlendMode.srcIn,
+                          ),
                   )
                 : Icon(
                     icon,

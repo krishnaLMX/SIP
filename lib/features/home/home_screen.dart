@@ -52,6 +52,62 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     });
 
+    // Per-commodity market open/close status from socket
+    final marketStatusMap =
+        ref.watch(marketStatusProvider).valueOrNull ?? const {};
+    final commodityId =
+        selectedCommodity == CommodityType.gold ? '1' : '3';
+    final isCurrentMarketClosed = marketStatusMap[commodityId] == false;
+
+    // When market transitions closed \u2192 open: restart timer so the header
+    // switches back to LIVE + countdown immediately.
+    ref.listen<AsyncValue<Map<String, bool>>>(marketStatusProvider,
+        (prev, next) {
+      next.whenData((statusMap) {
+        final currId = selectedCommodity == CommodityType.gold ? '1' : '3';
+        final wasOpen = prev?.valueOrNull?[currId] != false;
+        final isNowOpen = statusMap[currId] != false;
+        if (!wasOpen && isNowOpen && mounted) {
+          ref.read(sellRateTimerProvider.notifier).clear();
+          final config = ref.read(savingConfigProvider).valueOrNull;
+          if (config != null) {
+            ref
+                .read(sellRateTimerProvider.notifier)
+                .startOrRefresh(config.sellRateLockSeconds);
+          }
+        }
+      });
+    });
+
+    // ── Race-condition guard: market-reopen vs first rate frame ─────────
+    // When `5|...|1` fires, the timer is restarted but `3|...` rate may not
+    // have arrived yet. Lock 0-rate gets replaced as soon as non-zero arrives.
+    ref.listen<AsyncValue<MarketRates>>(marketRatesStreamProvider, (prev, next) {
+      next.whenData((rates) {
+        if (!mounted) return;
+        final currId = selectedCommodity == CommodityType.gold ? '1' : '3';
+        final isMarketOpen =
+            (ref.read(marketStatusProvider).valueOrNull ?? {})[currId] != false;
+        if (!isMarketOpen) return;
+        final liveRate = selectedCommodity == CommodityType.gold
+            ? rates.goldSell
+            : rates.silverSell;
+        if (liveRate <= 0) return;
+        final tState = ref.read(sellRateTimerProvider);
+        final lockedRate = selectedCommodity == CommodityType.gold
+            ? (tState.lockedRates?.goldSell ?? 0.0)
+            : (tState.lockedRates?.silverSell ?? 0.0);
+        if (tState.isActive && lockedRate <= 0) {
+          final config = ref.read(savingConfigProvider).valueOrNull;
+          if (config != null) {
+            ref
+                .read(sellRateTimerProvider.notifier)
+                .startOrRefresh(config.sellRateLockSeconds);
+          }
+        }
+      });
+    });
+
     // Auto-refresh ALL Home page APIs whenever Home tab becomes active.
     // Covers: bottom nav tap, returning from payment/withdrawal success.
     // Future.microtask safely defers until after the build frame.
@@ -67,6 +123,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.invalidate(homeDashboardProvider);
             // 3. Profile — name, photo (in case updated)
             ref.invalidate(profileProvider);
+            // 4. Sell-rate timer — lock freshest live rate for header display
+            final homeStatusMap =
+                ref.read(marketStatusProvider).valueOrNull ?? const {};
+            final homeCommodityId =
+                selectedCommodity == CommodityType.gold ? '1' : '3';
+            if (homeStatusMap[homeCommodityId] != false) {
+              ref.read(sellRateTimerProvider.notifier).clear();
+              final homeConfig =
+                  ref.read(savingConfigProvider).valueOrNull;
+              if (homeConfig != null) {
+                ref
+                    .read(sellRateTimerProvider.notifier)
+                    .startOrRefresh(homeConfig.sellRateLockSeconds);
+              }
+            }
           }
         });
       }
@@ -96,7 +167,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               parent: BouncingScrollPhysics()),
           slivers: [
             _buildPremiumHeader(context, isDark, customerName, photoUrl,
-                marketRates, selectedCommodity, timerState),
+                marketRates, selectedCommodity, timerState,
+                isCurrentMarketClosed),
             SliverToBoxAdapter(
               child: Stack(
                 children: [
@@ -155,10 +227,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 if (userProfile?.isNewUser == true ||
                                     data.isNewCustomer) {
                                   return _buildNewCustomerBanner(
-                                      context, selectedCommodity);
+                                      context, selectedCommodity,
+                                      isCurrentMarketClosed);
                                 }
                                 return _buildPortfolioOverview(isDark, data,
-                                    selectedCommodity, marketRates);
+                                    selectedCommodity, marketRates,
+                                    isCurrentMarketClosed);
                               },
                               // On refresh: if we have previous data keep showing it
                               loading: () {
@@ -167,10 +241,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   if (userProfile?.isNewUser == true ||
                                       prev.isNewCustomer) {
                                     return _buildNewCustomerBanner(
-                                        context, selectedCommodity);
+                                        context, selectedCommodity,
+                                        isCurrentMarketClosed);
                                   }
                                   return _buildPortfolioOverview(isDark, prev,
-                                      selectedCommodity, marketRates);
+                                      selectedCommodity, marketRates,
+                                      isCurrentMarketClosed);
                                 }
                                 return _buildPortfolioSkeleton(isDark);
                               },
@@ -941,9 +1017,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       String? photoUrl,
       AsyncValue<MarketRates> marketRates,
       CommodityType selected,
-      TimerState timerState) {
-    // Use locked rate when timer is active, else fall back to live socket rate.
-    final lockedRates = timerState.isActive ? timerState.lockedRates : null;
+      TimerState timerState,
+      bool isMarketClosed) {
+    // When market is closed, skip the timer's stale locked rate and use the
+    // live socket rate (which is already zeroed for that commodity).
+    final lockedRates =
+        (!isMarketClosed && timerState.isActive) ? timerState.lockedRates : null;
     final rate = selected == CommodityType.gold
         ? (lockedRates?.goldSell ?? marketRates.valueOrNull?.goldSell ?? 0.0)
         : (lockedRates?.silverSell ??
@@ -951,9 +1030,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             0.0);
     final formattedRate = rate.toStringAsFixed(2);
 
-    // Countdown timer text shown in the header pill (MM:SS format)
+    // Show "Market Closed" label instead of countdown when market is offline.
     String? timerText;
-    if (timerState.isActive) {
+    if (isMarketClosed) {
+      timerText = null; // header shows Market Closed badge instead
+    } else if (timerState.isActive) {
       final m = timerState.remainingSeconds ~/ 60;
       final s = timerState.remainingSeconds % 60;
       timerText =
@@ -972,6 +1053,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         photoUrl: photoUrl,
         currentRate: '₹$formattedRate/gm',
         timerText: timerText,
+        isMarketClosed: isMarketClosed,
         selected: selected,
       ),
     );
@@ -981,7 +1063,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final activeOrange = const Color(0xFFE2700D); // "Invest Now" button orange
     final textGreen =
         const Color(0xFF0F582E); // Deep green for big text and bars
-    final highlightYellow = const Color(0xFFECA41E); // "4X" highlight color
 
     // Determine metal string from highlightText or title
     final isSilver = history.title.toLowerCase().contains('silver');
@@ -1015,31 +1096,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   SizedBox(height: 12.h),
 
-                  // Main Title
-                  RichText(
-                    text: TextSpan(
-                      style: GoogleFonts.lora(
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.w700,
-                        color: textGreen,
-                        height: 1.2,
-                      ),
-                      children: history.highlightText.contains('4X')
-                          ? [
-                              TextSpan(
-                                text: history.highlightText.split('4X').first,
-                              ),
-                              TextSpan(
-                                text: '4X',
-                                style: GoogleFonts.lora(color: highlightYellow),
-                              ),
-                              TextSpan(
-                                text: history.highlightText.split('4X').last,
-                              ),
-                            ]
-                          : [
-                              TextSpan(text: history.highlightText),
-                            ],
+                  // Main Title — no highlight colour on any word
+                  Text(
+                    history.highlightText,
+                    style: GoogleFonts.lora(
+                      fontSize: 20.sp,
+                      fontWeight: FontWeight.w700,
+                      color: textGreen,
+                      height: 1.2,
                     ),
                   ),
                   SizedBox(height: 8.h),
@@ -1201,7 +1265,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildPortfolioOverview(bool isDark, PortfolioData data,
-      CommodityType selected, AsyncValue<MarketRates> market) {
+      CommodityType selected, AsyncValue<MarketRates> market,
+      bool isCurrentMarketClosed) {
     // ── Recalculate current value & growth from live rate when API returns 0 ──
     final liveRate = selected == CommodityType.gold
         ? (market.valueOrNull?.goldSell ?? 0.0)
@@ -1245,71 +1310,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           SizedBox(height: 16.h),
-          // ── Balance + Growth pill in a Row (Figma layout) ──
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Gradient gm text
-                ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(
-                    begin: const Alignment(-0.87, -0.5),
-                    end: const Alignment(0.87, 0.5),
-                    colors: selected == CommodityType.gold
-                        ? const [Color(0xFFFFB500), Color(0xFFFFCA49)]
-                        : const [Color(0xFFB6B6B6), Color(0xFFE5E5E5)],
-                  ).createShader(bounds),
-                  blendMode: BlendMode.srcIn,
-                  child: Text(
-                    '${data.summary.balance.toStringAsFixed(4)} gm',
-                    style: GoogleFonts.lora(
-                      fontSize: 30.sp,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white, // placeholder, gradient paints over
-                    ),
+          // ── Balance + Growth pill — always centered as a stable unit ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Gradient gm text
+              ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  begin: const Alignment(-0.87, -0.5),
+                  end: const Alignment(0.87, 0.5),
+                  colors: selected == CommodityType.gold
+                      ? const [Color(0xFFFFB500), Color(0xFFFFCA49)]
+                      : const [Color(0xFFB6B6B6), Color(0xFFE5E5E5)],
+                ).createShader(bounds),
+                blendMode: BlendMode.srcIn,
+                child: Text(
+                  '${data.summary.balance.toStringAsFixed(4)} gm',
+                  style: GoogleFonts.lora(
+                    fontSize: 28.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
-                SizedBox(width: 10.w),
-                // Growth pill — Figma: bg #023A17, border 0.6px #0B7F03
-                Container(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF023A17),
-                    borderRadius: BorderRadius.circular(20.r),
-                    border: Border.all(
-                      color: const Color(0xFF0B7F03),
-                      width: 0.6,
-                    ),
+              ),
+              SizedBox(width: 10.w),
+              // Growth pill
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF023A17),
+                  borderRadius: BorderRadius.circular(20.r),
+                  border: Border.all(
+                    color: const Color(0xFF0B7F03),
+                    width: 0.6,
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isPositive ? Icons.arrow_upward : Icons.arrow_downward,
-                        size: 13.sp,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isPositive ? Icons.arrow_upward : Icons.arrow_downward,
+                      size: 13.sp,
+                      color: isPositive
+                          ? const Color(0xFF0ED500)
+                          : const Color(0xFFFF1A1A),
+                    ),
+                    SizedBox(width: 3.w),
+                    Text(
+                      '${returnsPct.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.bold,
                         color: isPositive
                             ? const Color(0xFF0ED500)
                             : const Color(0xFFFF1A1A),
                       ),
-                      SizedBox(width: 3.w),
-                      Text(
-                        '${returnsPct.toStringAsFixed(1)}%',
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.bold,
-                          color: isPositive
-                              ? const Color(0xFF0ED500)
-                              : const Color(0xFFFF1A1A),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           SizedBox(height: 16.h),
           Row(
@@ -1366,95 +1427,176 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
           SizedBox(height: 12.h),
-          _buildCommodityToggle(selected),
+          _buildCommodityToggle(selected, isCurrentMarketClosed),
         ],
       ),
     );
   }
 
-  Widget _buildCommodityToggle(CommodityType selected) {
+  Widget _buildCommodityToggle(CommodityType selected, bool isMarketClosed) {
     final isGold = selected == CommodityType.gold;
+    final referralMsg = ref.watch(profileProvider).user.referralMessage.trim();
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          ref.tr('goldLabel', fallback: 'Gold'),
-          style: GoogleFonts.lora(
-            fontSize: 16.sp,
-            color: Colors.white.withValues(alpha: isGold ? 1.0 : 0.6),
-          ),
-        ),
-        SizedBox(width: 12.w),
-        // Custom gradient toggle
-        GestureDetector(
-          onTap: () {
-            ref.read(commodityProvider.notifier).setCommodity(
-                  isGold ? CommodityType.silver : CommodityType.gold,
-                );
-          },
-          child: Container(
-            width: 52.w,
-            height: 28.h,
-            decoration: BoxDecoration(
-              gradient: isGold
-                  ? const LinearGradient(
-                      begin: Alignment(-0.87, -0.5),
-                      end: Alignment(0.87, 0.5),
-                      colors: [Color(0xFFFFB500), Color(0xFFFFCA49)],
-                    )
-                  : const LinearGradient(
-                      begin: Alignment(-0.87, -0.5),
-                      end: Alignment(0.87, 0.5),
-                      colors: [Color(0xFFA3A3A3), Color(0xFFE6E6E6)],
-                    ),
-              borderRadius: BorderRadius.circular(100.r),
-              border: Border.all(
-                color: const Color(0xFF0B7F03).withValues(alpha: 0.4),
-                width: 0.6,
+        // ── Gold / Silver toggle ──
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              ref.tr('goldLabel', fallback: 'Gold'),
+              style: GoogleFonts.lora(
+                fontSize: 16.sp,
+                color: Colors.white.withValues(alpha: isGold ? 1.0 : 0.6),
               ),
             ),
-            child: Stack(
+            SizedBox(width: 12.w),
+            // Custom gradient toggle
+            GestureDetector(
+              onTap: () {
+                ref.read(commodityProvider.notifier).setCommodity(
+                      isGold ? CommodityType.silver : CommodityType.gold,
+                    );
+              },
+              child: Container(
+                width: 52.w,
+                height: 28.h,
+                decoration: BoxDecoration(
+                  gradient: isGold
+                      ? const LinearGradient(
+                          begin: Alignment(-0.87, -0.5),
+                          end: Alignment(0.87, 0.5),
+                          colors: [Color(0xFFFFB500), Color(0xFFFFCA49)],
+                        )
+                      : const LinearGradient(
+                          begin: Alignment(-0.87, -0.5),
+                          end: Alignment(0.87, 0.5),
+                          colors: [Color(0xFFA3A3A3), Color(0xFFE6E6E6)],
+                        ),
+                  borderRadius: BorderRadius.circular(100.r),
+                  border: Border.all(
+                    color: const Color(0xFF0B7F03).withValues(alpha: 0.4),
+                    width: 0.6,
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    AnimatedAlign(
+                      alignment:
+                          isGold ? Alignment.centerLeft : Alignment.centerRight,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      child: Container(
+                        width: 24.w,
+                        height: 24.h,
+                        margin: EdgeInsets.symmetric(horizontal: 2.w),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 3.27,
+                              offset: const Offset(0, 1.09),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 8.73,
+                              offset: const Offset(0, 4.36),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Text(
+              ref.tr('silverLabel', fallback: 'Silver'),
+              style: GoogleFonts.lora(
+                fontSize: 16.sp,
+                color: Colors.white.withValues(alpha: !isGold ? 1.0 : 0.6),
+              ),
+            ),
+          ],
+        ),
+
+        // ── Referral message (only when non-empty) ──
+        if (referralMsg.isNotEmpty) ...[
+          SizedBox(height: 12.h),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(10.r),
+              border: Border.all(
+                color: const Color(0xFFF59E0B).withOpacity(0.4),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                AnimatedAlign(
-                  alignment:
-                      isGold ? Alignment.centerLeft : Alignment.centerRight,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: Container(
-                    width: 24.w,
-                    height: 24.h,
-                    margin: EdgeInsets.symmetric(horizontal: 2.w),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 3.27,
-                          offset: const Offset(0, 1.09),
-                        ),
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 8.73,
-                          offset: const Offset(0, 4.36),
-                        ),
-                      ],
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 14.sp,
+                  color: const Color(0xFFD97706),
+                ),
+                SizedBox(width: 6.w),
+                Flexible(
+                  child: Text(
+                    referralMsg,
+                    style: GoogleFonts.lora(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF92400E),
+                      height: 1.4,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-        ),
-        SizedBox(width: 12.w),
-        Text(
-          ref.tr('silverLabel', fallback: 'Silver'),
-          style: GoogleFonts.lora(
-            fontSize: 16.sp,
-            color: Colors.white.withValues(alpha: !isGold ? 1.0 : 0.6),
+        ],
+
+        // ── Market Closed Banner (commodity-specific) ──
+        if (isMarketClosed) ...[
+          SizedBox(height: 12.h),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(10.r),
+              border: Border.all(
+                color: const Color(0xFFF59E0B).withOpacity(0.4),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 14.sp,
+                  color: const Color(0xFFB45309),
+                ),
+                SizedBox(width: 6.w),
+                Flexible(
+                  child: Text(
+                    '${selected == CommodityType.gold ? 'Gold' : 'Silver'} market is currently closed. Rates resume when it reopens.',
+                    style: GoogleFonts.lora(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF92400E),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1529,7 +1671,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Text(ref.tr('portfolioError',
           fallback: 'Failed to load portfolio context.')));
 
-  Widget _buildNewCustomerBanner(BuildContext context, CommodityType selected) {
+  Widget _buildNewCustomerBanner(BuildContext context, CommodityType selected,
+      bool isCurrentMarketClosed) {
     return Column(
       children: [
         Container(
@@ -1639,7 +1782,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         SizedBox(height: 16.h),
-        _buildCommodityToggle(selected),
+        _buildCommodityToggle(selected, isCurrentMarketClosed),
       ],
     );
   }
@@ -1655,6 +1798,7 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
   final String? currentRate;
   final String? timerText; // e.g. '02:00' — null if timer not active
   final CommodityType selected;
+  final bool isMarketClosed;
 
   PremiumHomeHeader({
     required this.expandedHeight,
@@ -1665,6 +1809,7 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
     this.photoUrl,
     this.currentRate,
     this.timerText,
+    required this.isMarketClosed,
     required this.selected,
   });
 
@@ -1705,7 +1850,10 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
               ),
               SizedBox(height: 10.h),
               if (currentRate != null)
-                Center(child: _buildLiveRatePill(currentRate!)),
+                Align(
+                  alignment: Alignment.center,
+                  child: _buildLiveRatePill(currentRate!, isMarketClosed),
+                ),
               // Timer runs silently — no countdown shown to user.
             ],
           ),
@@ -1714,7 +1862,7 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
     );
   }
 
-  Widget _buildLiveRatePill(String rate) {
+  Widget _buildLiveRatePill(String rate, bool isMarketClosed) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
       decoration: BoxDecoration(
@@ -1728,19 +1876,28 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // LIVE or CLOSED badge
           Container(
             padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF1A1A), // Red pill
+              color: isMarketClosed
+                  ? const Color(0xFFD97706)
+                  : const Color(0xFFFF1A1A),
               borderRadius: BorderRadius.circular(100.r),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.sensors, color: Colors.white, size: 12.sp),
+                Icon(
+                  isMarketClosed
+                      ? Icons.warning_amber_rounded
+                      : Icons.sensors,
+                  color: Colors.white,
+                  size: 12.sp,
+                ),
                 SizedBox(width: 4.w),
                 Text(
-                  'LIVE',
+                  isMarketClosed ? 'CLOSED' : 'LIVE',
                   style: TextStyle(
                     fontSize: 10.sp,
                     fontWeight: FontWeight.bold,
@@ -1750,16 +1907,18 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
               ],
             ),
           ),
-          SizedBox(width: 16.w),
+          SizedBox(width: 14.w),
+          // Full rate — tabular figures so digit changes don't shift width
           Text(
             rate,
             style: GoogleFonts.lora(
               fontSize: 16.sp,
               fontWeight: FontWeight.bold,
               color: Colors.white,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          SizedBox(width: 12.w),
+          SizedBox(width: 10.w),
           ClipOval(
             child: SizedBox(
               width: 20.r,

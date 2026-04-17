@@ -77,6 +77,7 @@ class TransactionItem {
 
 class TransactionDetailResponse {
   final String transactionId;
+  final String orderId;
   final String title;
   final String subtitle;
   final String amount;
@@ -91,6 +92,7 @@ class TransactionDetailResponse {
 
   TransactionDetailResponse({
     required this.transactionId,
+    required this.orderId,
     required this.title,
     required this.subtitle,
     required this.amount,
@@ -113,6 +115,7 @@ class TransactionDetailResponse {
     var timelineList = root['timeline'] as List? ?? [];
     return TransactionDetailResponse(
       transactionId: root['transaction_id']?.toString() ?? '',
+      orderId: root['order_id']?.toString() ?? '',
       title: root['title'] ?? '',
       subtitle: root['subtitle'] ?? '',
       amount: root['amount']?.toString() ?? '0',
@@ -183,12 +186,14 @@ class PriceBreakdown {
 class TechnicalDetails {
   final String transactionIdDisplay;
   final String? goldTransactionId;
+  final String orderId;
   final String placedOn;
   final String paidVia;
 
   TechnicalDetails({
     required this.transactionIdDisplay,
     this.goldTransactionId,
+    required this.orderId,
     required this.placedOn,
     required this.paidVia,
   });
@@ -197,6 +202,7 @@ class TechnicalDetails {
     return TechnicalDetails(
       transactionIdDisplay: json['transaction_id_display'] ?? '',
       goldTransactionId: json['gold_transaction_id'],
+      orderId: json['order_id']?.toString() ?? '',
       placedOn: json['placed_on'] ?? '',
       paidVia: json['paid_via'] ?? '',
     );

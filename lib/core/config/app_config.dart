@@ -6,16 +6,12 @@ class AppConfig {
   static const String environment =
       String.fromEnvironment('ENV', defaultValue: 'production');
 
-  /// Base URL – dynamically set via build flag.
-  ///
-  /// Usage:
-  ///   flutter run   --dart-define=BASE_URL=http://192.168.1.72:8000/api/v1/
-  ///   flutter build --dart-define=BASE_URL=https://prod.example.com/api/v1/
-  ///
   /// If no flag is passed the production URL is used as default.
   static const String baseUrl = String.fromEnvironment(
     'BASE_URL',
-    defaultValue: 'http://startgoldapi.logimaxindia.com/api/api/v1/',
+    // defaultValue: 'https://api.startgold.com/api/api/v1/', //  Live
+    defaultValue:
+        'http://startgoldapi.logimaxindia.com/api/api/v1/', //  Staging
   );
 
   // Storage Keys

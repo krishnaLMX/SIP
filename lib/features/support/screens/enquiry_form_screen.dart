@@ -127,7 +127,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
               SizedBox(height: 10.h),
               _buildTextField(
                 controller: _subjectController,
-                hint: 'Briefly describe your issue…',
+                hint: 'Briefly Describe Your Issue…',
                 icon: Icons.edit_outlined,
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Subject is required' : null,
@@ -139,7 +139,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
               SizedBox(height: 10.h),
               _buildTextField(
                 controller: _contentController,
-                hint: 'Describe your issue in detail…',
+                hint: 'Describe Your Issue In Detail…',
                 icon: Icons.notes_rounded,
                 maxLines: 6,
                 validator: (v) =>

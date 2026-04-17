@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:startgold/core/providers/market_provider.dart';
 import 'package:startgold/core/providers/commodity_provider.dart';
 import 'package:startgold/core/services/shared_service.dart';
@@ -47,6 +48,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     )..repeat(reverse: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // ── Route args (optional deep-link amount) ──
       final args = ModalRoute.of(context)?.settings.arguments as Map?;
       if (args != null && args['initialAmount'] != null) {
         final amount = args['initialAmount'].toString();
@@ -55,6 +57,26 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
           _amountController.text = amount;
         });
       }
+
+      // ── Always lock the freshest live rate on screen entry ─────────────
+      // Clear any stale lock (even if timer is still running with an 80s-old
+      // rate) and restart immediately with the current socket rate.
+      // Only skip when market is closed for the current commodity.
+      final entryType = ref.read(commodityProvider);
+      final entryCommodityId = entryType == CommodityType.gold ? '1' : '3';
+      final entryStatusMap =
+          ref.read(marketStatusProvider).valueOrNull ?? const {};
+      if (entryStatusMap[entryCommodityId] != false) {
+        ref.read(sellRateTimerProvider.notifier).clear();
+        final existingConfig = ref.read(savingConfigProvider).valueOrNull;
+        if (existingConfig != null) {
+          ref
+              .read(sellRateTimerProvider.notifier)
+              .startOrRefresh(existingConfig.sellRateLockSeconds);
+        }
+      }
+      // Always re-fetch rate config so the listener fires and re-locks rates.
+      ref.invalidate(savingConfigProvider);
     });
   }
 
@@ -96,7 +118,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
       }
     });
 
-    // Reset input when switching between Gold and Silver
+    // Reset input + timer when switching between Gold and Silver
     ref.listen<CommodityType>(commodityProvider, (prev, next) {
       if (prev != next) {
         _amountController.clear();
@@ -104,10 +126,75 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
         // Invalidate denominations to trigger the seed listeners with new data
         ref.invalidate(amountDenominationsProvider);
         ref.invalidate(weightDenominationsProvider);
+
+        // Reset the shared timer so the new commodity's market state is
+        // evaluated fresh. Without this, Gold's isMarketClosed=true persists
+        // on the timer and Silver shows no countdown even though it's open.
+        ref.read(sellRateTimerProvider.notifier).clear();
+        // Immediately restart if config is already loaded
+        final config = ref.read(savingConfigProvider).valueOrNull;
+        if (config != null) {
+          ref
+              .read(sellRateTimerProvider.notifier)
+              .startOrRefresh(config.sellRateLockSeconds);
+        }
       }
     });
 
-    // Seed popular amount denomination
+    // ── Market status: detect open/close for CURRENT commodity ─────────────
+    // closed → banner + badge show (driven by isCurrentMarketClosed below)
+    // opened → banner/badge clear AND timer restarts with a fresh rate lock
+    ref.listen<AsyncValue<Map<String, bool>>>(marketStatusProvider,
+        (prev, next) {
+      next.whenData((statusMap) {
+        final currId = type == CommodityType.gold ? '1' : '3';
+        final wasOpen = prev?.valueOrNull?[currId] != false; // null = open
+        final isNowOpen = statusMap[currId] != false; // null = open
+
+        if (!wasOpen && isNowOpen && mounted) {
+          // Transition: closed → open. Restart timer so LIVE countdown
+          // reappears and the new live rate gets locked.
+          ref.read(sellRateTimerProvider.notifier).clear();
+          final config = ref.read(savingConfigProvider).valueOrNull;
+          if (config != null) {
+            ref
+                .read(sellRateTimerProvider.notifier)
+                .startOrRefresh(config.sellRateLockSeconds);
+          }
+        }
+      });
+    });
+
+    // ── Race-condition guard: market-reopen vs first rate frame ─────────
+    // `5|...|1` (market open) fires before `3|...` (rate update) arrives.
+    // The market-open listener calls startOrRefresh with the current (still-0)
+    // rate. Fix: when the first non-zero rate comes in and the timer is
+    // locked on 0, restart immediately to capture the correct live rate.
+    ref.listen<AsyncValue<MarketRates>>(marketRatesStreamProvider, (prev, next) {
+      next.whenData((rates) {
+        if (!mounted) return;
+        final currId = type == CommodityType.gold ? '1' : '3';
+        final isMarketOpen =
+            (ref.read(marketStatusProvider).valueOrNull ?? {})[currId] != false;
+        if (!isMarketOpen) return;
+        final liveRate = type == CommodityType.gold ? rates.goldSell : rates.silverSell;
+        if (liveRate <= 0) return;
+        final tState = ref.read(sellRateTimerProvider);
+        final lockedRate = type == CommodityType.gold
+            ? (tState.lockedRates?.goldSell ?? 0.0)
+            : (tState.lockedRates?.silverSell ?? 0.0);
+        if (tState.isActive && lockedRate <= 0) {
+          // Timer was started with a 0 rate — lock the freshly arrived rate.
+          final config = ref.read(savingConfigProvider).valueOrNull;
+          if (config != null) {
+            ref
+                .read(sellRateTimerProvider.notifier)
+                .startOrRefresh(config.sellRateLockSeconds);
+          }
+        }
+      });
+    });
+
     ref.listen<AsyncValue<List<AmountDenomination>>>(
         amountDenominationsProvider, (prev, next) {
       if (next.hasValue && next.value != null && _isAmountMode) {
@@ -145,7 +232,18 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
       }
     });
 
-    final marketState = timerState.isActive
+    // \u2500\u2500 Per-commodity market status (from socket) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    // '1' = Gold 24K, '3' = Silver (socket commodity IDs).
+    // Commodity absent from map = no signal yet = assume open.
+    final marketStatusMap =
+        ref.watch(marketStatusProvider).valueOrNull ?? const {};
+    final commodityId = type == CommodityType.gold ? '1' : '3';
+    final isCurrentMarketClosed = marketStatusMap[commodityId] == false;
+
+    // When market is closed for this commodity, always use the live socket rate
+    // (which the socket service already zeroed to 0.00 on closure).
+    // Only show the timer-locked rate when the market is OPEN and timer is active.
+    final marketState = (!isCurrentMarketClosed && timerState.isActive)
         ? AsyncData(timerState.lockedRates!)
         : ref.watch(marketRatesStreamProvider);
 
@@ -153,7 +251,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // ── Gradient Header ────────────────────────────────────────────
+          // \u2500\u2500 Gradient Header \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
           GradientHeader(
             title: ref.tr('Instant Saving'),
             onBack: () {
@@ -166,25 +264,58 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
             },
           ),
 
-          // ── Scrollable body (cream background) ────────────────────────────
+          // \u2500\u2500 Market Closed Amber Banner \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+          // Slides in/out smoothly; no popup — stays inline with the page.
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: isCurrentMarketClosed
+                ? Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 20.w, vertical: 10.h),
+                    color: const Color(0xFFFEF3C7),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            color: const Color(0xFFB45309), size: 16.sp),
+                        SizedBox(width: 8.w),
+                        Expanded(
+                          child: Text(
+                            '${type == CommodityType.gold ? 'Gold' : 'Silver'} market is closed. Rates resume when market opens.',
+                            style: GoogleFonts.lora(
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF92400E),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+
+          // \u2500\u2500 Scrollable body \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
           Expanded(
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(height: 20.h),
+                  SizedBox(height: 12.h),
                   // Live rate — on light background per Figma
-                  _buildLiveRateChip(isDark, type, marketState, timerState),
-                  SizedBox(height: 20.h),
+                  _buildLiveRateChip(
+                      isDark, type, marketState, timerState,
+                      isCurrentMarketClosed),
+                  SizedBox(height: 12.h),
                   _buildCommodityTabs(isDark, type),
-                  SizedBox(height: 16.h),
+                  SizedBox(height: 10.h),
                   _buildAmountInputCard(isDark, type, marketState, configAsync,
                       amountDenoms, weightDenoms),
-                  SizedBox(height: 16.h),
+                  SizedBox(height: 10.h),
                   _buildTotalAmountCard(isDark, marketState, type, configAsync),
-                  SizedBox(height: 24.h),
-                  _buildSecurityPill(isDark),
-                  SizedBox(height: 100.h),
+                  SizedBox(height: 16.h),
                 ],
               ),
             ),
@@ -197,7 +328,8 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
   }
 
   Widget _buildLiveRateChip(bool isDark, CommodityType type,
-      AsyncValue<MarketRates> market, TimerState timerState) {
+      AsyncValue<MarketRates> market, TimerState timerState,
+      bool isCurrentMarketClosed) {
     return market.when(
       data: (rates) {
         final price =
@@ -209,7 +341,9 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  // Left: label + metal badge
                   Row(
                     children: [
                       Text(
@@ -243,28 +377,90 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                       ),
                     ],
                   ),
-                  if (timerState.isActive)
-                    Text(
-                      'Valid for : ${timerState.remainingSeconds ~/ 60}:${(timerState.remainingSeconds % 60).toString().padLeft(2, '0')}',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w500,
+
+                  // Right: countdown OR market-closed badge.
+                  // ONLY use isCurrentMarketClosed (per-commodity from socket).
+                  // timerState.isMarketClosed is global — using it caused Silver
+                  // to wrongly show "Market Closed" when only Gold was closed.
+                  if (isCurrentMarketClosed)
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 10.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(20.r),
+                        border: Border.all(
+                            color: const Color(0xFFD97706).withOpacity(0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.store_mall_directory_outlined,
+                              size: 12.sp,
+                              color: const Color(0xFFD97706)),
+                          SizedBox(width: 4.w),
+                          Text(
+                            'Market Closed',
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              color: const Color(0xFFD97706),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (timerState.isActive)
+                    Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF064E3B).withOpacity(0.07),
+                        borderRadius: BorderRadius.circular(20.r),
+                        border: Border.all(
+                            color: const Color(0xFF064E3B).withOpacity(0.15)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.timer_outlined,
+                              size: 12.sp, color: const Color(0xFF064E3B)),
+                          SizedBox(width: 4.w),
+                          // Fixed-width text box so mm:ss digit changes
+                          // don't shift the left side of the row
+                          SizedBox(
+                            width: 38.w,
+                            child: Text(
+                              '${timerState.remainingSeconds ~/ 60}:${(timerState.remainingSeconds % 60).toString().padLeft(2, '0')}',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                color: const Color(0xFF064E3B),
+                                fontWeight: FontWeight.w600,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                 ],
               ),
               SizedBox(height: 8.h),
+              // Rate row — stable, no FittedBox
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    '₹ ${price.toStringAsFixed(2)}/gm',
+                    '₹${price.toStringAsFixed(2)}/gm',
                     style: TextStyle(
                       fontSize: 20.sp,
                       fontWeight: FontWeight.w700,
                       color: Colors.black,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                   SizedBox(width: 8.w),
@@ -283,7 +479,13 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
         );
       },
       loading: () => const SizedBox(height: 50),
-      error: (_, __) => const SizedBox(),
+      error: (err, __) => Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
+        child: Text(
+          err.toString().replaceAll('Exception: ', ''),
+          style: TextStyle(fontSize: 14.sp, color: Colors.redAccent),
+        ),
+      ),
     );
   }
 
@@ -329,24 +531,44 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
 
   Widget _buildTabItem(
       String label, bool isActive, bool isDark, VoidCallback onTap) {
+    final isGold = label == 'Gold';
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(vertical: 12.h),
+        padding: EdgeInsets.symmetric(vertical: 10.h),
         decoration: BoxDecoration(
           gradient: isActive
-              ? const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [Color(0xFF1B882C), Color(0xFF003716)],
+              ? LinearGradient(
+                  begin: const Alignment(-0.87, -0.5),
+                  end: const Alignment(0.87, 0.5),
+                  colors: isGold
+                      ? const [
+                          Color(0xFFEF9B00),
+                          Color(0xFFF5AC03),
+                          Color(0xFFF9D522),
+                          Color(0xFFF8C30D),
+                          Color(0xFFF5A702),
+                          Color(0xFFE78400),
+                        ]
+                      : const [
+                          Color(0xFFABABAB),
+                          Color(0xFFC2C3C5),
+                          Color(0xFFDFDFDF),
+                          Color(0xFFEEEEEE),
+                          Color(0xFFDEDDDD),
+                          Color(0xFFBDBDBD),
+                          Color(0xFFAFB1AE),
+                        ],
                 )
               : null,
-          borderRadius: BorderRadius.circular(100.r),
+          borderRadius: BorderRadius.circular(50.r),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                    color: const Color(0xFF1B882C).withOpacity(0.35),
+                    color: isGold
+                        ? const Color(0xFFEF9B00).withOpacity(0.35)
+                        : const Color(0xFFBDBDBD).withOpacity(0.35),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )
@@ -360,7 +582,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
               fontSize: 14.sp,
               fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
               color: isActive
-                  ? Colors.white
+                  ? (isGold ? const Color(0xFF5C3300) : const Color(0xFF3D3D3D))
                   : (isDark ? Colors.white60 : const Color(0xFF064E3B)),
             ),
           ),
@@ -427,10 +649,31 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
       }
     }
 
+    // ── Inline validation ──
+    final config = configAsync.valueOrNull;
+    String? errorMsg;
+    if (inputVal > 0 && config != null) {
+      double comparable = inputVal;
+      if (!_isAmountMode && market.hasValue) {
+        final rate = type == CommodityType.gold
+            ? market.value.goldSell
+            : market.value.silverSell;
+        comparable = inputVal * rate;
+      }
+      if (comparable < config.minAmount) {
+        errorMsg =
+            'Minimum investment amount is ₹${config.minAmount.toStringAsFixed(0)}';
+      } else if (comparable > config.maxAmount) {
+        errorMsg =
+            'Maximum investment amount is ₹${config.maxAmount.toStringAsFixed(0)}';
+      }
+    }
+    final bool hasError = errorMsg != null;
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 24.w),
       child: Container(
-        padding: EdgeInsets.all(24.w),
+        padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20.r),
@@ -439,12 +682,12 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Select invest type ──
-            Text('Select invest type',
+            Text('Select Invest Type',
                 style: TextStyle(
                     fontSize: 12.sp,
                     color: Colors.black45,
                     fontWeight: FontWeight.w600)),
-            SizedBox(height: 16.h),
+            SizedBox(height: 10.h),
             Row(
               children: [
                 Expanded(
@@ -492,23 +735,28 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
               ],
             ),
 
-            SizedBox(height: 16.h),
+            SizedBox(height: 10.h),
             Divider(height: 1, color: Colors.black.withOpacity(0.05)),
-            SizedBox(height: 12.h),
+            SizedBox(height: 8.h),
 
             // ── Enter your saving amount ──
-            Text('Enter your saving amount',
+            Text('Enter Your Saving Amount',
                 style: TextStyle(
                     fontSize: 12.sp,
                     color: Colors.black45,
                     fontWeight: FontWeight.w600)),
-            SizedBox(height: 8.h),
+            SizedBox(height: 6.h),
             Container(
               padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
               decoration: BoxDecoration(
                 color: const Color(0xFFF9FAFB),
                 borderRadius: BorderRadius.circular(16.r),
-                border: Border.all(color: Colors.black.withOpacity(0.05)),
+                border: Border.all(
+                  color: hasError
+                      ? const Color(0xFFE53935).withOpacity(0.5)
+                      : Colors.black.withOpacity(0.05),
+                  width: hasError ? 1.5 : 1,
+                ),
               ),
               child: Row(
                 children: [
@@ -558,7 +806,36 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                 ],
               ),
             ),
-            SizedBox(height: 12.h),
+            if (hasError) ...[
+              SizedBox(height: 6.h),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 7.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE53935).withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(10.r),
+                  border: Border.all(
+                      color: const Color(0xFFE53935).withOpacity(0.18)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded,
+                        size: 14.sp, color: const Color(0xFFE53935)),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: Text(
+                        errorMsg!,
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFE53935),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            SizedBox(height: 8.h),
             _isAmountMode
                 ? amountDenoms.maybeWhen(
                     data: (list) => _buildDenominationsRow(list),
@@ -595,7 +872,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
               : '${val % 1 == 0 ? val.toInt() : val}g';
 
           return Padding(
-            padding: EdgeInsets.only(right: 12.w, top: 20.h),
+            padding: EdgeInsets.only(right: 12.w, top: 12.h),
             child: Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.topCenter,
@@ -735,7 +1012,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                                 fontSize: 16.sp,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.black)),
-                        Text('Incl.taxes',
+                        Text('Incl. Taxes',
                             style: TextStyle(
                                 fontSize: 13.sp,
                                 color: Colors.black38,
@@ -813,36 +1090,25 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     );
   }
 
-  Widget _buildSecurityPill(bool isDark) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 24.w),
-      child: Container(
-        padding: EdgeInsets.all(24.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
+/*   Widget _buildSecurityPill(bool isDark) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.shield_outlined,
+            color: const Color(0xFF91411D), size: 16.sp),
+        SizedBox(width: 8.w),
+        Text(
+          '100% Secure Transaction & Bank Grade Storage',
+          style: TextStyle(
+            fontSize: 12.sp,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF91411D).withOpacity(0.75),
+          ),
         ),
-        child: Row(
-          children: [
-            Icon(Icons.shield_outlined,
-                color: const Color(0xFF91411D), size: 24.sp),
-            SizedBox(width: 16.w),
-            Expanded(
-              child: Text(
-                '100% Secure Transaction & Bank Grade Storage',
-                style: TextStyle(
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF91411D).withOpacity(0.8),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
-
+ */
   Widget _buildBottomAction(bool isDark, AsyncValue<dynamic> market,
       CommodityType type, AsyncValue<SavingConfig> configAsync) {
     final config = configAsync.valueOrNull;
@@ -865,35 +1131,71 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     return SafeArea(
       top: false,
       child: Container(
-        padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 16.h),
+        padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 16.h),
         decoration: const BoxDecoration(color: Colors.transparent),
-        child: CustomButton(
-          text: 'Confirm Order',
-          isLoading: _isProcessing,
-          loadingText: 'Processing...',
-          onPressed: (isInvalid || _isProcessing)
-              ? null
-              : () => _handleConfirmOrder(market, type, totalPayable, config),
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: isInvalid
-                ? [
-                    const Color(0xFF1B882C).withOpacity(0.45),
-                    const Color(0xFF003716).withOpacity(0.45),
-                  ]
-                : const [Color(0xFF1B882C), Color(0xFF003716)],
-          ),
-          boxShadow: isInvalid
-              ? []
-              : [
-                  BoxShadow(
-                    color: const Color(0xFF1B882C).withOpacity(0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Amber info note — above Confirm Order
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(14.r),
+                border: Border.all(
+                  color: const Color(0xFFF59E0B).withOpacity(0.35),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(Icons.lightbulb_outline_rounded,
+                      size: 16.sp, color: const Color(0xFFD97706)),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: Text(
+                      '100% Secure Transaction & Bank Grade Storage',
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: const Color(0xFF92400E),
+                        height: 1.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
                 ],
-          textColor: Colors.white,
+              ),
+            ),
+            SizedBox(height: 10.h),
+            CustomButton(
+              text: 'Confirm Order',
+              isLoading: _isProcessing,
+              loadingText: 'Processing...',
+              onPressed: (isInvalid || _isProcessing)
+                  ? null
+                  : () => _handleConfirmOrder(market, type, totalPayable, config),
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: isInvalid
+                    ? [
+                        const Color(0xFF1B882C).withOpacity(0.45),
+                        const Color(0xFF003716).withOpacity(0.45),
+                      ]
+                    : const [Color(0xFF1B882C), Color(0xFF003716)],
+              ),
+              boxShadow: isInvalid
+                  ? []
+                  : [
+                      BoxShadow(
+                        color: const Color(0xFF1B882C).withOpacity(0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+              textColor: Colors.white,
+            ),
+          ],
         ),
       ),
     );
@@ -958,7 +1260,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
           'rate': rate,
         });
       } else if (eligibility.nextStep == 'UPI_LIST') {
-        Navigator.pushNamed(context, '/upi-list', arguments: {
+        Navigator.pushNamed(context, AppRouter.upiSelection, arguments: {
           'amount': totalPayable,
           'metal_id': metalId,
           'rate': rate,
@@ -973,8 +1275,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        AppToast.show(
-            context, 'Something went wrong. Please try again later.',
+        AppToast.show(context, 'Something went wrong. Please try again later.',
             type: ToastType.error);
       }
     }

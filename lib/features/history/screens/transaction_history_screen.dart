@@ -1,19 +1,72 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../../routes/app_router.dart';
 import '../../main/main_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controller/history_controller.dart';
 import '../models/history_models.dart';
+import '../models/transaction_filter.dart';
 import '../../../shared/widgets/gradient_header.dart';
+import './transaction_filter_sheet.dart';
 
-class TransactionHistoryScreen extends ConsumerWidget {
+class TransactionHistoryScreen extends ConsumerStatefulWidget {
   const TransactionHistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final historyState = ref.watch(historyProvider);
+  ConsumerState<TransactionHistoryScreen> createState() =>
+      _TransactionHistoryScreenState();
+}
+
+class _TransactionHistoryScreenState
+    extends ConsumerState<TransactionHistoryScreen> {
+  // Filter state — persists across rebuilds
+  TransactionFilter _filter = TransactionFilter.empty;
+
+  // ── Colors ────────────────────────────────────────────────────────
+  static const _green = Color(0xFF1B882C);
+  static const _darkGreen = Color(0xFF003716);
+
+  // ── Open filter sheet ─────────────────────────────────────────────
+  Future<void> _openFilterSheet(HistoryResponse history) async {
+    final result = await showTransactionFilterSheet(
+      context: context,
+      current: _filter,
+      metalOptions: TransactionFilter.metalOptions(history),
+      typeOptions: TransactionFilter.typeOptions(history),
+      statusOptions: TransactionFilter.statusOptions(history),
+    );
+    if (result != null && mounted) {
+      setState(() => _filter = result);
+    }
+  }
+
+  // ── Remove individual chip ────────────────────────────────────────
+  void _removeChip(String chipType) {
+    setState(() {
+      switch (chipType) {
+        case 'date':
+          _filter = _filter.copyWith(clearDates: true);
+          break;
+        case 'metal':
+          _filter = _filter.copyWith(clearMetal: true);
+          break;
+        case 'type':
+          _filter = _filter.copyWith(clearType: true);
+          break;
+        case 'status':
+          _filter = _filter.copyWith(clearStatus: true);
+          break;
+      }
+    });
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    final historyAsync = ref.watch(historyProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -21,7 +74,7 @@ class TransactionHistoryScreen extends ConsumerWidget {
       body: Column(
         children: [
           GradientHeader(
-            title: 'Transactions',
+            title: 'Transaction History',
             onBack: () {
               final routeName = ModalRoute.of(context)?.settings.name;
               if (routeName == AppRouter.transactionHistory) {
@@ -30,12 +83,17 @@ class TransactionHistoryScreen extends ConsumerWidget {
                 ref.read(selectedTabProvider.notifier).state = 0;
               }
             },
+            trailing: historyAsync.when(
+              data: (history) => _buildFilterButton(history, isDark),
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
           ),
           Expanded(
-            child: historyState.when(
-              data: (history) => _buildContent(context, history, isDark),
+            child: historyAsync.when(
+              data: (history) => _buildBody(context, history, isDark),
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Center(child: Text('Error: $err')),
+              error: (err, _) => Center(child: Text('Error: $err')),
             ),
           ),
         ],
@@ -43,40 +101,265 @@ class TransactionHistoryScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(
-      BuildContext context, HistoryResponse history, bool isDark) {
-    final grouped = history.groupedTransactions;
-    if (grouped.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  // ── Header filter button ─────────────────────────────────────────
+  Widget _buildFilterButton(HistoryResponse history, bool isDark) {
+    final count = _filter.activeCount;
+    return GestureDetector(
+      onTap: () => _openFilterSheet(history),
+      child: Container(
+        margin: EdgeInsets.only(right: 16.w),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 7.h),
+        decoration: BoxDecoration(
+          color: count > 0
+              ? Colors.white.withOpacity(0.25)
+              : Colors.white.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(20.r),
+          border: Border.all(
+            color: Colors.white.withOpacity(count > 0 ? 0.5 : 0.2),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.history_rounded, size: 64.sp, color: Colors.grey),
-            SizedBox(height: 16.h),
-            Text('No transactions yet.',
-                style: TextStyle(color: Colors.grey, fontSize: 16.sp)),
+            Icon(Icons.tune_rounded, size: 15.sp, color: Colors.white),
+            SizedBox(width: 5.w),
+            Text(
+              count > 0 ? 'Filter ($count)' : 'Filter',
+              style: GoogleFonts.lora(
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  // ── Body ──────────────────────────────────────────────────────────
+  Widget _buildBody(
+      BuildContext context, HistoryResponse history, bool isDark) {
+    final filtered = _filter.applyTo(history);
 
     return Column(
       children: [
+        // ── Active filter chips row ──────────────────────────────
+        if (!_filter.isEmpty) _buildActiveChipsRow(isDark),
+
+        // ── Transactions list ────────────────────────────────────
         Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.only(top: 16.h, bottom: 40.h),
-            itemCount: grouped.keys.length,
-            itemBuilder: (context, index) {
-              String dateKey = grouped.keys.elementAt(index);
-              List<TransactionItem> items = grouped[dateKey]!;
-              return _buildDateGroup(context, dateKey, items, isDark);
-            },
-          ),
-        )
+          child: filtered.isEmpty
+              ? _buildEmptyState(isDark)
+              : _buildList(context, filtered, history.transactions.length, isDark),
+        ),
       ],
     );
   }
 
+  // ── Active chips row ──────────────────────────────────────────────
+  Widget _buildActiveChipsRow(bool isDark) {
+    final chips = <Widget>[];
+
+    // Date chip
+    if (_filter.fromDate != null || _filter.toDate != null) {
+      final fmt = DateFormat('dd MMM');
+      String label = '';
+      if (_filter.fromDate != null && _filter.toDate != null) {
+        label =
+            '${fmt.format(_filter.fromDate!)} – ${fmt.format(_filter.toDate!)}';
+      } else if (_filter.fromDate != null) {
+        label = 'From ${fmt.format(_filter.fromDate!)}';
+      } else {
+        label = 'Until ${fmt.format(_filter.toDate!)}';
+      }
+      chips.add(_buildActiveChip(
+        label: label,
+        icon: Icons.calendar_today_rounded,
+        color: const Color(0xFF7C3AED),
+        onRemove: () => _removeChip('date'),
+      ));
+    }
+
+    // Metal chip
+    if (_filter.metalName != null && _filter.metalName!.isNotEmpty) {
+      chips.add(_buildActiveChip(
+        label: _filter.metalName!,
+        icon: Icons.auto_awesome_rounded,
+        color: const Color(0xFFD97706),
+        onRemove: () => _removeChip('metal'),
+      ));
+    }
+
+    // Type chip
+    if (_filter.type != null && _filter.type!.isNotEmpty) {
+      chips.add(_buildActiveChip(
+        label: _capitalise(_filter.type!),
+        icon: Icons.swap_horiz_rounded,
+        color: _green,
+        onRemove: () => _removeChip('type'),
+      ));
+    }
+
+    // Status chip
+    if (_filter.status != null && _filter.status!.isNotEmpty) {
+      chips.add(_buildActiveChip(
+        label: _capitalise(_filter.status!),
+        icon: Icons.verified_rounded,
+        color: _statusColor(_filter.status!),
+        onRemove: () => _removeChip('status'),
+      ));
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 4.h),
+      child: Row(
+        children: [
+          // Count badge
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+            decoration: BoxDecoration(
+              color: _green.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20.r),
+            ),
+            child: Text(
+              '${_filter.activeCount} Filter${_filter.activeCount > 1 ? 's' : ''}',
+              style: GoogleFonts.lora(
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w700,
+                color: _green,
+              ),
+            ),
+          ),
+          SizedBox(width: 8.w),
+          ...chips.map((c) => Padding(
+                padding: EdgeInsets.only(right: 6.w),
+                child: c,
+              )),
+          // Clear all
+          GestureDetector(
+            onTap: () => setState(() => _filter = TransactionFilter.empty),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20.r),
+                border: Border.all(
+                    color: const Color(0xFFDC2626).withOpacity(0.2)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.close_rounded,
+                      size: 12.sp, color: const Color(0xFFDC2626)),
+                  SizedBox(width: 4.w),
+                  Text(
+                    'Clear All',
+                    style: GoogleFonts.lora(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFDC2626),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveChip({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onRemove,
+  }) {
+    return Material(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(20.r),
+      child: InkWell(
+        // Tapping the chip label area does nothing (only ✕ removes)
+        onTap: null,
+        borderRadius: BorderRadius.circular(20.r),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20.r),
+            border: Border.all(color: color.withOpacity(0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Label area
+              Padding(
+                padding: EdgeInsets.only(
+                    left: 10.w, top: 6.h, bottom: 6.h),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 12.sp, color: color),
+                    SizedBox(width: 5.w),
+                    Text(
+                      label,
+                      style: GoogleFonts.lora(
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // ✕ remove area — dedicated InkWell with generous tap zone
+              InkWell(
+                onTap: onRemove,
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(20.r),
+                  bottomRight: Radius.circular(20.r),
+                ),
+                child: SizedBox(
+                  width: 28.w,
+                  height: 30.h,
+                  child: Center(
+                    child: Container(
+                      padding: EdgeInsets.all(3.r),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.18),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 11.sp,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Transaction list ──────────────────────────────────────────────
+  Widget _buildList(BuildContext context,
+      Map<String, List<TransactionItem>> filtered, int total, bool isDark) {
+    return ListView.builder(
+      padding: EdgeInsets.only(top: 4.h, bottom: 40.h),
+      itemCount: filtered.keys.length,
+      itemBuilder: (context, index) {
+        final dateKey = filtered.keys.elementAt(index);
+        final items = filtered[dateKey]!;
+        return _buildDateGroup(context, dateKey, items, isDark);
+      },
+    );
+  }
+
+  // ── Date group ────────────────────────────────────────────────────
   Widget _buildDateGroup(BuildContext context, String date,
       List<TransactionItem> transactions, bool isDark) {
     return Column(
@@ -84,15 +367,47 @@ class TransactionHistoryScreen extends ConsumerWidget {
       children: [
         Padding(
           padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 8.h),
-          child: Text(
-            date,
-            style: GoogleFonts.lora(
-              fontSize: 16.sp,
-              fontWeight: FontWeight.w700,
-              color: isDark
-                  ? Colors.white.withOpacity(0.9)
-                  : const Color(0xFF475569),
-            ),
+          child: Row(
+            children: [
+              Container(
+                width: 6.w,
+                height: 6.w,
+                decoration: BoxDecoration(
+                  color: _green.withOpacity(0.6),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Text(
+                date,
+                style: GoogleFonts.lora(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.7)
+                      : const Color(0xFF475569),
+                  letterSpacing: 0.3,
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Container(
+                  height: 1,
+                  color: isDark
+                      ? Colors.white10
+                      : const Color(0xFFE2E8F0),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Text(
+                '${transactions.length} ${transactions.length == 1 ? 'txn' : 'txns'}',
+                style: GoogleFonts.lora(
+                  fontSize: 10.sp,
+                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
         ...transactions
@@ -102,17 +417,27 @@ class TransactionHistoryScreen extends ConsumerWidget {
     );
   }
 
+  // ── Transaction card ──────────────────────────────────────────────
   Widget _buildTransactionCard(
       BuildContext context, TransactionItem tx, bool isDark) {
-    bool isSaving = tx.type == 'purchase';
+    final isSaving = tx.type == 'purchase';
+    final isReferral = tx.type == 'referral';
     final cardColor = isDark ? Colors.white.withOpacity(0.04) : Colors.white;
     final borderColor =
         isDark ? Colors.white10 : Colors.black.withOpacity(0.05);
     final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
-    final mutedTextColor = isDark ? Colors.white54 : const Color(0xFF64748B);
+    final mutedColor = isDark ? Colors.white54 : const Color(0xFF64748B);
+
+    final typeLabel = isSaving
+        ? 'Instant Saving'
+        : isReferral
+            ? 'Referral Reward'
+            : 'Withdrawal';
+
+    final statusColor = _statusColor(tx.status);
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
+      margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 5.h),
       child: TextButton(
         style: TextButton.styleFrom(
           padding: EdgeInsets.all(16.w),
@@ -132,49 +457,69 @@ class TransactionHistoryScreen extends ConsumerWidget {
         child: Row(
           children: [
             // Icon
-            Container(
+            SvgPicture.asset(
+              _getTransactionIcon(tx.type, tx.metalName),
               width: 44.w,
               height: 44.w,
-              decoration: BoxDecoration(
-                color: isSaving
-                    ? const Color(0xFF023214).withOpacity(0.1)
-                    : const Color(0xFF4ADE80).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12.r),
-              ),
-              child: Center(
-                child: isSaving
-                    ? Icon(Icons.flash_on_rounded,
-                        color: const Color(0xFFD97706), size: 24.sp)
-                    : Icon(Icons.account_balance_wallet_rounded,
-                        color: const Color(0xFF023214), size: 22.sp),
-              ),
             ),
             SizedBox(width: 14.w),
-            // Middle Column
+            // Left info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tx.title,
+                    tx.metalName,
                     style: GoogleFonts.lora(
                       fontSize: 15.sp,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: textColor,
                     ),
                   ),
-                  SizedBox(height: 4.h),
+                  SizedBox(height: 3.h),
+                  Text(
+                    typeLabel,
+                    style: GoogleFonts.lora(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w500,
+                      color: isSaving
+                          ? const Color(0xFF1B882C)   // green — Instant Saving
+                          : isReferral
+                              ? const Color(0xFF7C3AED) // purple — Referral
+                              : const Color(0xFFDC2626), // red — Withdrawal
+                    ),
+                  ),
+                  SizedBox(height: 5.h),
                   Row(
                     children: [
-                      Icon(Icons.check_circle,
-                          color: const Color(0xFF10B981), size: 14.sp),
+                      // Status dot + label
+                      Container(
+                        width: 6.r,
+                        height: 6.r,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                       SizedBox(width: 4.w),
                       Text(
-                        tx.displayDate,
+                        _capitalise(tx.status),
                         style: GoogleFonts.lora(
-                          fontSize: 12.sp,
-                          color: mutedTextColor,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 10.sp,
+                          fontWeight: FontWeight.w600,
+                          color: statusColor,
+                        ),
+                      ),
+                      SizedBox(width: 8.w),
+                      Flexible(
+                        child: Text(
+                          tx.displayDate,
+                          style: GoogleFonts.lora(
+                            fontSize: 10.sp,
+                            color: mutedColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -182,7 +527,7 @@ class TransactionHistoryScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            // Right Column
+            // Right: amount + weight
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -196,18 +541,128 @@ class TransactionHistoryScreen extends ConsumerWidget {
                 ),
                 SizedBox(height: 4.h),
                 Text(
-                  '${tx.weightGrams} g ${tx.metalName}',
+                  '${tx.weightGrams} g',
                   style: GoogleFonts.lora(
                     fontSize: 12.sp,
-                    color: mutedTextColor,
+                    color: mutedColor,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
-            )
+            ),
           ],
         ),
       ),
     );
+  }
+
+  // ── Empty state ───────────────────────────────────────────────────
+  Widget _buildEmptyState(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: EdgeInsets.all(24.r),
+            decoration: BoxDecoration(
+              color: _green.withOpacity(0.07),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.filter_list_off_rounded,
+              size: 48.sp,
+              color: _green.withOpacity(0.45),
+            ),
+          ),
+          SizedBox(height: 20.h),
+          Text(
+            'No Transactions Found',
+            style: GoogleFonts.lora(
+              fontSize: 17.sp,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white70 : const Color(0xFF334155),
+            ),
+          ),
+          SizedBox(height: 6.h),
+          Text(
+            'Try adjusting or clearing your filters',
+            style: GoogleFonts.lora(
+              fontSize: 13.sp,
+              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+            ),
+          ),
+          SizedBox(height: 20.h),
+          GestureDetector(
+            onTap: () => setState(() => _filter = TransactionFilter.empty),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [_green, _darkGreen],
+                ),
+                borderRadius: BorderRadius.circular(20.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: _green.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.restart_alt_rounded,
+                      size: 16.sp, color: Colors.white),
+                  SizedBox(width: 8.w),
+                  Text(
+                    'Clear Filters',
+                    style: GoogleFonts.lora(
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────
+  String _capitalise(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+  Color _statusColor(String raw) {
+    switch (raw.toLowerCase()) {
+      case 'success':
+        return const Color(0xFF10B981);
+      case 'pending':
+        return const Color(0xFFF59E0B);
+      case 'cancelled':
+      case 'failed':
+        return const Color(0xFFDC2626);
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  String _getTransactionIcon(String type, String metalName) {
+    final isGold = metalName.toLowerCase().contains('gold');
+    switch (type) {
+      case 'purchase':
+        return isGold
+            ? 'assets/withdraw/inst_gold.svg'
+            : 'assets/withdraw/inst_silver.svg';
+      case 'referral':
+        return 'assets/withdraw/trans_referal.svg';
+      default:
+        return isGold
+            ? 'assets/withdraw/with_gold.svg'
+            : 'assets/withdraw/with_silver.svg';
+    }
   }
 }

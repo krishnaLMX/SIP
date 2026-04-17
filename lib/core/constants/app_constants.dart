@@ -1,4 +1,4 @@
-﻿class AppConstants {
+class AppConstants {
   static const String companyName = 'startGOLD';
   static const String appName = 'startGOLD';
 
@@ -13,14 +13,25 @@
       'We have dispatched a security code to protect your digital vault.';
 
   // MPIN Screen Content
-  static const String mpinTitle = 'SECURE YOUR VAULT';
+  // Default (app unlock / login)
+  static const String mpinTitle = 'Quick Login With MPIN';
   static const String mpinSubtitle =
-      'Create a secure 4-digit signature to authorize your gold transactions.';
+      'Use your MPIN for fast and secure access to your account';
+
+  // MPIN — Withdrawal context
+  static const String mpinWithdrawalTitle = 'Authorized Withdrawal';
+  static const String mpinWithdrawalSubtitle =
+      'Confirm this withdrawal quickly and securely using your MPIN.';
+
+  // MPIN — Biometric setup context
+  static const String mpinBiometricTitle = 'Secure Biometric Setup';
+  static const String mpinBiometricSubtitle =
+      'Verify using your MPIN to enable biometric login with secure access';
 
   // Home Screen Content
   static const String homeWelcomeSubtitle = 'Ready to grow your wealth today?';
   static const String welcome = 'Welcome';
-  static const String portfolioTitle = 'TOTAL PORTFOLIO';
+  static const String portfolioTitle = 'Total Portfolio';
   static const String portfolioInvested = 'Total Invested';
   static const String portfolioValue = 'Current Value';
   static const String portfolioReturns = 'Total Returns';

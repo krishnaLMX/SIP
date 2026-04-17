@@ -21,7 +21,7 @@ This document summarizes the complete set of API endpoints required for the Star
     *   API calls are blocked if no internet is detected to prevent state corruption.
     *   Standardized errors: `Network connection lost` or `Server unavailable`.
 6.  **Socket Security:**
-    *   Endpoint: `ws://bullion_v4.logimaxindia.com/ratesocket/socket.io/`.
+    *   Endpoint: `ws://bullion_v4.logimaxindia.com/ocket/socket.io/`.
     *   **Auto-Reconnect:** Enabled for continuous market data flow.
     *   **Restricted Scope:** Socket is used EXCLUSIVELY for market rates; NO sensitive data is sent via WS.
 7.  **Device Integrity:** 
@@ -619,11 +619,17 @@ This document summarizes the complete set of API endpoints required for the Star
       "success": true,
       "message": "Referral data fetched successfully",
       "data": {
-        "referral_code": "AQWYSJ",
-        "total_referrals": 5,
-        "total_earned": 1250.00,
-        "reward_amount": "₹250",
-        "share_link": "https://startgold.com/refer/AQWYSJ"
+        "referral_code": "KSU8Y314",
+        "total_referrals": 1,
+        "total_earned": "100.00",
+        "reward_amount": "100.00",
+        "share_link": "https://startgold.com/refer/KSU8Y314",
+        "title": "Invite a friend and earn ₹100 worth of Gold.",
+        "bullet_points": [
+          { "content": "Share the link with friends, family, and relatives." },
+          { "content": "Both you and your friend get ₹100 worth of gold." },
+          { "content": "Reward is credited automatically after your friend's first purchase." }
+        ]
       }
     }
     ```
@@ -632,15 +638,56 @@ This document summarizes the complete set of API endpoints required for the Star
     |-------|------|-------------|
     | `referral_code` | String | Unique code for the customer to share |
     | `total_referrals` | Integer | Number of friends who joined using this code |
-    | `total_earned` | Double | Total reward amount earned via referrals |
-    | `reward_amount` | String | Display string for per-referral reward (e.g. "₹250") |
+    | `total_earned` | String | Total reward amount earned via referrals |
+    | `reward_amount` | String | Per-referral reward value (e.g. `"100.00"`) |
     | `share_link` | String | Deep link URL for sharing |
+    | `title` | String | **Dynamic** hero heading shown in the Refer & Earn screen header |
+    | `bullet_points` | Array | **Dynamic** list of `{ content: String }` objects rendered as bullet points |
+
+> [!IMPORTANT]
+> `title` and `bullet_points` are required for the UI to render dynamically.
+> If omitted by the server, the app falls back to composed text using `reward_amount`.
+
 
 #### 5.4.2 Claim Referral Reward
 *   **Endpoint:** `POST /referral/claim`
 *   **Description:** Claims pending referral rewards.
 *   **Authorization:** `Bearer Token`
 *   **Page:** `ReferralScreen`
+
+#### 5.4.3 Fetch Referral Reward Balance
+*   **Page Name:** `WithdrawalScreen`
+*   **Endpoint:** `POST referrals/reward-balance`
+*   **Description:** Returns the referral reward balance available for the selected metal. Called on the Withdrawal screen whenever it loads or the user switches between Gold / Silver tabs.
+*   **Authorization:** `Bearer Token`
+*   **Provider:** `rewardBalanceProvider` (auto-dispose, rebuilds on commodity change)
+*   **Request Body:**
+    ```json
+    {
+      "id_metal": "1"
+    }
+    ```
+    > `id_metal` is resolved dynamically via `selectedMetalIdProvider` (`"1"` = Gold, `"2"` = Silver).
+
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Reward balance fetched successfully",
+      "data": {
+        "reward_balance": 250.00
+      }
+    }
+    ```
+*   **Fields:**
+
+    | Field | Type | Description |
+    |-------|------|-------------|
+    | `reward_balance` | Double | Available referral reward balance for the selected metal |
+
+*   **UI Behaviour:**
+    - If `reward_balance > 0` → a green **"Referral Reward Balance — ₹XXX.XX — Available"** chip is shown inside the withdrawal input card, below the current holding row.
+    - If `reward_balance == 0` or API fails → chip is hidden silently (no error shown).
 
 ### 5.5 Session Termination
 *   `POST /auth/logout`: Invalidate session on server-side.
@@ -979,14 +1026,33 @@ This document summarizes the complete set of API endpoints required for the Star
     ```json
     {
       "success": true,
+      "message": "Contact us fetched successfully",
       "data": {
         "email": "support@startgold.com",
-        "phone": "+91 9876543210",
-        "address": "123 gold street, bullion city",
-        "working_hours": "10 AM - 7 PM"
+        "phone": "+91-9876453210",
+        "address": "477-482, Anna Salai, 1st Floor, Khivraj Complex-1, Chennai 600 035, Tamil Nadu, India",
+        "working_hours": "10 AM - 7 PM",
+        "facebook": "https://www.facebook.com/StartGoldIndia",
+        "twitter": "https://x.com/Startgoldapp",
+        "instagram": "https://www.instagram.com/start_goldapp/",
+        "website": "https://startgold.com/"
       }
     }
     ```
+*   **Fields:**
+
+    | Field | Type | Description |
+    |-------|------|-------------|
+    | `email` | String | Support email address |
+    | `phone` | String | Support phone number |
+    | `address` | String | Office / registered address |
+    | `working_hours` | String | Business hours display string |
+    | `facebook` | String? | Facebook page URL *(optional — icon hidden if absent)* |
+    | `twitter` | String? | X (Twitter) profile URL *(optional — icon hidden if absent)* |
+    | `instagram` | String? | Instagram profile URL *(optional — icon hidden if absent)* |
+    | `website` | String? | Official website URL *(optional — icon hidden if absent)* |
+
+*   **Note:** All social/link fields are **optional**. The app renders a social icon tile **only** when the field is present and non-empty in the API response. If the field is missing or empty, the icon is **not shown** — no hardcoded fallback URL is used for social/website icons.
 
 ---
 

@@ -4,7 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/app_toast.dart';
@@ -30,27 +30,15 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
     });
   }
 
-  // ── Open WhatsApp with a pre-filled message ────────────────────────────────
-  Future<void> _inviteViaWhatsApp(
-      BuildContext context, String code, String rewardAmount) async {
-    final text = Uri.encodeComponent(
-      '🌟 Join me on StartGold and earn $rewardAmount in free Digital Gold!\n\n'
-      'Use my referral code: *$code*\n\n'
-      'Download now 👇\nhttps://startgold.com/download',
-    );
-    final waUrl = Uri.parse('whatsapp://send?text=$text');
-    final waWebUrl = Uri.parse('https://wa.me/?text=$text');
-
-    if (await canLaunchUrl(waUrl)) {
-      await launchUrl(waUrl);
-    } else if (await canLaunchUrl(waWebUrl)) {
-      await launchUrl(waWebUrl, mode: LaunchMode.externalApplication);
-    } else {
-      if (context.mounted) {
-        AppToast.show(context, 'WhatsApp is not installed',
-            type: ToastType.error);
-      }
-    }
+  // ── Native system share sheet — opens all platforms ─────────────────────
+  Future<void> _shareReferral(String code, String rewardAmount) async {
+    final reward =
+        rewardAmount.startsWith('₹') ? rewardAmount : '₹$rewardAmount';
+    final text =
+        '🌟 Join me on StartGold and earn $reward in free Digital Gold!\n\n'
+        'Use my referral code: $code\n\n'
+        'Download now 👇\nhttps://startgold.com/download';
+    await Share.share(text, subject: 'Invite to StartGold');
   }
 
   @override
@@ -68,17 +56,18 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
           Expanded(
             child: referralAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => _buildBody(context, ref, ReferralData.empty),
-              data: (data) => _buildBody(context, ref, data),
+              error: (e, _) =>
+                  _buildBody(context, ref, ReferralData.empty, [], ''),
+              data: (data) => _buildBody(
+                context,
+                ref,
+                data,
+                data.bulletPoints,
+                data.rewardAmount,
+              ),
             ),
           ),
         ],
-      ),
-      // ── Fixed footer ─────────────────────────────────────────────────────
-      bottomNavigationBar: referralAsync.when(
-        loading: () => const SizedBox.shrink(),
-        error: (_, __) => _buildFooter(context, '', ''),
-        data: (data) => _buildFooter(context, data.referralCode, data.rewardAmount),
       ),
     );
   }
@@ -154,37 +143,40 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // ── Title: Lora 20sp / w600 / line-height 30 ──
-                        RichText(
-                          text: TextSpan(
-                            style: GoogleFonts.lora(
-                              fontSize: 20.sp,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                              height: 1.5,
-                            ),
-                            children: [
-                              const TextSpan(text: 'Invite a friend and earn '),
-                              TextSpan(
-                                text: rewardText,
-                                style: const TextStyle(
-                                  color: Color(0xFFFDE047),
-                                  fontWeight: FontWeight.w700,
+                        // ── Title only (bullets moved to body) ──
+                        asyncData.whenData((d) => d).value?.title.isNotEmpty ==
+                                true
+                            ? Text(
+                                asyncData.value!.title,
+                                style: GoogleFonts.lora(
+                                  fontSize: 20.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                  height: 1.5,
+                                ),
+                              )
+                            : RichText(
+                                text: TextSpan(
+                                  style: GoogleFonts.lora(
+                                    fontSize: 20.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    height: 1.5,
+                                  ),
+                                  children: [
+                                    const TextSpan(
+                                        text: 'Invite a friend and earn '),
+                                    TextSpan(
+                                      text: rewardText,
+                                      style: const TextStyle(
+                                        color: Color(0xFFFDE047),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const TextSpan(text: ' worth of Gold.'),
+                                  ],
                                 ),
                               ),
-                              const TextSpan(text: ' worth of Gold.'),
-                            ],
-                          ),
-                        ),
-
-                        SizedBox(height: 20.h),
-
-                        // ── Bullets: Lora 14sp / w500 / line-height 20 ──
-                        _buildBullet(
-                            'Share the link with friends, family, and relatives.'),
-                        SizedBox(height: 10.h),
-                        _buildBullet(
-                            'Both you and your friend get $rewardText worth of gold.'),
                       ],
                     ),
                   ),
@@ -237,196 +229,453 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
     );
   }
 
-  // ── White body: referral code + invite ────────────────────────────────────
-  Widget _buildBody(BuildContext context, WidgetRef ref, ReferralData data) {
+  // ── Premium body ─────────────────────────────────────────────────────
+  Widget _buildBody(BuildContext context, WidgetRef ref, ReferralData data,
+      [List<String> bulletPoints = const [], String rewardText = '']) {
+    final code = data.referralCode.isNotEmpty ? data.referralCode : '';
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 40.h),
+      padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 48.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Your Referral Code ───────────────────────────────────────
-          Text(
-            'Your Referral Code',
-            style: GoogleFonts.lora(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w700,
-              color: Colors.black54,
-            ),
-          ),
-          SizedBox(height: 10.h),
-          _buildInputRow(
-            value: data.referralCode.isNotEmpty ? data.referralCode : 'AQWYSJ',
-            trailing: GestureDetector(
-              onTap: () {
-                final code =
-                    data.referralCode.isNotEmpty ? data.referralCode : 'AQWYSJ';
-                Clipboard.setData(ClipboardData(text: code));
-                AppToast.show(context, 'Referral code copied!',
-                    type: ToastType.success);
-              },
-              child: Icon(Icons.copy_outlined,
-                  color: AppTheme.primaryGreen, size: 22.sp),
-            ),
-          ),
-
+          if (data.totalReferrals > 0 || data.totalEarned > 0) ...[
+            _buildStatsRow(data),
+            SizedBox(height: 20.h),
+          ],
+          _buildPremiumCodeCard(context, code, data.rewardAmount),
+          SizedBox(height: 20.h),
+          _buildBulletSection(bulletPoints, rewardText),
           SizedBox(height: 24.h),
-
-          // ── Invite via WhatsApp label ─────────────────────────────────
-          Text(
-            'Invite via WhatsApp',
-            style: GoogleFonts.lora(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w700,
-              color: Colors.black54,
-            ),
-          ),
-          SizedBox(height: 10.h),
-          _buildInputRow(
-            value: data.referralCode.isNotEmpty ? data.referralCode : 'AQWYSJ',
-            trailing: GestureDetector(
-              onTap: () => _inviteViaWhatsApp(
-                  context,
-                  data.referralCode.isNotEmpty ? data.referralCode : 'AQWYSJ',
-                  data.rewardAmount),
-              child: SvgPicture.asset(
-                'assets/withdraw/whatsapp.svg',
-                width: 36.w,
-                height: 36.w,
-              ),
-            ),
-          ),
-
-          SizedBox(height: 32.h),
-
-          // ── Stats row (hidden for now) ──────────────────────────────────
-          // if (data.totalReferrals > 0 || data.totalEarned > 0) ...[
-          //   Row(
-          //     children: [
-          //       _buildStatCard('${data.totalReferrals}', 'Friends Referred'),
-          //       SizedBox(width: 16.w),
-          //       _buildStatCard(
-          //           '₹${data.totalEarned.toStringAsFixed(0)}', 'Total Earned'),
-          //     ],
-          //   ),
-          // ],
+          _buildHowItWorks(),
         ],
       ),
     );
   }
 
-  // ── Fixed bottom footer with Invite Friends button ──────────────────────
-  Widget _buildFooter(BuildContext context, String code, String rewardAmount) {
-    final effectiveCode = code.isNotEmpty ? code : 'AQWYSJ';
-    final effectiveReward = rewardAmount;
-    return SafeArea(
-      top: false,
+  // ── Bullet points card ──────────────────────────────────────────────
+  Widget _buildBulletSection(List<String> bullets, String rewardText) {
+    final effectiveBullets = bullets.isNotEmpty
+        ? bullets
+        : [
+            'Share the link with friends, family, and relatives.',
+            'Both you and your friend get ${rewardText.isNotEmpty ? (rewardText.startsWith('\u20b9') ? rewardText : '\u20b9$rewardText') : 'a reward'} worth of gold.',
+            'Reward is credited after your friend\'s first purchase.',
+          ];
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 18.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Why Refer?',
+            style: GoogleFonts.lora(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF1B882C),
+              letterSpacing: 0.5,
+            ),
+          ),
+          SizedBox(height: 12.h),
+          ...effectiveBullets.asMap().entries.map((entry) {
+            return Padding(
+              padding: EdgeInsets.only(
+                  bottom: entry.key < effectiveBullets.length - 1 ? 12.h : 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 7.r,
+                    height: 7.r,
+                    margin: EdgeInsets.only(top: 5.h, right: 10.w),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF1B882C), Color(0xFF49B44B)],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      entry.value,
+                      style: GoogleFonts.lora(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF475569),
+                        height: 1.55,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ── Premium code card ──────────────────────────────────────────────────────
+  Widget _buildPremiumCodeCard(
+      BuildContext context, String code, String rewardAmount) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20.r),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFB8860B), Color(0xFFDAA520), Color(0xFFF5C842)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFDAA520).withOpacity(0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.all(2.r), // gold border thickness
       child: Container(
-        padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 16.h),
-        decoration: const BoxDecoration(color: Colors.transparent),
-        child: SizedBox(
-          width: double.infinity,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: AppTheme.greenGradient,
-              borderRadius: BorderRadius.circular(100.r),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryGreen.withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+        padding: EdgeInsets.symmetric(horizontal: 22.w, vertical: 22.h),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18.r),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Label
+            Text(
+              'YOUR REFERRAL CODE',
+              style: GoogleFonts.lora(
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFB8860B),
+                letterSpacing: 1.5,
+              ),
+            ),
+            SizedBox(height: 14.h),
+            // Big code
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(vertical: 16.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDF8E8),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(
+                  color: const Color(0xFFDAA520).withOpacity(0.25),
+                ),
+              ),
+              child: Text(
+                code,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.lora(
+                  fontSize: 28.sp,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF1B3A2D),
+                  letterSpacing: 6,
+                ),
+              ),
+            ),
+            SizedBox(height: 18.h),
+            // Two buttons
+            Row(
+              children: [
+                // Copy Code
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: code));
+                      AppToast.show(context, 'Referral code copied!',
+                          type: ToastType.success);
+                    },
+                    icon: Icon(Icons.copy_rounded,
+                        size: 16.sp, color: const Color(0xFF1B882C)),
+                    label: Text(
+                      'Copy Code',
+                      style: GoogleFonts.lora(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1B882C),
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 16.h),
+                      side: BorderSide(
+                          color: const Color(0xFF1B882C).withOpacity(0.4),
+                          width: 1.5),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(50.r)),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                // Share
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment(-0.87, -0.5),
+                        end: Alignment(0.87, 0.5),
+                        colors: [Color(0xFF003716), Color(0xFF167525)],
+                      ),
+                      borderRadius: BorderRadius.circular(50.r),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1B882C).withOpacity(0.30),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: () => _shareReferral(code, rewardAmount),
+                      icon: Icon(Icons.share_rounded,
+                          size: 16.sp, color: Colors.white),
+                      label: Text(
+                        'Share',
+                        style: GoogleFonts.lora(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        padding: EdgeInsets.symmetric(vertical: 16.h),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(50.r)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            child: ElevatedButton(
-              onPressed: () => _inviteViaWhatsApp(context, effectiveCode, effectiveReward),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                minimumSize: Size(double.infinity, 56.h),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(100.r)),
-                elevation: 0,
-              ),
-              child: Text(
-                'Invite Friends',
-                style: GoogleFonts.lora(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputRow({required String value, required Widget trailing}) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: Colors.black.withOpacity(0.08)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.lora(
-                fontSize: 16.sp,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-          trailing,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String value, String label) {
-    return Expanded(
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 16.h),
-        decoration: BoxDecoration(
-          color: AppTheme.primaryGreen.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.12)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: GoogleFonts.lora(
-                fontSize: 20.sp,
-                fontWeight: FontWeight.w900,
-                color: AppTheme.primaryGreen,
-              ),
-            ),
-            SizedBox(height: 4.h),
-            Text(
-              label,
-              style: GoogleFonts.lora(
-                fontSize: 12.sp,
-                color: Colors.black45,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── How It Works section ───────────────────────────────────────────────────
+  Widget _buildHowItWorks() {
+    final steps = [
+      {'icon': Icons.share_rounded, 'label': 'Share\nYour Code'},
+      {'icon': Icons.person_add_rounded, 'label': 'Friend\nSigns Up'},
+      {'icon': Icons.monetization_on_rounded, 'label': 'Both\nEarn Gold'},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'How It Works',
+          style: GoogleFonts.lora(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF1E293B),
+          ),
+        ),
+        SizedBox(height: 16.h),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 20.h),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18.r),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: List.generate(steps.length * 2 - 1, (i) {
+              // Connector arrow between steps
+              if (i.isOdd) {
+                return Expanded(
+                  child: Center(
+                    child: Icon(Icons.arrow_forward_rounded,
+                        color: const Color(0xFF1B882C).withOpacity(0.4),
+                        size: 18.sp),
+                  ),
+                );
+              }
+              final step = steps[i ~/ 2];
+              return Expanded(
+                flex: 3,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 52.w,
+                      height: 52.w,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1B882C).withOpacity(0.08),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF1B882C).withOpacity(0.2),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Icon(
+                        step['icon'] as IconData,
+                        color: const Color(0xFF1B882C),
+                        size: 22.sp,
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    Text(
+                      step['label'] as String,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.lora(
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF475569),
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Stats banner ───────────────────────────────────────────────────────────
+  Widget _buildStatsRow(ReferralData data) {
+    return Container(
+      width: double.infinity,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF003716), Color(0xFF1B882C), Color(0xFF49B44B)],
+        ),
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1B882C).withOpacity(0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // ── Decorative background circles ──
+          Positioned(
+            right: -24,
+            top: -24,
+            child: Container(
+              width: 110.w,
+              height: 110.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.06),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 30,
+            bottom: -30,
+            child: Container(
+              width: 80.w,
+              height: 80.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.04),
+              ),
+            ),
+          ),
+
+          // ── Content ──
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 22.w, vertical: 20.h),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Left: label + big number + sub-label
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Friends Referred',
+                        style: GoogleFonts.lora(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.75),
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      SizedBox(height: 6.h),
+                      Text(
+                        '${data.totalReferrals}',
+                        style: GoogleFonts.lora(
+                          fontSize: 42.sp,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.0,
+                        ),
+                      ),
+                      SizedBox(height: 6.h),
+                      Row(
+                        children: [
+                          Icon(Icons.trending_up_rounded,
+                              size: 13.sp, color: const Color(0xFFFDE047)),
+                          SizedBox(width: 4.w),
+                          Text(
+                            'Keep referring & earn more gold!',
+                            style: GoogleFonts.lora(
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Right: icon badge
+                Container(
+                  padding: EdgeInsets.all(16.r),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.2), width: 1.5),
+                  ),
+                  child: Icon(Icons.group_rounded,
+                      color: Colors.white, size: 30.sp),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
