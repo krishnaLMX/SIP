@@ -240,7 +240,12 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (data.totalReferrals > 0 || data.totalEarned > 0) ...[
-            _buildStatsRow(data),
+            GestureDetector(
+              onTap: data.totalReferrals > 0
+                  ? () => Navigator.pushNamed(context, AppRouter.refereeList)
+                  : null,
+              child: _buildStatsRow(data),
+            ),
             SizedBox(height: 20.h),
           ],
           _buildPremiumCodeCard(context, code, data.rewardAmount),
@@ -654,6 +659,22 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                               color: Colors.white.withOpacity(0.7),
                             ),
                           ),
+                        ],
+                      ),
+                      SizedBox(height: 6.h),
+                      Row(
+                        children: [
+                          Text(
+                            'View list',
+                            style: GoogleFonts.lora(
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFFDE047),
+                            ),
+                          ),
+                          SizedBox(width: 3.w),
+                          Icon(Icons.arrow_forward_rounded,
+                              size: 12.sp, color: const Color(0xFFFDE047)),
                         ],
                       ),
                     ],

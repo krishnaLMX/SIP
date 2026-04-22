@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'core/security/app_lifecycle_observer.dart';
 import 'core/security/root_detection_service.dart';
 import 'shared/widgets/compromised_device_screen.dart';
@@ -10,32 +12,44 @@ import 'routes/app_router.dart';
 import 'shared/theme/app_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/localization/language_provider.dart';
+import 'core/services/fcm_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Security Check: Root Detection
-  bool isCompromised = false;
-  try {
-    isCompromised = await RootDetectionService.isDeviceCompromised();
-  } catch (e) {
-    debugPrint('Security check error: $e');
+  // Firebase + FCM — mobile only (Android / iOS).
+  // Web does not support firebase_messaging or flutter_local_notifications.
+  if (!kIsWeb) {
+    await Firebase.initializeApp();
   }
 
-  if (isCompromised) {
-    runApp(const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: CompromisedDeviceScreen(),
-    ));
-    return;
+  // 1. Security Check: Root Detection — mobile only
+  if (!kIsWeb) {
+    bool isCompromised = false;
+    try {
+      isCompromised = await RootDetectionService.isDeviceCompromised();
+    } catch (e) {
+      debugPrint('Security check error: $e');
+    }
+
+    if (isCompromised) {
+      runApp(const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: CompromisedDeviceScreen(),
+      ));
+      return;
+    }
+
+    // 2. Lock portrait orientation — mobile only
+    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+    // 3. Start FCM service — mobile only
+    await FcmService.init();
   }
 
-  // 2. UI Config
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-
-  // 3. Always start with Flutter splash — it handles session/routing internally
+  // 4. Always start with Flutter splash — handles session/routing internally
   runApp(const ProviderScope(
     child: MyApp(),
   ));

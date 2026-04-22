@@ -25,12 +25,21 @@ class PaymentMethodsScreen extends ConsumerStatefulWidget {
   final double rate;
   final String? couponCode;
 
+  /// 1 = buy in rupees (AMOUNT), 2 = buy in grams (GRAMS).
+  final int buyType;
+
+  /// For buy-in-grams (buyType==2): the weight in grams the customer wants.
+  /// For buy-in-amount (buyType==1): unused (weight derived from amount/rate).
+  final double weight;
+
   const PaymentMethodsScreen({
     super.key,
     required this.amount,
     required this.metalId,
     required this.rate,
     this.couponCode,
+    this.buyType = 1,
+    this.weight = 0.0,
   });
 
   @override
@@ -56,8 +65,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
     // Only do this when the market is open (skip if closed).
     Future.microtask(() {
       if (!mounted) return;
-      final statusMap =
-          ref.read(marketStatusProvider).valueOrNull ?? const {};
+      final statusMap = ref.read(marketStatusProvider).valueOrNull ?? const {};
       final isMarketOpen = statusMap[widget.metalId] != false;
       if (isMarketOpen) {
         _handleRateExpiry();
@@ -89,7 +97,12 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                 'message': response['message'] ??
                     'Gold has been successfully added to your locker.',
                 'commodity_name': response['data']?['commodity_name'],
-                'total_amount': response['data']?['total_amount'],
+                // Use server's total_amount from confirm API;
+                // fall back to amount_inr received from initiate API.
+                'total_amount': response['data']?['total_amount'] ??
+                    (_confirmedAmountInr > 0
+                        ? _confirmedAmountInr
+                        : widget.amount),
                 'rate': response['data']?['rate'],
                 'payment_mode': response['data']?['payment_mode'],
               },
@@ -152,8 +165,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
       final response =
           await ref.read(savingServiceProvider).confirmPayment(orderId);
       // Use server's message if available (may have more detail)
-      final serverMsg = response['message'] ??
-          response['error']?['message'];
+      final serverMsg = response['message'] ?? response['error']?['message'];
       if (serverMsg != null) {
         failureMessage = serverMsg;
       }
@@ -194,11 +206,18 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
               : timerState.lockedRates!.silverSell)
           : widget.rate;
 
-      // Calculate weight net of GST for API (round to 4 decimals to match UI)
-      final config = ref.read(savingConfigProvider).valueOrNull;
-      final gstRate = (config?.gst ?? 3.0) / 100;
-      final rawWeight = (widget.amount / (1 + gstRate)) / activeRate;
-      final weight = double.parse(rawWeight.toStringAsFixed(4));
+      // ── Weight calculation based on buy type ────────────────────────
+      // buyType 1 = AMOUNT: weight derived from amount / rate (net of GST).
+      // buyType 2 = GRAMS : weight is exactly what the customer requested.
+      final double weightForApi;
+      if (widget.buyType == 2) {
+        weightForApi = double.parse(widget.weight.toStringAsFixed(4));
+      } else {
+        final config = ref.read(savingConfigProvider).valueOrNull;
+        final gstRate = (config?.gst ?? 3.0) / 100;
+        final raw = (widget.amount / (1 + gstRate)) / activeRate;
+        weightForApi = double.parse(raw.toStringAsFixed(4));
+      }
 
       // 1. Initiate Purchase
       final PurchaseInitiateResponse purchase =
@@ -206,19 +225,35 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                 customerId: user.id,
                 metalId: widget.metalId,
                 mobile: user.mobile,
-                buyType: 'AMOUNT',
+                buyType: widget.buyType,   // int: 1 = AMOUNT, 2 = GRAMS
                 amount: widget.amount,
                 rate: activeRate,
-                weight: weight,
+                weight: weightForApi,
                 couponCode: widget.couponCode,
               );
 
-      // 2. Launch Cashfree directly — no confirmation sheet
+      // 2. Use server-confirmed amount_inr (authoritative for payment gateway)
+      //    For GRAMS mode this will differ from widget.amount when the rate
+      //    changed between the previous screen and now.
+      //    Falls back to widget.amount if server did not return it.
+      final confirmedAmount =
+          (purchase.amountInr != null && purchase.amountInr!.isNotEmpty)
+              ? double.tryParse(purchase.amountInr!) ?? widget.amount
+              : widget.amount;
+
+      // 3. Update the displayed "Total Payable" immediately so the user
+      //    sees the server-confirmed amount before Cashfree launches.
       if (mounted) {
-        _startCashfreePayment(purchase);
+        setState(() => _confirmedAmountInr = confirmedAmount);
+      }
+
+      // 4. Launch Cashfree — session_id already encodes the correct amount.
+      if (mounted) {
+        _startCashfreePayment(purchase, confirmedAmount);
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         String message = (e is Failure)
             ? e.message
             : 'Payment initiation failed. Please try again.';
@@ -228,18 +263,26 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
       }
     } finally {
       // Only reset _isLoading if Cashfree was NOT launched.
-      // If Cashfree launched, _isLoading stays true until callbacks fire.
       // _startCashfreePayment handles its own error cases.
     }
   }
 
-  void _startCashfreePayment(PurchaseInitiateResponse purchase) {
+  // Stores the server-confirmed amount_inr after initiate succeeds.
+  // Used in success/failure screen data when confirm API doesn’t return amount.
+  double _confirmedAmountInr = 0;
+
+  void _startCashfreePayment(
+      PurchaseInitiateResponse purchase, double confirmedAmount) {
+    // Store server-confirmed amount so callbacks can reference it.
+    _confirmedAmountInr = confirmedAmount;
+
     try {
       if (purchase.orderId == null || purchase.sessionId == null) {
         throw Exception('Failed to initiate purchase session');
       }
 
-      // 2. Start Payment via Cashfree SDK
+      // Cashfree SDK reads the amount from the server-side order automatically.
+      // The session_id already encodes the order; no amount param needed here.
       final env = purchase.environment?.toUpperCase() == 'PRODUCTION'
           ? CFEnvironment.PRODUCTION
           : CFEnvironment.SANDBOX;
@@ -392,12 +435,13 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
     // ── Race-condition guard: market-reopen vs first rate frame ─────────
     // `5|...|1` fires before `3|...` rate arrives — sellRateTimer may lock 0.
     // Restart (or call _onRateUpdated) as soon as a valid rate arrives.
-    ref.listen<AsyncValue<MarketRates>>(marketRatesStreamProvider, (prev, next) {
+    ref.listen<AsyncValue<MarketRates>>(marketRatesStreamProvider,
+        (prev, next) {
       next.whenData((rates) {
         if (!mounted) return;
-        final isMarketOpen =
-            (ref.read(marketStatusProvider).valueOrNull ?? {})[widget.metalId]
-                != false;
+        final isMarketOpen = (ref.read(marketStatusProvider).valueOrNull ??
+                {})[widget.metalId] !=
+            false;
         if (!isMarketOpen) return;
         final liveRate =
             widget.metalId == '1' ? rates.goldSell : rates.silverSell;
@@ -452,8 +496,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                           child: Row(
                             children: [
                               Icon(Icons.warning_amber_rounded,
-                                  color: const Color(0xFFB45309),
-                                  size: 16.sp),
+                                  color: const Color(0xFFB45309), size: 16.sp),
                               SizedBox(width: 8.w),
                               Expanded(
                                 child: Text(
@@ -473,8 +516,8 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                 ),
 
                 // ── Body ──────────────────────────────────────────────────
-                _buildAmountHeader(isDark, timerState, configAsync,
-                    isCurrentMarketClosed),
+                _buildAmountHeader(
+                    isDark, timerState, configAsync, isCurrentMarketClosed),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -503,7 +546,8 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                               }
                               // Footer: 100% Secure — right below last card
                               return Padding(
-                                padding: EdgeInsets.only(top: 8.h, bottom: 16.h),
+                                padding:
+                                    EdgeInsets.only(top: 8.h, bottom: 16.h),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
@@ -570,8 +614,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
           ],
         ),
       ),
-      bottomNavigationBar:
-          _buildBottomAction(isDark, isCurrentMarketClosed),
+      bottomNavigationBar: _buildBottomAction(isDark, isCurrentMarketClosed),
     );
   }
 
@@ -641,12 +684,39 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.5)),
                         SizedBox(height: 6.h),
-                        Text('₹${widget.amount.toStringAsFixed(2)}',
-                            style: GoogleFonts.lora(
-                                fontSize: 20.sp,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: -0.5)),
+                        // Show server-confirmed amount_inr when available.
+                        // For GRAMS mode the server recomputes the amount at
+                        // the CURRENT rate, so this may differ from widget.amount.
+                        Text(
+                          '\u20b9${(_confirmedAmountInr > 0 ? _confirmedAmountInr : widget.amount).toStringAsFixed(2)}',
+                          style: GoogleFonts.lora(
+                              fontSize: 20.sp,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: -0.5),
+                        ),
+                        // Show "Rate Updated" note when server amount differs.
+                        if (_confirmedAmountInr > 0 &&
+                            (_confirmedAmountInr - widget.amount).abs() > 0.01)
+                          Padding(
+                            padding: EdgeInsets.only(top: 4.h),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline_rounded,
+                                    size: 10.sp,
+                                    color: const Color(0xFFFBBF24)),
+                                SizedBox(width: 4.w),
+                                Text(
+                                  'Updated at current rate',
+                                  style: GoogleFonts.lora(
+                                    fontSize: 9.sp,
+                                    color: const Color(0xFFFBBF24),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                     Container(
@@ -918,8 +988,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
           children: [
             // ── Transaction Charges Info Note ──
             Container(
-              padding:
-                  EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
               decoration: BoxDecoration(
                 color: const Color(0xFFFFFBEB),
                 borderRadius: BorderRadius.circular(14.r),

@@ -1454,3 +1454,238 @@ Lists all saved UPI handles and bank accounts. First item is auto-selected in UI
 
 > **Note:** The client tries multiple response shapes:
 > `data` as array → `data.tickets` → `data.enquiries` → `data.data` → `data.list`
+
+---
+
+## 12. 🔔 Notifications
+
+> **Design Rule:** FCM push notifications are a **trigger only** — not a data source.
+> The app ALWAYS fetches fresh data from the API when the notification screen opens.
+> FCM payload is never rendered directly in the UI.
+
+---
+
+### 12.1 Get Notification List
+*   **Page Name:** `NotificationsScreen`
+*   **Endpoint:** `POST users/notifications`
+*   **Authorization:** `Bearer Token`
+*   **Trigger:** Called every time the Notifications screen opens (FCM tap or in-app navigation).
+*   **Request Body:** `{}` (empty — user identified from token)
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "id": 1,
+          "title": "Gold Price Alert",
+          "message": "Gold increased ₹50 today. Check your portfolio!",
+          "type": "market",
+          "is_read": false,
+          "created_at": "2026-04-17"
+        },
+        {
+          "id": 2,
+          "title": "Purchase Successful",
+          "message": "You bought 0.0689g of Gold for ₹500.",
+          "type": "transaction",
+          "is_read": true,
+          "created_at": "2026-04-16"
+        }
+      ]
+    }
+    ```
+*   **`type` Values:**
+
+    | Value | Icon | Colour |
+    |---|---|---|
+    | `market` | Chart icon | Blue |
+    | `transaction` | Receipt icon | Green |
+    | `kyc` | Shield icon | Purple |
+    | `withdrawal` | Wallet icon | Amber |
+    | `offer` | Tag icon | Pink |
+    | *(default)* | Bell icon | Green |
+
+*   **`is_read` Behaviour:**
+    - `false` → Card shown with **green dot badge** + **bold title** + light green background.
+    - `true` → Card shown in normal white/dark background, no badge.
+
+---
+
+### 12.2 Mark Notification as Read
+*   **Page Name:** `NotificationsScreen` (triggered on item tap)
+*   **Endpoint:** `POST users/notifications/read`
+*   **Authorization:** `Bearer Token`
+*   **Request Body:**
+    ```json
+    {
+      "notification_id": 1
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Marked as read"
+    }
+    ```
+*   **Client Behaviour:**
+    - Optimistic update — UI is updated **immediately** on tap before the API call completes.
+    - If the API call fails, the UI retains the optimistic state (next reload from `GET /notifications` corrects it).
+
+---
+
+### 12.3 Get Unread Notification Count (Badge)
+*   **Usage:** Nav bar badge, home screen indicator.
+*   **Endpoint:** `POST users/notifications/unread-count`
+*   **Authorization:** `Bearer Token`
+*   **Request Body:** `{}` (empty)
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "count": 3
+      }
+    }
+    ```
+*   **Client Provider:** `unreadCountProvider` — consumed by the navigation bar to show the red badge number.
+
+---
+
+### 12.4 FCM Push Notification Flow
+
+```
+Server sends FCM push
+        │
+        ├─ App FOREGROUND  → flutter_local_notifications shows heads-up banner
+        │
+        └─ User TAPS notification (any app state)
+                 │
+                 ▼
+        Navigate to /notifications  (AppRouter.notifications)
+                 │
+                 ▼
+        NotificationsScreen opens → calls POST users/notifications
+                 │
+                 ▼
+        Renders fresh list from API
+                 │
+                 ▼
+        User taps item → POST users/notifications/read
+                 │
+                 ▼
+        Optimistic UI update (green dot removed)
+```
+
+*   **FCM Token Registration:** After login, retrieve `FcmService.getToken()` and send it to your backend so the server can push to this specific device.
+*   **Token Refresh:** Listen to `FcmService.onTokenRefresh` and update the backend whenever the token changes.
+*   **Background Handler:** `_firebaseMessagingBackgroundHandler` — top-level function, logs only. Does NOT navigate.
+
+---
+
+### 12.5 Notification Data Security Rules
+
+| Rule | Detail |
+|---|---|
+| FCM payload | **Display only** — never contains financial data |
+| Sensitive data | **Never** sent via push notification payload |
+| Navigation | Always triggered by notification **tap** not by payload content |
+| Data source | Always fetched **fresh from API**, never from FCM payload |
+
+---
+
+## 16. 🗑️ Delete Account
+
+> **Security Note:** Both endpoints require a valid `Authorization: Bearer <token>`. No sensitive fields are encrypted (policy info and the `confirm` flag carry no PII). Data wipe happens server-side on success.
+
+### 16.1 Fetch Delete Account Info
+- **Page Name:** `DeleteAccountScreen`
+- **Endpoint:** `POST delete-account/info`
+- **Authorization:** `Bearer Token`
+- **Trigger:** Called automatically on page load.
+- **Request Body:**
+  ```json
+  {}
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "content": "Deleting your account will permanently remove all data including your portfolio, transaction history, and referral rewards. This action cannot be undone.",
+      "is_allowed": true
+    }
+  }
+  ```
+- **Fields:**
+
+  | Field | Type | Description |
+  |-------|------|-------------|
+  | `content` | String | Policy / warning text rendered in the info card on screen |
+  | `is_allowed` | Boolean | Controls visibility of the "Delete My Account" confirm button |
+
+- **`is_allowed` UI Behaviour:**
+
+  | Value | Client Behaviour |
+  |---|---|
+  | `true` | "Delete My Account" button shown in the footer |
+  | `false` | Footer button **completely hidden** — user cannot proceed |
+
+- **On API Error:** Screen shows an error state with a **Retry** button; no destructive action is possible.
+
+---
+
+### 16.2 Confirm Account Deletion
+- **Page Name:** `DeleteAccountScreen` (triggered after user confirms the dialog)
+- **Endpoint:** `POST delete-account`
+- **Authorization:** `Bearer Token`
+- **Trigger:** Called only after:
+  1. `is_allowed == true` (from 16.1)
+  2. User taps the "Delete My Account" button
+  3. User confirms "Yes, Delete" in the confirmation dialog
+- **Request Body:**
+  ```json
+  {
+    "confirm": true
+  }
+  ```
+- **Response (Success):**
+  ```json
+  {
+    "success": true,
+    "message": "Account deleted successfully."
+  }
+  ```
+- **Response (Failure):**
+  ```json
+  {
+    "success": false,
+    "message": "Unable to delete account. Please contact support."
+  }
+  ```
+
+#### Client Behaviour on Success
+All local data is cleared in this order before navigating away:
+
+| Storage Layer | Action |
+|---|---|
+| `FlutterSecureStorage` | `SecureStorageService.logout()` → `deleteAll()` |
+| `SharedPreferences` | `prefs.clear()` |
+| Navigation | `Navigator.pushNamedAndRemoveUntil('/login', (route) => false)` |
+
+#### Client Behaviour on Failure
+- Error `AppToast` shown with the server's `message`.
+- **No data is cleared.**
+- Button is re-enabled; user can retry or navigate away.
+
+#### Confirmation Dialog
+A `showGeneralDialog` dialog with a scale+fade animation is shown **before** the API call:
+
+> *"Are you sure you want to delete your account?"*  
+> *"All data will be permanently erased and cannot be recovered."*
+
+- **Cancel** → dismisses dialog, no API call made.
+- **Yes, Delete** → proceeds to call `POST delete-account`.
+
+---

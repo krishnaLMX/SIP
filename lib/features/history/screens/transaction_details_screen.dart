@@ -114,7 +114,7 @@ class _TransactionDetailsScreenState
           _buildStatusCard(details, isSaving, cardColor, borderColor, textColor,
               mutedTextColor, isDark),
           SizedBox(height: 16.h),
-          _buildOrderDetails(details, isSaving, cardColor, borderColor,
+          _buildOrderDetails(details, isSaving, isReferral, cardColor, borderColor,
               textColor, mutedTextColor, isDark),
           SizedBox(height: 16.h),
         ],
@@ -449,11 +449,32 @@ class _TransactionDetailsScreenState
   Widget _buildOrderDetails(
       TransactionDetailResponse details,
       bool isSaving,
+      bool isReferral,
       Color cardColor,
       Color borderColor,
       Color textColor,
       Color mutedTextColor,
       bool isDark) {
+    // Section title
+    final String sectionTitle = isSaving
+        ? 'Order Details'
+        : isReferral
+            ? 'Referral Reward Details'
+            : 'Withdrawal Details';
+
+    // Row labels
+    final String rateLabel = isSaving
+        ? 'Gold Purchased At'
+        : isReferral
+            ? 'Gold Credited At'
+            : 'Gold Sold At';
+
+    final String subSectionTitle = isSaving
+        ? 'Transaction Details'
+        : isReferral
+            ? 'Reward Details'
+            : 'Settlement Details';
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
@@ -480,7 +501,7 @@ class _TransactionDetailsScreenState
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    isSaving ? 'Order Details' : 'Withdrawal Details',
+                    sectionTitle,
                     style: GoogleFonts.lora(
                         fontSize: 14.sp,
                         fontWeight: FontWeight.bold,
@@ -498,7 +519,7 @@ class _TransactionDetailsScreenState
           ),
           if (_isOrderDetailsExpanded) ...[
             SizedBox(height: 4.h),
-            _buildDetailRow(isSaving ? 'Gold Purchased At' : 'Gold Sold At',
+            _buildDetailRow(rateLabel,
                 details.priceBreakdown.rate, textColor, mutedTextColor),
             _buildDetailRow('Gold Quantity', details.priceBreakdown.quantity,
                 textColor, mutedTextColor),
@@ -507,12 +528,15 @@ class _TransactionDetailsScreenState
             _buildDetailRow(
                 'GST', details.priceBreakdown.gst, textColor, mutedTextColor),
             Divider(color: borderColor, height: 16.h),
-            _buildDetailRow('Amount', details.priceBreakdown.totalAmount,
-                textColor, mutedTextColor,
+            _buildDetailRow(
+                isReferral ? 'Reward Amount' : 'Amount',
+                details.priceBreakdown.totalAmount,
+                textColor,
+                mutedTextColor,
                 isBold: true),
             SizedBox(height: 12.h),
             Text(
-              isSaving ? 'Transaction Details' : 'Settlement Details',
+              subSectionTitle,
               style: GoogleFonts.lora(
                 fontSize: 13.sp,
                 fontWeight: FontWeight.bold,
@@ -522,7 +546,8 @@ class _TransactionDetailsScreenState
             ),
             SizedBox(height: 8.h),
             _buildDetailRow(
-                'Order ID', details.orderId, textColor, mutedTextColor,
+                isReferral ? 'Reward ID' : 'Order ID',
+                details.orderId, textColor, mutedTextColor,
                 showCopy: true),
             _buildDetailRow(
                 'Transaction ID',
@@ -532,8 +557,9 @@ class _TransactionDetailsScreenState
                 showCopy: true),
             _buildDetailRow('Placed On', details.technicalDetails.placedOn,
                 textColor, mutedTextColor),
-            _buildDetailRow('Paid Via',
-                details.technicalDetails.paidVia, textColor, mutedTextColor),
+            if (!isReferral)
+              _buildDetailRow('Paid Via',
+                  details.technicalDetails.paidVia, textColor, mutedTextColor),
           ]
         ],
       ),

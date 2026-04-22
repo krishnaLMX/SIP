@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -13,6 +14,7 @@ import '../../features/profile/profile_controller.dart';
 import '../../features/instant_saving/controller/saving_controller.dart';
 import '../../features/history/controller/history_controller.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/app_toast.dart';
 import '../../features/auth/controller/auth_controller.dart';
 
 /// Shared provider so any child screen can switch tabs
@@ -27,6 +29,7 @@ class MainScreen extends ConsumerStatefulWidget {
 
 class _MainScreenState extends ConsumerState<MainScreen> {
   final Set<int> _visitedTabs = {0};
+  DateTime? _lastBackPressTime; // tracks double-tap-to-exit timing
 
   @override
   void initState() {
@@ -92,11 +95,31 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PopScope(
-      // If not on Home tab, go to Home instead of exiting
-      canPop: selectedIndex == 0,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
+      // Never let Flutter pop the route — we handle it ourselves.
+      // If canPop=true on home tab, popping navigates to the unknown
+      // route (null name) which shows the "Page Not Found" screen.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (selectedIndex != 0) {
+          // Not on Home tab → go to Home instead of exiting
           ref.read(selectedTabProvider.notifier).state = 0;
+        } else {
+          // On Home tab → double-tap to exit
+          final now = DateTime.now();
+          final isSecondPress = _lastBackPressTime != null &&
+              now.difference(_lastBackPressTime!) < const Duration(seconds: 2);
+          if (isSecondPress) {
+            SystemNavigator.pop();
+          } else {
+            _lastBackPressTime = now;
+            if (mounted) {
+              AppToast.show(
+                context,
+                'Press back again to exit',
+                type: ToastType.info,
+              );
+            }
+          }
         }
       },
       child: Scaffold(

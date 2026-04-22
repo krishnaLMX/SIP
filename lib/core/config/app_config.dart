@@ -26,6 +26,7 @@ class AppConfig {
   static const String keyCustomerPhoto = 'customer_photo';
   static const String keyServerPublicKey =
       'server_public_key'; // RSA public key cache
+  static const String keyFcmToken = 'fcm_token'; // last registered FCM token
 
   // Network Config
   static const int connectTimeout = 60000;
@@ -77,14 +78,14 @@ class AppConfig {
     'withdrawal_amount',
     'payment_details',
     'amount', // from Payment APIs rule
-    'amount_inr', // this is testing now
+    // 'amount_inr', // ⚠️ DEBUG: commented out to see real value in logs — re-enable before release
     'payment_pin', // from Payment APIs rule
     'bank_details', // from Payment APIs rule
     'mpin', // MPIN rule
     'old_mpin',
     'new_mpin',
     'mobile', // encrypt PII
-    'weight', // withdrawal: grams being sold
+    // 'weight', // ⚠️ DEBUG: commented out to see real value in logs — re-enable before release
     'buy_rate', // withdrawal: rate at time of sale
   ];
 }

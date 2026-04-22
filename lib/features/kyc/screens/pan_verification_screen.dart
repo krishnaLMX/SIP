@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../shared/theme/app_theme.dart';
@@ -24,9 +25,16 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
     super.dispose();
   }
 
+  static final _panRegex = RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$');
+
   void _handleVerify() async {
-    if (_panController.text.length < 10) {
-      AppToast.show(context, 'Please enter a valid 10-digit PAN', type: ToastType.warning);
+    final pan = _panController.text.trim().toUpperCase();
+    if (pan.length != 10) {
+      AppToast.show(context, 'PAN must be exactly 10 characters', type: ToastType.warning);
+      return;
+    }
+    if (!_panRegex.hasMatch(pan)) {
+      AppToast.show(context, 'Invalid PAN format. Expected: ABCDE1234F', type: ToastType.warning);
       return;
     }
 
@@ -131,6 +139,15 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
               isDark,
               TextInputType.text,
               textCapitalization: TextCapitalization.characters,
+              inputFormatters: [
+                // Block special chars — allow only A-Z and 0-9
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                // Force uppercase
+                TextInputFormatter.withFunction((old, nv) =>
+                    nv.copyWith(text: nv.text.toUpperCase())),
+                // Hard limit to 10 characters
+                LengthLimitingTextInputFormatter(10),
+              ],
             ),
             const Spacer(),
             CustomButton(
@@ -148,7 +165,8 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
 
   Widget _buildInputField(String label, String hint,
       TextEditingController controller, bool isDark, TextInputType type,
-      {TextCapitalization textCapitalization = TextCapitalization.none}) {
+      {TextCapitalization textCapitalization = TextCapitalization.none,
+      List<TextInputFormatter>? inputFormatters}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -160,6 +178,7 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
           controller: controller,
           keyboardType: type,
           textCapitalization: textCapitalization,
+          inputFormatters: inputFormatters,
           style:
               GoogleFonts.lora(fontSize: 18.sp, fontWeight: FontWeight.w600),
           decoration: InputDecoration(
@@ -177,4 +196,3 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
     );
   }
 }
-

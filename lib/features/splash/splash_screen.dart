@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/security/session_manager.dart';
@@ -156,58 +157,68 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SizedBox(
-          width: double.infinity,
-          height: double.infinity,
-          child: Stack(
-            children: [
-              // ── Layer 1: Full background image ──
-              Positioned.fill(
-                child: Image.asset(
-                  'assets/resources/splash_bg.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Color(0xFFFEF7E6), Color(0xFFF8D89C)],
+    // Block all back presses during splash — popping the splash leaves
+    // nothing in the navigator stack and triggers the "Page Not Found" route.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        // First back: warn; second back: exit
+        // (Keep simple — splash is transient so just exit cleanly.)
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        body: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SizedBox(
+            width: double.infinity,
+            height: double.infinity,
+            child: Stack(
+              children: [
+                // ── Layer 1: Full background image ──
+                Positioned.fill(
+                  child: Image.asset(
+                    'assets/resources/splash_bg.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Color(0xFFFEF7E6), Color(0xFFF8D89C)],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
 
-              // ── Layer 2: Center animated GIF ──
-              Center(
-                child: Image.asset(
-                  'assets/resources/Splashscreen.gif',
-                  width: 100.w,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => Image.asset(
-                    'assets/resources/splash.png',
-                    width: 220.w,
+                // ── Layer 2: Center animated GIF ──
+                Center(
+                  child: Image.asset(
+                    'assets/resources/Splashscreen.gif',
+                    width: 100.w,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Image.asset(
+                      'assets/resources/splash.png',
+                      width: 220.w,
+                    ),
                   ),
                 ),
-              ),
 
-              // ── Layer 3: Footer SVG fixed at bottom ──
-              Positioned(
-                left: 32.w,
-                right: 32.w,
-                bottom: MediaQuery.of(context).padding.bottom + 20.h,
-                child: SvgPicture.asset(
-                  'assets/resources/splash_footer.svg',
-                  height: 28.h,
-                  fit: BoxFit.contain,
-                  // ignore: deprecated_member_use
-                  placeholderBuilder: (_) => const SizedBox.shrink(),
+                // ── Layer 3: Footer SVG fixed at bottom ──
+                Positioned(
+                  left: 32.w,
+                  right: 32.w,
+                  bottom: MediaQuery.of(context).padding.bottom + 20.h,
+                  child: SvgPicture.asset(
+                    'assets/resources/splash_footer.svg',
+                    height: 28.h,
+                    fit: BoxFit.contain,
+                    // ignore: deprecated_member_use
+                    placeholderBuilder: (_) => const SizedBox.shrink(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

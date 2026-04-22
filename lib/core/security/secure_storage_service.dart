@@ -95,6 +95,16 @@ class SecureStorageService {
     return await _storage.read(key: AppConfig.keyMobileNumber);
   }
 
+  // ── FCM Token Cache ───────────────────────────────────────────────────────
+  static Future<void> saveFcmToken(String token) async {
+    await _storage.write(key: AppConfig.keyFcmToken, value: token);
+  }
+
+  static Future<String?> getFcmToken() async {
+    return await _storage.read(key: AppConfig.keyFcmToken);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   static Future<void> logout() async {
     await _storage.deleteAll();
   }

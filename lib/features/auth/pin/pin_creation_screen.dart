@@ -12,6 +12,8 @@ import '../../../shared/widgets/animations.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/security/secure_storage_service.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../core/services/fcm_service.dart';
 
 class PinCreationScreen extends ConsumerStatefulWidget {
   final String mobile;
@@ -432,6 +434,11 @@ class _PinCreationScreenState extends ConsumerState<PinCreationScreen> {
     if (pinSuccess && mounted) {
       // Persist MPIN flag so splash/OTP routes know PIN is set
       await SecureStorageService.setMpinEnabled(true);
+
+      // Register FCM token with server after successful new-user registration.
+      // Fire-and-forget — never blocks navigation.
+      _registerFcmToken();
+
       if (widget.fullName.isNotEmpty) {
         Navigator.pushReplacementNamed(
           context,
@@ -454,5 +461,21 @@ class _PinCreationScreenState extends ConsumerState<PinCreationScreen> {
       });
       _shuffleKeypad();
     }
+  }
+  /// Registers FCM device token with the server after new-user registration.
+  /// Fire-and-forget — errors are swallowed so registration is never blocked.
+  void _registerFcmToken() {
+    final notifService = NotificationService();
+    Future(() async {
+      try {
+        final token = await FcmService.getToken();
+        if (token != null) {
+          await notifService.registerFcmToken(token);
+          debugPrint('[FCM] Token registered after new-user registration.');
+        }
+      } catch (e) {
+        debugPrint('[FCM] Token registration skipped during registration: $e');
+      }
+    });
   }
 }

@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/widgets.dart';
 import '../../features/market/models/market_rates.dart';
 import 'market_provider.dart';
-
-import 'package:flutter/widgets.dart';
 
 class TimerState {
   final int remainingSeconds;
@@ -27,10 +26,6 @@ class RateTimerNotifier extends StateNotifier<TimerState>
   int _totalDuration = 0;
   DateTime? _targetEndTime;
 
-  /// Recorded when the timer starts each cycle.
-  /// Used to detect if ANY new rate arrived during the window.
-  DateTime? _timerStartTime;
-
   RateTimerNotifier(this.ref) : super(TimerState(remainingSeconds: 0)) {
     WidgetsBinding.instance.addObserver(this);
   }
@@ -38,7 +33,7 @@ class RateTimerNotifier extends StateNotifier<TimerState>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Force an immediate recalculation of the timer when app reopens
+      // Recalculate timer when app comes back from background.
       _evaluateTimer();
     }
   }
@@ -47,17 +42,18 @@ class RateTimerNotifier extends StateNotifier<TimerState>
     if (durationSeconds <= 0) return;
     _totalDuration = durationSeconds;
 
-    // Capture and lock the current rates
+    // Lock the current live rate for the duration of this window.
     final currentRates = ref.read(marketRatesStreamProvider).valueOrNull;
-    if (currentRates == null) return;
+    if (currentRates == null) return; // no rate yet — wait for first socket msg
 
     _timer?.cancel();
-    _timerStartTime = DateTime.now(); // ← record when this cycle started
     _targetEndTime = DateTime.now().add(Duration(seconds: _totalDuration));
-    state =
-        TimerState(remainingSeconds: _totalDuration, lockedRates: currentRates);
+    state = TimerState(
+      remainingSeconds: _totalDuration,
+      lockedRates: currentRates,
+    );
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _evaluateTimer();
     });
   }
@@ -73,7 +69,8 @@ class RateTimerNotifier extends StateNotifier<TimerState>
         lockedRates: state.lockedRates,
       );
     } else {
-      // Expired -> refresh to latest and restart
+      // Timer expired — cancel tick, keep lockedRates alive so the UI never
+      // flickers between cycles, then restart immediately with the latest rate.
       _timer?.cancel();
       _targetEndTime = null;
       _refreshAndRestart();
@@ -81,40 +78,35 @@ class RateTimerNotifier extends StateNotifier<TimerState>
   }
 
   void _refreshAndRestart() {
-    final latestRate = ref.read(marketRatesStreamProvider).valueOrNull;
-
-    // ── Market closed detection ────────────────────────────────────────
-    // If no NEW rate arrived during the entire timer window, the market
-    // is closed. We detect this by comparing the rate's timestamp against
-    // when THIS timer cycle started (_timerStartTime).
+    // ── Why there is NO timestamp-based market-closed detection here ────────
     //
-    // Example:
-    //   Timer started at 12:00:00 (locked ₹15,000)
-    //   Market closed at 12:00:40 — socket goes silent
-    //   Timer expires at 12:01:20
-    //   latestRate.timestamp = 12:00:40 < _timerStartTime ← CAUGHT ✅
-    if (latestRate != null && _timerStartTime != null) {
-      if (!latestRate.timestamp.isAfter(_timerStartTime!)) {
-        // No new rate came in during the 80s window → market closed
-        _timer?.cancel();
-        _targetEndTime = null;
-        state = TimerState(
-          remainingSeconds: 0,
-          lockedRates: null,
-          isMarketClosed: true,
-        );
-        return;
-      }
-    }
-
-    // Fresh rate arrived during the window — safe to restart
+    // A previous version compared latestRate.timestamp against _timerStartTime:
+    //   "If no new rate arrived during the timer window → market is closed."
+    //
+    // This BROKE when the socket sends rates infrequently (e.g. one message at
+    // connection time and then goes silent even though the market is OPEN):
+    //
+    //   Socket rate timestamp : T0 = 13:27:29
+    //   Timer _timerStartTime : T0+Δ = 13:27:30   ← just after T0
+    //   Timer expires at        13:29:50
+    //   Check: T0.isAfter(T0+Δ) = false  →  !false = true  →  "market closed"  ✗
+    //
+    // The false-positive triggered: isMarketClosed=true → isActive=false →
+    // build() safety guard fired startOrRefresh() → isMarketClosed=false →
+    // tick again → repeat → visible SHAKE on every timer boundary.
+    //
+    // Market open/closed is already correctly tracked by marketStatusProvider
+    // via the socket's dedicated status messages (5|...|1 = open, 5|...|0 =
+    // closed). Both withdrawal and instant saving screens read
+    // isCurrentMarketClosed from that provider and show the appropriate UI.
+    // The timer's only responsibility is to lock a rate and count down —
+    // it does NOT need to independently detect market closure.
     startOrRefresh(_totalDuration);
   }
 
   void clear() {
     _timer?.cancel();
     _targetEndTime = null;
-    _timerStartTime = null;
     state = TimerState(remainingSeconds: 0, isMarketClosed: false);
   }
 

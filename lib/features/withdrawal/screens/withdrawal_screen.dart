@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +31,10 @@ class WithdrawalScreen extends ConsumerStatefulWidget {
 
 class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
   final TextEditingController _amountController = TextEditingController();
+  bool _portfolioLoaded = false;
+  Timer? _policyDebounce;
+  // Only show validation error after user starts typing
+  bool _hasUserTyped = false;
 
   @override
   void initState() {
@@ -40,8 +45,6 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
       ref.read(withdrawalProvider.notifier).updateAmount(0);
 
       // Always lock the freshest live buy rate on screen entry.
-      // Clears any stale lock (even if timer still running) and restarts
-      // with the current socket rate. Only when market is open.
       final entryType = ref.read(commodityProvider);
       final entryCommodityId = entryType == CommodityType.gold ? '1' : '3';
       final entryStatusMap =
@@ -57,11 +60,24 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
           ref.invalidate(savingConfigProvider);
         }
       }
+
+      // Initial policy fetch with amount = 0
+      _fetchPolicy(amount: 0);
     });
+  }
+
+  /// Fetch withdrawal policy from API. Called on load and on every amount change.
+  void _fetchPolicy({required double amount}) {
+    final commodity = ref.read(commodityProvider);
+    final metalId = commodity == CommodityType.gold ? 1 : 3;
+    ref
+        .read(withdrawalPolicyProvider.notifier)
+        .fetch(metalId: metalId, amount: amount);
   }
 
   @override
   void dispose() {
+    _policyDebounce?.cancel();
     _amountController.dispose();
     super.dispose();
   }
@@ -73,6 +89,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
     final withdrawalState = ref.watch(withdrawalProvider);
     final timerState = ref.watch(buyRateTimerProvider);
     final rewardAsync = ref.watch(rewardBalanceProvider);
+    final policyAsync = ref.watch(withdrawalPolicyProvider);
 
     // Watch config to trigger the API fetch
     final configAsync = ref.watch(savingConfigProvider);
@@ -99,15 +116,16 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
       });
     }
 
-    // Reset amount + timer when commodity switches
+    // Reset amount + timer + policy when commodity switches
     ref.listen(commodityProvider, (prev, next) {
       if (prev != next) {
         _amountController.clear();
         ref.read(withdrawalProvider.notifier).updateAmount(0);
+        // Reset typing flag so error banner is hidden until user types again
+        if (mounted) setState(() => _hasUserTyped = false);
+        // Re-fetch policy for newly selected commodity
+        _fetchPolicy(amount: 0);
 
-        // Reset timer so the new commodity's market is evaluated fresh.
-        // Without this, Gold's isMarketClosed=true persists on the shared
-        // timer and Silver shows no countdown even though it is open.
         ref.read(buyRateTimerProvider.notifier).clear();
         final config = ref.read(savingConfigProvider).valueOrNull;
         if (config != null) {
@@ -175,13 +193,32 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
       });
     });
 
-    // When market is closed, bypass the stale locked rate and use the live
-    // socket rate (already zeroed for that commodity on closure).
-    final market = (!isCurrentMarketClosed && timerState.isActive)
-        ? AsyncData(timerState.lockedRates!)
-        : ref.watch(marketRatesStreamProvider);
+    // ── Stable market rate computation ──────────────────────────────────
+    // Priority: locked rate (timer active) > last locked rate (timer just
+    // expired) > live socket rate > loading.
+    // Using a ternary that switches ref.watch between branches causes
+    // zig-zag: when isActive briefly goes false, the UI flickers to a
+    // different data source. Instead, always watch the stream but prefer
+    // the locked rate when it is available.
+    final liveMarket = ref.watch(marketRatesStreamProvider);
+    final MarketRates? displayRates = isCurrentMarketClosed
+        ? liveMarket.valueOrNull              // market closed → use socket (0)
+        : (timerState.lockedRates ??          // timer active OR just expired
+           liveMarket.valueOrNull);           // fallback to live rate
+    final market = displayRates != null
+        ? AsyncData<MarketRates>(displayRates)
+        : liveMarket;                         // still loading on first open
 
-    if (portfolio.isLoading && !portfolio.hasValue) {
+    // Track first successful portfolio load — never show full-screen loader
+    // after that (prevents flash on Gold↔Silver switch).
+    if (portfolio.hasValue && !_portfolioLoaded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _portfolioLoaded = true);
+      });
+    }
+
+    // Only show full-screen loader on the VERY FIRST load.
+    if (!_portfolioLoaded && portfolio.isLoading) {
       return AppLoaders.fullScreenLoader(context);
     }
 
@@ -242,8 +279,11 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                   _buildCommodityTabs(selectedCommodity),
                   SizedBox(height: 24.h),
                   _buildMainInputCard(
-                      selectedCommodity, market, withdrawalState, rewardAsync),
-                  SizedBox(height: 24.h),
+                      selectedCommodity, market, withdrawalState,
+                      rewardAsync, policyAsync),
+                  // ── Premium validation error banner (between card & footer) ──
+                  _buildValidationError(policyAsync, rewardAsync, market, selectedCommodity),
+                  SizedBox(height: 16.h),
                 ],
               ),
             ),
@@ -251,7 +291,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
           // ── Pinned Footer ─────────────────────────────────────────
           _buildFooter(
               withdrawalState, market, selectedCommodity,
-              isCurrentMarketClosed),
+              isCurrentMarketClosed, policyAsync, rewardAsync),
         ],
       ),
     );
@@ -396,7 +436,26 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
           ),
         );
       },
-      loading: () => const SizedBox(height: 60),
+      loading: () => Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                AppLoaders.sectionLoader(
+                    height: 14.h, width: 130.w, isDark: false, borderRadius: 6),
+                AppLoaders.sectionLoader(
+                    height: 28.h, width: 72.w, isDark: false, borderRadius: 20),
+              ],
+            ),
+            SizedBox(height: 10.h),
+            AppLoaders.sectionLoader(
+                height: 24.h, width: 140.w, isDark: false, borderRadius: 6),
+          ],
+        ),
+      ),
       error: (err, __) => Padding(
         padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
         child: Text(
@@ -510,8 +569,17 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
     );
   }
 
-  Widget _buildMainInputCard(CommodityType type, AsyncValue<MarketRates> market,
-      WithdrawalState state, AsyncValue<Map<String, dynamic>> rewardAsync) {
+  Widget _buildMainInputCard(
+      CommodityType type,
+      AsyncValue<MarketRates> market,
+      WithdrawalState state,
+      AsyncValue<Map<String, dynamic>> rewardAsync,
+      AsyncValue<dynamic> policyAsync) {
+    // Only show red border after user has interacted
+    final policy = policyAsync.valueOrNull;
+    final showError =
+        _hasUserTyped && policy != null && !policy.validation.isValid;
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 24.w),
       child: Container(
@@ -581,7 +649,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                       child: Container(
                           width: 1.5, height: 20.h, color: Colors.black12),
                     ),
-                    Text('₹ ${inrValue.toStringAsFixed(2)}',
+                    Text('\u20b9 ${inrValue.toStringAsFixed(2)}',
                         style: TextStyle(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.w700,
@@ -589,7 +657,23 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                   ],
                 );
               },
-              loading: () => const LinearProgressIndicator(),
+              // ── Shimmer skeleton during load — matches home page style ──
+              loading: () => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      AppLoaders.sectionLoader(
+                          height: 24.h, width: 110.w, isDark: false, borderRadius: 6),
+                      SizedBox(width: 12.w),
+                      Container(width: 1.5, height: 20.h, color: Colors.black12),
+                      SizedBox(width: 12.w),
+                      AppLoaders.sectionLoader(
+                          height: 24.h, width: 90.w, isDark: false, borderRadius: 6),
+                    ],
+                  ),
+                ],
+              ),
               error: (_, __) => Text('Error loading holding',
                   style: TextStyle(fontSize: 13.sp, color: Colors.black45)),
             ),
@@ -600,66 +684,83 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                     fontSize: 12.sp,
                     color: Colors.black45,
                     fontWeight: FontWeight.w600)),
-            SizedBox(height: 12.h),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF9FAFB),
-                borderRadius: BorderRadius.circular(16.r),
-                border: Border.all(color: Colors.black.withOpacity(0.05)),
-              ),
-              child: Row(
-                children: [
-                  Text('₹',
-                      style: TextStyle(
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black)),
-                  SizedBox(width: 8.w),
-                  Expanded(
-                    child: TextField(
-                      controller: _amountController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        const NoLeadingZerosFormatter(allowDecimal: false),
+                  // ── Amount input row ──
+                  Container(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(16.r),
+                      border: Border.all(
+                        color: showError
+                            ? Colors.red.withOpacity(0.45)
+                            : Colors.black.withOpacity(0.05),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Text('₹',
+                            style: TextStyle(
+                                fontSize: 20.sp,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black)),
+                        SizedBox(width: 8.w),
+                        Expanded(
+                          child: TextField(
+                            controller: _amountController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              const NoLeadingZerosFormatter(allowDecimal: false),
+                            ],
+                            onChanged: (val) {
+                              final doubleValue = val.isEmpty
+                                  ? 0.0
+                                  : double.tryParse(val) ?? 0.0;
+                              if (!_hasUserTyped && val.isNotEmpty) {
+                                setState(() => _hasUserTyped = true);
+                              }
+                              ref
+                                  .read(withdrawalProvider.notifier)
+                                  .updateAmount(doubleValue);
+                              // Immediately invalidate stale policy so button
+                              // disables while the debounced fetch is pending.
+                              ref.invalidate(withdrawalPolicyProvider);
+                              // Debounce policy fetch: 600ms after typing stops
+                              _policyDebounce?.cancel();
+                              _policyDebounce = Timer(
+                                const Duration(milliseconds: 600),
+                                () => _fetchPolicy(amount: doubleValue),
+                              );
+                            },
+                            style: TextStyle(
+                                fontSize: 20.sp,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black),
+                            decoration: const InputDecoration(
+                                border: InputBorder.none, hintText: '0'),
+                          ),
+                        ),
+                        if (state.amount > 0)
+                          market.when(
+                            data: (rates) {
+                              final price = type == CommodityType.gold
+                                  ? rates.goldBuy
+                                  : rates.silverBuy;
+                              final grams =
+                                  price > 0 ? state.amount / price : 0.0;
+                              return Text('${grams.toStringAsFixed(4)}gm',
+                                  style: TextStyle(
+                                      fontSize: 12.sp,
+                                      color: Colors.black45,
+                                      fontWeight: FontWeight.w600));
+                            },
+                            loading: () => const SizedBox(),
+                            error: (_, __) => const SizedBox(),
+                          ),
                       ],
-                      onChanged: (val) {
-                        final doubleValue =
-                            val.isEmpty ? 0.0 : double.tryParse(val) ?? 0.0;
-                        ref
-                            .read(withdrawalProvider.notifier)
-                            .updateAmount(doubleValue);
-                      },
-                      style: TextStyle(
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black),
-                      decoration: const InputDecoration(
-                          border: InputBorder.none, hintText: '0'),
                     ),
                   ),
-                  if (state.amount > 0)
-                    market.when(
-                      data: (rates) {
-                        final price = type == CommodityType.gold
-                            ? rates.goldBuy
-                            : rates.silverBuy;
-                        // Guard against division by zero when market is closed
-                        final grams =
-                            price > 0 ? state.amount / price : 0.0;
-                        return Text('${grams.toStringAsFixed(4)}gm',
-                            style: TextStyle(
-                                fontSize: 12.sp,
-                                color: Colors.black45,
-                                fontWeight: FontWeight.w600));
-                      },
-                      loading: () => const SizedBox(),
-                      error: (_, __) => const SizedBox(),
-                    ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -667,12 +768,34 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
   }
 
   Widget _buildFooter(WithdrawalState withdrawalState,
-      AsyncValue<MarketRates> market, CommodityType type,
-      bool isCurrentMarketClosed) {
-    // Disable button when market is closed OR no amount entered
+      AsyncValue<MarketRates> market,
+      CommodityType type,
+      bool isCurrentMarketClosed,
+      AsyncValue<dynamic> policyAsync,
+      AsyncValue<Map<String, dynamic>> rewardAsync) {
+    final policy = policyAsync.valueOrNull;
+    // Disable when: no amount, processing, market closed, policy loading,
+    // or policy says is_valid=false, or amount exceeds withdrawable balance.
+    final policyValid = policy?.validation.isValid ?? false;
+    final isPolicyReady = policyAsync.hasValue && policy != null;
+
+    // ── Client-side balance check ──────────────────────────────────────
+    final reward = rewardAsync.valueOrNull;
+    final withdrawableQty =
+        double.tryParse(reward?['withdrawable_qty']?.toString() ?? '0') ?? 0.0;
+    final liveRate = type == CommodityType.gold
+        ? market.valueOrNull?.goldBuy ?? 0.0
+        : market.valueOrNull?.silverBuy ?? 0.0;
+    final maxInr = withdrawableQty * liveRate;
+    final exceedsBalance =
+        withdrawalState.amount > 0 && maxInr > 0 && withdrawalState.amount > maxInr;
+
     final isEnabled = withdrawalState.amount > 0 &&
         !withdrawalState.isProcessing &&
-        !isCurrentMarketClosed;
+        !isCurrentMarketClosed &&
+        isPolicyReady &&
+        policyValid &&
+        !exceedsBalance;
     return SafeArea(
       top: false,
       child: Container(
@@ -966,35 +1089,33 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
     final rates = market.valueOrNull;
     if (rates == null) return;
 
-    // Use withdrawable_qty from referrals/reward-balance API for validation
-    final rewardData = ref.read(rewardBalanceProvider).valueOrNull ?? {};
-    final balanceGrams =
-        double.tryParse(rewardData['withdrawable_qty']?.toString() ?? '0') ??
-            0.0;
-
-    final buyBackPrice =
-        type == CommodityType.gold ? rates.goldBuy : rates.silverBuy;
-
-    final notifier = ref.read(withdrawalProvider.notifier);
-    final error = notifier.validate(balanceGrams, buyBackPrice);
-
-    if (error != null) {
-      AppToast.show(context, error, type: ToastType.error);
+    // ── Step 1: Check policy validation (primary gate) ───────────────────
+    final policy = ref.read(withdrawalPolicyProvider).valueOrNull;
+    if (policy != null && !policy.validation.isValid) {
+      AppToast.show(
+          context,
+          policy.validation.message ??
+              'Invalid withdrawal amount. Please check the limits.',
+          type: ToastType.error);
       return;
     }
 
-    final user = ref.read(userProvider);
-    if (user == null) return;
-
+    final notifier = ref.read(withdrawalProvider.notifier);
     notifier.setProcessing(true);
 
     try {
+      final user = ref.read(userProvider);
+      if (user == null) {
+        notifier.setProcessing(false);
+        return;
+      }
+
       final nextStep =
           await ref.read(withdrawalServiceProvider).checkEligibility(
                 customerId: user.id,
                 mobile: user.mobile,
                 amount: ref.read(withdrawalProvider).amount,
-                metalId: ref.read(selectedMetalIdProvider), // dynamic from API
+                metalId: ref.read(selectedMetalIdProvider),
               );
 
       if (!mounted) return;
@@ -1003,8 +1124,6 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
       if (nextStep == 'KYC_REQUIRED') {
         Navigator.pushNamed(context, AppRouter.dynamicKyc,
             arguments: {'request_from': 'withdraw'});
-      } else if (nextStep == 'UPI_LIST' || nextStep == null) {
-        Navigator.pushNamed(context, AppRouter.upiSelection);
       } else {
         Navigator.pushNamed(context, AppRouter.upiSelection);
       }
@@ -1015,5 +1134,110 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
             type: ToastType.error);
       }
     }
+  }
+
+  /// Premium error banner shown between the input card and the footer.
+  /// Only visible AFTER user has started typing AND is_valid = false.
+  Widget _buildValidationError(
+    AsyncValue<dynamic> policyAsync,
+    AsyncValue<Map<String, dynamic>> rewardAsync,
+    AsyncValue<MarketRates> market,
+    CommodityType type,
+  ) {
+    final policy = policyAsync.valueOrNull;
+
+    // ── Client-side balance check (instant, no API needed) ───────────
+    final reward = rewardAsync.valueOrNull;
+    final withdrawableQty =
+        double.tryParse(reward?['withdrawable_qty']?.toString() ?? '0') ?? 0.0;
+    final liveRate = type == CommodityType.gold
+        ? market.valueOrNull?.goldBuy ?? 0.0
+        : market.valueOrNull?.silverBuy ?? 0.0;
+    final maxInr = withdrawableQty * liveRate;
+    final enteredAmount = double.tryParse(_amountController.text) ?? 0.0;
+    final exceedsBalance =
+        _hasUserTyped && enteredAmount > 0 && maxInr > 0 && enteredAmount > maxInr;
+
+    // Show balance-exceeded error first; otherwise show API policy error
+    final showBalanceError = exceedsBalance;
+    final showPolicyError =
+        !exceedsBalance && _hasUserTyped && policy != null && !policy.validation.isValid;
+    final showError = showBalanceError || showPolicyError;
+    final message = showBalanceError
+        ? 'Amount exceeds your withdrawable balance of ₹${maxInr.toStringAsFixed(2)}'
+        : (policy?.validation.message ?? '');
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      child: showError
+          ? Padding(
+              padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 0),
+              child: Container(
+                width: double.infinity,
+                padding:
+                    EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  borderRadius: BorderRadius.circular(16.r),
+                  border: Border.all(
+                    color: const Color(0xFFFDA4AF).withOpacity(0.6),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6.r),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF4D6D).withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.error_rounded,
+                        size: 16.sp,
+                        color: const Color(0xFFE11D48),
+                      ),
+                    ),
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Invalid Amount',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFBE123C),
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          SizedBox(height: 3.h),
+                          Text(
+                            message,
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              color: const Color(0xFF9F1239),
+                              fontWeight: FontWeight.w500,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
   }
 }

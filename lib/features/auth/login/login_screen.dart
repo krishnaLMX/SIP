@@ -28,6 +28,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String _selectedCountryId = '101';
   final TapGestureRecognizer _termsRecognizer = TapGestureRecognizer();
   final TapGestureRecognizer _privacyRecognizer = TapGestureRecognizer();
+  DateTime? _lastBackPressTime; // tracks double-tap-to-exit timing
 
   @override
   void initState() {
@@ -80,14 +81,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final secondaryTextColor =
         isDark ? Colors.white70 : const Color(0xFF666666);
 
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: isDark ? AppTheme.darkGradient : AppTheme.lightGradient,
-        ),
-        child: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        final now = DateTime.now();
+        final isSecondPress = _lastBackPressTime != null &&
+            now.difference(_lastBackPressTime!) < const Duration(seconds: 2);
+        if (isSecondPress) {
+          SystemNavigator.pop();
+        } else {
+          _lastBackPressTime = now;
+          if (mounted) {
+            AppToast.show(
+              context,
+              'Press back again to exit',
+              type: ToastType.info,
+            );
+          }
+        }
+      },
+      child: Scaffold(
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            gradient: isDark ? AppTheme.darkGradient : AppTheme.lightGradient,
+          ),
+          child: SafeArea(
           child: Column(
             children: [
               // ── Scrollable Content ──────────────────────────────────
@@ -368,9 +388,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ],
           ),
+          ),
         ),
       ),
-    );
+    );    // closes PopScope
   }
 
   Widget _buildCountryPicker(

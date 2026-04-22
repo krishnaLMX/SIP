@@ -3,8 +3,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shimmer/shimmer.dart';
+import '../../core/services/biometric_service.dart';
 import '../../routes/app_router.dart';
 import '../../core/security/secure_storage_service.dart';
 import '../../core/utils/masking_utils.dart';
@@ -30,7 +31,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _biometricEnabled = false;
   bool _biometricAvailable = false;
-  final LocalAuthentication _localAuth = LocalAuthentication();
 
   @override
   void initState() {
@@ -39,66 +39,70 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _loadBiometricState() async {
-    final enabled = await SecureStorageService.isBiometricEnabled();
-    bool available = false;
-    try {
-      available = await _localAuth.canCheckBiometrics ||
-          await _localAuth.isDeviceSupported();
-    } catch (_) {}
+    // deviceHasBiometric() uses getAvailableBiometrics() internally.
+    // canUseBiometric() also auto-disables storage if device biometrics
+    // were removed since last launch.
+    final hasDevice = await BiometricService.deviceHasBiometric();
+    final canUse = hasDevice && await BiometricService.canUseBiometric();
     if (mounted) {
       setState(() {
-        _biometricEnabled = enabled;
-        _biometricAvailable = available;
+        _biometricAvailable = hasDevice;
+        _biometricEnabled = canUse;
       });
     }
   }
 
   Future<void> _onBiometricToggle(bool newValue) async {
-    debugPrint('── Biometric Toggle: $newValue ──');
     if (newValue) {
-      // Step 1: Verify identity with existing MPIN.
-      debugPrint('  Step 1: Opening MPIN verify_only...');
+      // ── Guard 1: confirm device has enrolled biometrics ──────────────
+      final check = await BiometricService.checkBeforeEnable();
+      if (check == BiometricCheckResult.noneEnrolled) {
+        if (mounted) {
+          AppToast.show(
+            context,
+            'No biometric found in device. Please enroll a fingerprint or face in your phone settings.',
+            type: ToastType.error,
+          );
+        }
+        return; // Keep toggle OFF
+      }
+      if (check == BiometricCheckResult.notSupported) {
+        if (mounted) {
+          AppToast.show(
+            context,
+            'Biometric authentication is not supported on this device.',
+            type: ToastType.error,
+          );
+        }
+        return;
+      }
+
+      // ── Guard 2: verify identity with existing MPIN ───────────────────
       final verified = await Navigator.pushNamed(
         context,
         AppRouter.mpin,
         arguments: {'type': 'verify_only'},
       );
-      debugPrint('  Step 1 result: verified=$verified');
-      if (verified != true) {
-        debugPrint('  ABORTED: MPIN not verified');
-        return;
-      }
+      if (verified != true) return; // MPIN not verified — abort
 
-      // Step 2: Confirm with actual biometric enrollment
-      debugPrint('  Step 2: Prompting biometric enrollment...');
-      try {
-        final enrolled = await _localAuth.authenticate(
-          localizedReason: 'Confirm biometrics to enable this feature',
-          biometricOnly: true,
-          persistAcrossBackgrounding: true,
-        );
-        debugPrint('  Step 2 result: enrolled=$enrolled');
-        if (!enrolled) {
-          debugPrint('  ABORTED: Biometric enrollment rejected');
-          return;
-        }
-      } catch (e) {
-        debugPrint('  Step 2 ERROR: $e');
-        return;
-      }
+      // ── Guard 3: final biometric prompt to confirm enrollment ─────────
+      final enrolled = await BiometricService.authenticate(
+        reason: 'Confirm biometrics to enable this feature',
+      );
+      if (!enrolled) return; // User cancelled — abort
     }
 
-    debugPrint('  Step 3: Saving biometricEnabled=$newValue');
+    // Persist the new state
     await SecureStorageService.setBiometricEnabled(newValue);
-    // Also persist the MPIN enabled flag so the flag stays correct
     if (newValue) await SecureStorageService.setMpinEnabled(true);
     if (mounted) setState(() => _biometricEnabled = newValue);
 
     final msg = newValue
         ? 'Biometric authentication enabled'
         : 'Biometric authentication disabled';
-    final type = newValue ? ToastType.success : ToastType.info;
-    if (mounted) AppToast.show(context, msg, type: type);
+    if (mounted)
+      AppToast.show(context, msg,
+          type: newValue ? ToastType.success : ToastType.info);
   }
 
   @override
@@ -107,211 +111,401 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final profileState = ref.watch(pc.profileProvider);
 
     if (profileState.isLoading && profileState.user.name == 'Investor') {
-      return AppLoaders.fullScreenLoader(context, isDark: isDark);
+      return _buildSkeleton(isDark);
     }
 
     final user = profileState.user;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          children: [
-            _buildHeader(context, user, isDark),
-            Padding(
-              padding: EdgeInsets.all(24.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSection(
-                      'Profile Settings',
-                      [
-                        _buildMenuItem(
-                          'Account Details',
-                          'assets/sidemenu/account.svg',
-                          onTap: () => Navigator.pushNamed(
-                              context, AppRouter.accountDetails),
-                        ),
-                        _buildMenuItem(
-                          'Transaction History',
-                          'assets/sidemenu/transhistory.svg',
-                          onTap: () => Navigator.pushNamed(
-                              context, AppRouter.transactionHistory),
-                        ),
-                        _buildMenuItem(
-                          'KYC Verification',
-                          'assets/sidemenu/kyc.svg',
-                          onTap: () async {
-                            if (user.kycStatus == 1) {
-                              AppToast.show(
-                                  context, 'Your KYC is already verified! ✓',
-                                  type: ToastType.success);
-                              return;
-                            }
-                            final result = await Navigator.pushNamed(
-                                context, AppRouter.kyc,
-                                arguments: {'request_from': 'profile'});
-                            // Refresh profile to update the verified badge
-                            if (result == true && mounted) {
-                              ref
-                                  .read(pc.profileProvider.notifier)
-                                  .fetchProfileDetails();
-                            }
-                          },
-                          trailing: user.kycStatus == 1
-                              ? Container(
-                                  padding: EdgeInsets.symmetric(
-                                      horizontal: 10.w, vertical: 4.h),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF0E5723)
-                                        .withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(100.r),
-                                    border: Border.all(
-                                        color: const Color(0xFF0E5723)
-                                            .withOpacity(0.15)),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.verified_user_rounded,
-                                          color: const Color(0xFF0E5723),
-                                          size: 14.sp),
-                                      SizedBox(width: 4.w),
-                                      Text(
-                                        'Verified',
-                                        style: TextStyle(
-                                          fontSize: 10.sp,
-                                          fontWeight: FontWeight.w900,
-                                          color: const Color(0xFF0E5723),
-                                          letterSpacing: 0.3,
+      body: Column(
+        children: [
+          // ── Pinned gradient header (never scrolls) ──────────────────
+          _buildHeader(context, user, isDark),
+
+          // ── Scrollable menu body ─────────────────────────────────────
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Padding(
+                padding: EdgeInsets.all(24.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSection(
+                        'Profile Settings',
+                        [
+                          _buildMenuItem(
+                            'Account Details',
+                            'assets/sidemenu/account.svg',
+                            onTap: () => Navigator.pushNamed(
+                                context, AppRouter.accountDetails),
+                          ),
+                          _buildMenuItem(
+                            'Transaction History',
+                            'assets/sidemenu/transhistory.svg',
+                            onTap: () => Navigator.pushNamed(
+                                context, AppRouter.transactionHistory),
+                          ),
+                          _buildMenuItem(
+                            'KYC Verification',
+                            'assets/sidemenu/kyc.svg',
+                            onTap: () async {
+                              if (user.kycStatus == 1) {
+                                AppToast.show(
+                                    context, 'Your KYC is already verified! ✓',
+                                    type: ToastType.success);
+                                return;
+                              }
+                              final result = await Navigator.pushNamed(
+                                  context, AppRouter.kyc,
+                                  arguments: {'request_from': 'profile'});
+                              // Refresh profile to update the verified badge
+                              if (result == true && mounted) {
+                                ref
+                                    .read(pc.profileProvider.notifier)
+                                    .fetchProfileDetails();
+                              }
+                            },
+                            trailing: user.kycStatus == 1
+                                ? Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 10.w, vertical: 4.h),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0E5723)
+                                          .withOpacity(0.08),
+                                      borderRadius:
+                                          BorderRadius.circular(100.r),
+                                      border: Border.all(
+                                          color: const Color(0xFF0E5723)
+                                              .withOpacity(0.15)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.verified_user_rounded,
+                                            color: const Color(0xFF0E5723),
+                                            size: 14.sp),
+                                        SizedBox(width: 4.w),
+                                        Text(
+                                          'Verified',
+                                          style: TextStyle(
+                                            fontSize: 10.sp,
+                                            fontWeight: FontWeight.w900,
+                                            color: const Color(0xFF0E5723),
+                                            letterSpacing: 0.3,
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : null,
-                        ),
-                        // Nominee Details - Commented as requested
-                        /*
+                                      ],
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          // Nominee Details - Commented as requested
+                          /*
                     _buildMenuItem(
                       'Nominee Details',
                       'assets/sidemenu/nominee.svg',
                       onTap: () {},
                     ),
                     */
-                        // Auto Savings - Commented as requested
-                        /*
+                          // Auto Savings - Commented as requested
+                          /*
                     _buildMenuItem(
                       'Auto Savings',
                       'assets/sidemenu/autosaving.svg',
                       onTap: () {},
                     ),
                     */
-                      ],
-                      isDark),
-                  SizedBox(height: 16.h),
-                  _buildSection(
-                      'General',
-                      [
-                        _buildMenuItem(
-                          'Refer & Earn',
-                          'assets/sidemenu/refer.svg',
-                          onTap: () =>
-                              Navigator.pushNamed(context, AppRouter.referral),
-                        ),
-                        _buildMenuItem(
-                          'Privacy Policy',
-                          'assets/sidemenu/privacy.svg',
-                          onTap: () =>
-                              Navigator.pushNamed(context, AppRouter.privacy),
-                        ),
-                        _buildMenuItem(
-                          'Terms & Conditions',
-                          'assets/sidemenu/tc.svg',
-                          onTap: () =>
-                              Navigator.pushNamed(context, AppRouter.terms),
-                        ),
-                        _buildMenuItem(
-                          'Enquiry',
-                          'assets/sidemenu/enquiry.svg',
-                          onTap: () => Navigator.pushNamed(
-                              context, AppRouter.enquiryList),
-                        ),
-                        _buildMenuItem(
-                          'Help & Support',
-                          'assets/sidemenu/help.svg',
-                          onTap: () =>
-                              Navigator.pushNamed(context, AppRouter.contact),
-                        ),
-                      ],
-                      isDark),
-                  SizedBox(height: 16.h),
-                  _buildSection(
-                      'Account',
-                      [
-                        // Biometrics Auth
-                        if (_biometricAvailable)
+                        ],
+                        isDark),
+                    SizedBox(height: 16.h),
+                    _buildSection(
+                        'General',
+                        [
                           _buildMenuItem(
-                            'Biometric Authentication',
-                            'assets/sidemenu/lock.svg',
-                            onTap: () => _onBiometricToggle(!_biometricEnabled),
-                            trailing: Switch(
-                              value: _biometricEnabled,
-                              onChanged: _onBiometricToggle,
-                              activeColor: const Color(0xFF0E5723),
+                            'Refer & Earn',
+                            'assets/sidemenu/refer.svg',
+                            onTap: () => Navigator.pushNamed(
+                                context, AppRouter.referral),
+                          ),
+                          _buildMenuItem(
+                            'Privacy Policy',
+                            'assets/sidemenu/privacy.svg',
+                            onTap: () =>
+                                Navigator.pushNamed(context, AppRouter.privacy),
+                          ),
+                          _buildMenuItem(
+                            'Terms & Conditions',
+                            'assets/sidemenu/tc.svg',
+                            onTap: () =>
+                                Navigator.pushNamed(context, AppRouter.terms),
+                          ),
+                          _buildMenuItem(
+                            'Enquiry',
+                            'assets/sidemenu/enquiry.svg',
+                            onTap: () => Navigator.pushNamed(
+                                context, AppRouter.enquiryList),
+                          ),
+                          _buildMenuItem(
+                            'Contact Us',
+                            'assets/sidemenu/help.svg',
+                            onTap: () =>
+                                Navigator.pushNamed(context, AppRouter.contact),
+                          ),
+                        ],
+                        isDark),
+                    SizedBox(height: 16.h),
+                    _buildSection(
+                        'Account',
+                        [
+                          // Biometrics Auth
+                          if (_biometricAvailable)
+                            _buildMenuItem(
+                              'Biometric Authentication',
+                              'assets/sidemenu/lock.svg',
+                              onTap: () =>
+                                  _onBiometricToggle(!_biometricEnabled),
+                              trailing: Switch(
+                                value: _biometricEnabled,
+                                onChanged: _onBiometricToggle,
+                                activeColor: const Color(0xFF0E5723),
+                              ),
                             ),
+
+                          // Change MPIN
+
+                          _buildMenuItem(
+                            'Change MPIN',
+                            'assets/sidemenu/mpin.svg',
+                            onTap: () => Navigator.pushNamed(
+                                context, AppRouter.changeMpin),
                           ),
 
-                        // Change MPIN
+                          _buildMenuItem(
+                            'Logout',
+                            'assets/sidemenu/logout.svg',
+                            onTap: () => _handleLogout(context, ref),
+                          ),
+                          _buildMenuItem(
+                            'Delete Account',
+                            'assets/sidemenu/deleteacc.svg',
+                            isDestructive: true,
+                            onTap: () => _handleDeleteAccount(context),
+                          ),
+                        ],
+                        isDark),
+                    SizedBox(height: 32.h),
+                    Center(
+                      child: Consumer(
+                        builder: (context, ref, _) {
+                          final versionAsync = ref.watch(appVersionProvider);
+                          final label = versionAsync.when(
+                            data: (v) => v,
+                            loading: () => 'Version ...',
+                            error: (_, __) => 'Version 1.0',
+                          );
+                          return Text(
+                            label,
+                            style: GoogleFonts.lora(
+                              fontSize: 14.sp,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    SizedBox(height: 48.h),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                        _buildMenuItem(
-                          'Change MPIN',
-                          'assets/sidemenu/mpin.svg',
-                          onTap: () => Navigator.pushNamed(
-                              context, AppRouter.changeMpin),
-                        ),
+  // ── Shimmer skeleton — mirrors the real profile layout ────────────────────
+  Widget _buildSkeleton(bool isDark) {
+    final baseLight = Colors.white.withValues(alpha: 0.15);
+    final highlightLight = Colors.white.withValues(alpha: 0.30);
+    final baseDark =
+        Colors.black.withValues(alpha: isDark ? 0.12 : 0.06);
+    final highlightDark =
+        Colors.black.withValues(alpha: isDark ? 0.22 : 0.12);
 
-                        _buildMenuItem(
-                          'Logout',
-                          'assets/sidemenu/logout.svg',
-                          onTap: () => _handleLogout(context, ref),
-                        ),
-                        _buildMenuItem(
-                          'Delete Account',
-                          'assets/sidemenu/deleteacc.svg',
-                          isDestructive: true,
-                          onTap: () => _handleDeleteAccount(context),
+    // Helper — shimmering pill on the green header
+    Widget headerPill(double w, double h) => Shimmer.fromColors(
+          baseColor: baseLight,
+          highlightColor: highlightLight,
+          child: Container(
+            width: w,
+            height: h,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(h / 2),
+            ),
+          ),
+        );
+
+    // Helper — shimmering circle on the green header
+    Widget headerCircle(double size) => Shimmer.fromColors(
+          baseColor: baseLight,
+          highlightColor: highlightLight,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+
+    // Helper — shimmering menu-item card (matches _buildMenuItem exactly)
+    Widget menuCard() => Shimmer.fromColors(
+          baseColor: baseDark,
+          highlightColor: highlightDark,
+          child: Container(
+            margin: EdgeInsets.only(bottom: 12.h),
+            padding:
+                EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15.r),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40.w,
+                  height: 40.w,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                ),
+                SizedBox(width: 16.w),
+                Container(
+                  width: 140.w,
+                  height: 14.h,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(7.r),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+
+    // Helper — section title pill
+    Widget sectionTitle() => Shimmer.fromColors(
+          baseColor: baseDark,
+          highlightColor: highlightDark,
+          child: Container(
+            width: 120.w,
+            height: 18.h,
+            margin: EdgeInsets.only(left: 4.w, bottom: 16.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(9.r),
+            ),
+          ),
+        );
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          // ── Green header skeleton (same gradient as real header) ────────
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment(-0.87, -0.5),
+                end: Alignment(0.87, 0.5),
+                colors: [Color(0xFF003716), Color(0xFF167525)],
+                stops: [0.0223, 0.9399],
+              ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(32.r),
+                bottomRight: Radius.circular(32.r),
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 28.h),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Nav row
+                    SizedBox(height: 8.h),
+                    Row(
+                      children: [
+                        Icon(Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white54, size: 20.sp),
+                        SizedBox(width: 8.w),
+                        headerPill(60.w, 18.h),
+                      ],
+                    ),
+                    SizedBox(height: 20.h),
+                    // Avatar + name/phone row
+                    Row(
+                      children: [
+                        SizedBox(width: 8.w),
+                        headerCircle(70.w),
+                        SizedBox(width: 20.w),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            headerPill(130.w, 18.h),
+                            SizedBox(height: 8.h),
+                            headerPill(90.w, 13.h),
+                          ],
                         ),
                       ],
-                      isDark),
-                  SizedBox(height: 32.h),
-                  Center(
-                    child: Consumer(
-                      builder: (context, ref, _) {
-                        final versionAsync = ref.watch(appVersionProvider);
-                        final label = versionAsync.when(
-                          data: (v) => v,
-                          loading: () => 'Version ...',
-                          error: (_, __) => 'Version 1.0',
-                        );
-                        return Text(
-                          label,
-                          style: GoogleFonts.lora(
-                            fontSize: 14.sp,
-                            color: isDark ? Colors.white38 : Colors.black38,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        );
-                      },
                     ),
-                  ),
-                  SizedBox(height: 48.h),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Menu body skeleton ──────────────────────────────────────────
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.all(24.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Section 1 — Profile Settings (3 items)
+                  sectionTitle(),
+                  menuCard(),
+                  menuCard(),
+                  menuCard(),
+                  SizedBox(height: 16.h),
+                  // Section 2 — General (5 items)
+                  sectionTitle(),
+                  menuCard(),
+                  menuCard(),
+                  menuCard(),
+                  menuCard(),
+                  menuCard(),
+                  SizedBox(height: 16.h),
+                  // Section 3 — Account (3 items)
+                  sectionTitle(),
+                  menuCard(),
+                  menuCard(),
+                  menuCard(),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -597,6 +791,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _handleDeleteAccount(BuildContext context) {
-    // Show a similar dialog for delete account if needed
+    Navigator.pushNamed(context, AppRouter.deleteAccount);
   }
 }

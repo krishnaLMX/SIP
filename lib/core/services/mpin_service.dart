@@ -18,9 +18,9 @@ class MpinService {
     if (data?['success'] == true) return;
 
     final errObj = data?['error'];
-    final msg = (errObj is Map ? errObj['message'] : null)
-        ?? data?['message']
-        ?? 'Failed to set PIN. Please try again.';
+    final msg = (errObj is Map ? errObj['message'] : null) ??
+        data?['message'] ??
+        'Failed to set PIN. Please try again.';
     throw Exception(msg);
   }
 
@@ -50,15 +50,16 @@ class MpinService {
 
     // Extract the real error message from the response
     final errObj = data?['error'];
-    final msg = (errObj is Map ? errObj['message'] : null)
-        ?? data?['message']
-        ?? 'Failed to change PIN. Please try again.';
+    final msg = (errObj is Map ? errObj['message'] : null) ??
+        data?['message'] ??
+        'Failed to change PIN. Please try again.';
     throw Exception(msg);
   }
 
   /// Resets the MPIN after forgot-PIN OTP verification.
   /// Requires temp_token from the OTP verify response.
-  Future<void> resetMpin(String tempToken, String newMpin, {String? mobile}) async {
+  Future<void> resetMpin(String tempToken, String newMpin,
+      {String? mobile}) async {
     final response = await _apiClient.post(
       'mpin/reset',
       data: {
@@ -71,9 +72,9 @@ class MpinService {
     if (data?['success'] == true) return;
 
     final errObj = data?['error'];
-    final msg = (errObj is Map ? errObj['message'] : null)
-        ?? data?['message']
-        ?? 'Failed to reset PIN. Please try again.';
+    final msg = (errObj is Map ? errObj['message'] : null) ??
+        data?['message'] ??
+        'Failed to reset PIN. Please try again.';
     throw Exception(msg);
   }
 
@@ -163,6 +164,8 @@ class MpinNotifier extends StateNotifier<MpinState> {
       final msg = e.toString().replaceFirst('Exception: ', '');
       state = state.copyWith(
         isLoading: false,
+        mpin: '',
+        isComplete: false,
         error: msg.isNotEmpty ? msg : 'Failed to set security PIN. Try again.',
       );
       return false;
@@ -195,6 +198,8 @@ class MpinNotifier extends StateNotifier<MpinState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
+        mpin: '',
+        isComplete: false,
         error: 'Validation failed. Check your connection.',
       );
       return false;
@@ -213,6 +218,8 @@ class MpinNotifier extends StateNotifier<MpinState> {
       final msg = e.toString().replaceFirst('Exception: ', '');
       state = state.copyWith(
         isLoading: false,
+        mpin: '',
+        isComplete: false,
         error: msg.isNotEmpty ? msg : 'Failed to reset PIN. Try again.',
       );
       return false;
@@ -228,4 +235,3 @@ final mpinProvider = StateNotifierProvider<MpinNotifier, MpinState>((ref) {
   final service = ref.watch(mpinServiceProvider);
   return MpinNotifier(service);
 });
-

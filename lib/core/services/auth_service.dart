@@ -1,44 +1,15 @@
-import 'dart:io';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../network/api_client.dart';
 import '../security/secure_storage_service.dart';
+import 'device_id_service.dart';
 
 // --- SERVICE LAYER ---
 
 class AuthService {
   final ApiClient _apiClient = ApiClient();
-  final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
-
-  Future<String> _getDeviceId() async {
-    try {
-      if (kIsWeb) {
-        final webInfo = await _deviceInfo.webBrowserInfo;
-        return webInfo.userAgent ?? 'web_browser';
-      }
-      if (Platform.isAndroid) {
-        final androidInfo = await _deviceInfo.androidInfo;
-        return androidInfo.id;
-      } else if (Platform.isIOS) {
-        final iosInfo = await _deviceInfo.iosInfo;
-        return iosInfo.identifierForVendor ?? 'unknown_ios_id';
-      }
-    } catch (e) {
-      return 'placeholder_id';
-    }
-    return 'placeholder_id';
-  }
-
-  String _getDeviceType() {
-    if (kIsWeb) return 'web';
-    if (Platform.isAndroid) return 'android';
-    if (Platform.isIOS) return 'ios';
-    return 'other';
-  }
 
   Future<String> _getAppVersion() async {
     try {
@@ -64,8 +35,8 @@ class AuthService {
         'country_code': countryCode,
         'id_country': idCountry,
         'type': type,
-        'device_id': await _getDeviceId(),
-        'device_type': _getDeviceType(),
+        'device_id': await DeviceIdService.getDeviceId(),
+        'device_type': await DeviceIdService.getDeviceType(),
         'appVersion': appVersion,
       },
     );
@@ -126,9 +97,6 @@ class AuthService {
     String? dob,
     String? referralCode,
   }) async {
-    final deviceId = await _getDeviceId();
-    final deviceType = _getDeviceType();
-
     final response = await _apiClient.post(
       'users/auth/register',
       data: {
@@ -138,8 +106,8 @@ class AuthService {
         'dob': dob,
         'referral_code': referralCode,
         'temp_token': tempToken,
-        'device_id': await deviceId,
-        'device_type': deviceType,
+        'device_id': await DeviceIdService.getDeviceId(),
+        'device_type': await DeviceIdService.getDeviceType(),
       },
     );
     // Save tokens if present
@@ -247,7 +215,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final data = await _authService.sendOtp(
-          mobile: mobile, countryCode: countryCode, idCountry: idCountry, type: type);
+          mobile: mobile,
+          countryCode: countryCode,
+          idCountry: idCountry,
+          type: type);
 
       if (data['success'] == true) {
         state = state.copyWith(isLoading: false, data: data['data']);
@@ -416,8 +387,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       String errorMessage = 'Registration failed. Please try again.';
       if (e.response?.data != null) {
         final respData = e.response?.data;
-        if (respData['error'] != null &&
-            respData['error']['message'] != null) {
+        if (respData['error'] != null && respData['error']['message'] != null) {
           final msg = respData['error']['message'];
           if (msg is Map) {
             errorMessage = msg.values.first
@@ -454,4 +424,3 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final service = ref.watch(authServiceProvider);
   return AuthNotifier(service);
 });
-

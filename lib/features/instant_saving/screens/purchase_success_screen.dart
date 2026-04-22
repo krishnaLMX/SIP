@@ -85,43 +85,16 @@ class PurchaseSuccessScreen extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // ── Status icon ───────────────────
-                    if (isSuccess)
-                      SizedBox(
-                        width: 90.w,
-                        height: 90.w,
-                        child: Image.asset(
-                          'assets/withdraw/successtik.gif',
-                          fit: BoxFit.contain,
-                        ),
-                      )
-                    else
-                      Container(
-                        width: 78.w,
-                        height: 78.w,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFFDC2626),
-                              Color(0xFF991B1B),
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFDC2626).withOpacity(0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.close_rounded,
-                          color: Colors.white,
-                          size: 38.sp,
-                        ),
+                    SizedBox(
+                      width: 90.w,
+                      height: 90.w,
+                      child: Image.asset(
+                        isSuccess
+                            ? 'assets/withdraw/successtik.gif'
+                            : 'assets/withdraw/failuretik.gif',
+                        fit: BoxFit.contain,
                       ),
+                    ),
 
                     SizedBox(height: 16.h),
 

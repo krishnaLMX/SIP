@@ -3,6 +3,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../core/providers/commodity_provider.dart';
 import '../models/withdrawal_method.dart';
+import '../models/withdrawal_policy.dart';
 
 class WithdrawalService {
   final ApiClient _apiClient = ApiClient();
@@ -138,6 +139,25 @@ class WithdrawalService {
       return {};
     }
   }
+
+  /// Fetch withdrawal policy for a given metal + amount.
+  /// Endpoint: POST withdrawal/policy
+  /// Payload:  { "id_metal": 1, "amount": 1000.00 }
+  Future<WithdrawalPolicy> fetchWithdrawalPolicy({
+    required int metalId,
+    required double amount,
+  }) async {
+    final response = await _apiClient.post('withdrawal/policy', data: {
+      'id_metal': metalId,
+      'amount': amount,
+    });
+    if (response.data != null && response.data['success'] == true) {
+      final data = response.data['data'] as Map<String, dynamic>? ?? {};
+      return WithdrawalPolicy.fromJson(data);
+    }
+    throw Exception(
+        response.data?['message'] ?? 'Failed to fetch withdrawal policy');
+  }
 }
 
 final withdrawalServiceProvider = Provider((ref) => WithdrawalService());
@@ -162,3 +182,27 @@ final rewardBalanceProvider =
         metalId: metalId,
       );
 });
+
+// ── Withdrawal Policy ─────────────────────────────────────────────────────
+
+/// Holds the last fetched policy. Call [WithdrawalPolicyNotifier.fetch] to
+/// refresh (on screen load and every amount change).
+class WithdrawalPolicyNotifier
+    extends AutoDisposeAsyncNotifier<WithdrawalPolicy?> {
+  @override
+  Future<WithdrawalPolicy?> build() async => null; // idle until first fetch
+
+  Future<void> fetch({required int metalId, required double amount}) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() =>
+        ref.read(withdrawalServiceProvider).fetchWithdrawalPolicy(
+              metalId: metalId,
+              amount: amount,
+            ));
+  }
+}
+
+final withdrawalPolicyProvider = AsyncNotifierProvider.autoDispose<
+    WithdrawalPolicyNotifier, WithdrawalPolicy?>(
+  WithdrawalPolicyNotifier.new,
+);

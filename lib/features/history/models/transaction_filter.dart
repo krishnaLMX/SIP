@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import '../models/history_models.dart';
 
 /// Immutable filter state for the Transaction History screen.
@@ -60,56 +61,68 @@ class TransactionFilter {
 
   /// Apply this filter to a flat list and regroup by date.
   Map<String, List<TransactionItem>> applyTo(HistoryResponse history) {
-    // Flatten all transactions
-    final List<TransactionItem> flat = history.transactions;
+    // Try to parse the API date key format: "21 April 2026"
+    // Falls back to DateTime.parse for ISO strings.
+    DateTime? _parseGroupKey(String key) {
+      try {
+        return DateFormat('d MMMM yyyy').parse(key);
+      } catch (_) {}
+      try {
+        return DateTime.parse(key);
+      } catch (_) {}
+      return null;
+    }
 
-    final filtered = flat.where((tx) {
-      // ── Date range ──────────────────────────────────────────────────
-      if (fromDate != null || toDate != null) {
-        DateTime? txDate;
-        try {
-          txDate = DateTime.parse(tx.date);
-        } catch (_) {}
-        if (txDate != null) {
-          if (fromDate != null) {
-            final from = DateTime(
-                fromDate!.year, fromDate!.month, fromDate!.day);
-            if (txDate.isBefore(from)) return false;
-          }
-          if (toDate != null) {
-            final to = DateTime(
-                toDate!.year, toDate!.month, toDate!.day, 23, 59, 59);
-            if (txDate.isAfter(to)) return false;
-          }
-        }
-      }
-
-      // ── Metal / commodity ───────────────────────────────────────────
-      if (metalName != null && metalName!.isNotEmpty) {
-        if (!tx.metalName
-            .toLowerCase()
-            .contains(metalName!.toLowerCase())) {
-          return false;
-        }
-      }
-
-      // ── Type (purchase / withdrawal / referral) ─────────────────────
-      if (type != null && type!.isNotEmpty) {
-        if (tx.type.toLowerCase() != type!.toLowerCase()) return false;
-      }
-
-      // ── Status (Success / Pending / Cancelled) ──────────────────────
-      if (status != null && status!.isNotEmpty) {
-        if (tx.status.toLowerCase() != status!.toLowerCase()) return false;
-      }
-
-      return true;
-    }).toList();
-
-    // Regroup by original date key
+    // Iterate over the original grouped data to preserve date-group order
+    // and use the group key as the date source (correct and reliable).
     final Map<String, List<TransactionItem>> grouped = {};
-    for (final tx in filtered) {
-      grouped.putIfAbsent(tx.date, () => []).add(tx);
+
+    for (final entry in history.groupedData.entries) {
+      final dateKey = entry.key;
+      final txDate = _parseGroupKey(dateKey);
+
+      // ── Date range filter ──────────────────────────────────────────
+      if (fromDate != null || toDate != null) {
+        if (txDate == null) continue; // can't parse → skip group
+        final day = DateTime(txDate.year, txDate.month, txDate.day);
+        if (fromDate != null) {
+          final from =
+              DateTime(fromDate!.year, fromDate!.month, fromDate!.day);
+          if (day.isBefore(from)) continue;
+        }
+        if (toDate != null) {
+          final to = DateTime(toDate!.year, toDate!.month, toDate!.day);
+          if (day.isAfter(to)) continue;
+        }
+      }
+
+      // Filter individual transactions within the date group
+      final List<TransactionItem> items = entry.value.where((tx) {
+        // ── Metal / commodity ────────────────────────────────────────
+        if (metalName != null && metalName!.isNotEmpty) {
+          if (!tx.metalName
+              .toLowerCase()
+              .contains(metalName!.toLowerCase())) {
+            return false;
+          }
+        }
+
+        // ── Type (purchase / withdrawal / referral) ──────────────────
+        if (type != null && type!.isNotEmpty) {
+          if (tx.type.toLowerCase() != type!.toLowerCase()) return false;
+        }
+
+        // ── Status (Success / Pending / Cancelled) ───────────────────
+        if (status != null && status!.isNotEmpty) {
+          if (tx.status.toLowerCase() != status!.toLowerCase()) return false;
+        }
+
+        return true;
+      }).toList();
+
+      if (items.isNotEmpty) {
+        grouped[dateKey] = items;
+      }
     }
     return grouped;
   }

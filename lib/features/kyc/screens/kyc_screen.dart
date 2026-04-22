@@ -367,6 +367,34 @@ class _KycScreenState extends ConsumerState<KycScreen> {
       children: allFields.map((field) {
         final bool isNumeric = field.type == 'number' ||
             (field.regex?.startsWith('^\\d') ?? false);
+        // Identify field roles
+        final bool isPanNumber = isPan &&
+            field.name != 'full_name' &&
+            !field.name.contains('name');
+        final bool isNameField =
+            field.name.contains('name') || field.name == 'full_name';
+
+        // Build input formatters based on field role
+        final List<TextInputFormatter> formatters = () {
+          if (isPanNumber) {
+            // PAN number: only A-Z and 0-9, max 10 characters, uppercase
+            return <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+              UpperCaseFormatter(),
+              LengthLimitingTextInputFormatter(10),
+            ];
+          } else if (isNameField) {
+            // Name field: letters and spaces only, no digits / special chars
+            return <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z ]')),
+              _TitleCaseFormatter(),
+            ];
+          } else if (!isNumeric) {
+            return <TextInputFormatter>[UpperCaseFormatter()];
+          }
+          return <TextInputFormatter>[];
+        }();
+
         return Padding(
           padding: EdgeInsets.only(bottom: 16.h),
           child: Column(
@@ -383,22 +411,23 @@ class _KycScreenState extends ConsumerState<KycScreen> {
                 controller: _docControllers[doc.id]?[field.name],
                 keyboardType:
                     isNumeric ? TextInputType.number : TextInputType.text,
-                textCapitalization:
-                    !isNumeric && (isPan || field.name.contains('name'))
+                textCapitalization: isNameField
+                    ? TextCapitalization.words
+                    : (isPanNumber
                         ? TextCapitalization.characters
-                        : TextCapitalization.none,
-                inputFormatters:
-                    !isNumeric && (isPan || field.name.contains('name'))
-                        ? [UpperCaseFormatter()]
-                        : [],
+                        : TextCapitalization.none),
+                inputFormatters: formatters,
                 style: GoogleFonts.lora(
                     color: stylized
                         ? Colors.black87
                         : (isDark ? Colors.white : Colors.black),
-                    fontWeight: stylized ? FontWeight.w600 : FontWeight.normal),
+                    fontWeight:
+                        stylized ? FontWeight.w600 : FontWeight.normal),
                 decoration: InputDecoration(
                   hintText: field.label,
-                  hintStyle: GoogleFonts.lora(fontSize: 16.sp, color: isDark ? Colors.white38 : Colors.black38),
+                  hintStyle: GoogleFonts.lora(
+                      fontSize: 16.sp,
+                      color: isDark ? Colors.white38 : Colors.black38),
                   filled: true,
                   fillColor: stylized
                       ? Colors.white
@@ -415,7 +444,15 @@ class _KycScreenState extends ConsumerState<KycScreen> {
                 ),
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Required';
-                  if (field.regex != null && field.regex!.isNotEmpty) {
+                  if (isPanNumber) {
+                    // PAN format: AAAAA9999A (5 letters, 4 digits, 1 letter)
+                    if (!RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$')
+                        .hasMatch(v.toUpperCase())) {
+                      return 'Enter a valid PAN (e.g. ABCDE1234F)';
+                    }
+                  } else if (isNameField) {
+                    if (v.trim().length < 2) return 'Enter a valid name';
+                  } else if (field.regex != null && field.regex!.isNotEmpty) {
                     if (!RegExp(field.regex!).hasMatch(v)) {
                       return 'Invalid ${field.label} format';
                     }
@@ -448,11 +485,59 @@ class _KycScreenState extends ConsumerState<KycScreen> {
   }
 }
 
+/// Converts input to UPPER CASE (used for PAN number).
 class UpperCaseFormatter extends TextInputFormatter {
+  // Allow only alphanumeric characters for PAN number
+  static final _allowed = RegExp(r'[a-zA-Z0-9]');
+
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    return newValue.copyWith(text: newValue.text.toUpperCase());
+    final cleaned =
+        newValue.text.split('').where((c) => _allowed.hasMatch(c)).join();
+    final upper = cleaned.toUpperCase();
+    final offset = upper.length.clamp(0, upper.length);
+    return newValue.copyWith(
+      text: upper,
+      selection: TextSelection.collapsed(offset: offset),
+    );
+  }
+}
+
+/// Title-case formatter for name fields — letters and spaces only.
+class _TitleCaseFormatter extends TextInputFormatter {
+  static final _allowed = RegExp(r'[a-zA-Z ]');
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    // Strip disallowed characters
+    final cleaned =
+        newValue.text.split('').where((c) => _allowed.hasMatch(c)).join();
+    if (cleaned.isEmpty) {
+      return newValue.copyWith(
+          text: '', selection: const TextSelection.collapsed(offset: 0));
+    }
+    // Capitalise first letter of each word
+    final buf = StringBuffer();
+    bool capNext = true;
+    for (final ch in cleaned.characters) {
+      if (ch == ' ') {
+        capNext = true;
+        buf.write(ch);
+      } else if (capNext) {
+        buf.write(ch.toUpperCase());
+        capNext = false;
+      } else {
+        buf.write(ch.toLowerCase());
+      }
+    }
+    final text = buf.toString();
+    final offset = text.length.clamp(0, text.length);
+    return newValue.copyWith(
+      text: text,
+      selection: TextSelection.collapsed(offset: offset),
+    );
   }
 }
 

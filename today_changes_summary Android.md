@@ -1,4 +1,71 @@
-# Today's Code Changes — April 13, 2026
+# Today's Code Changes — April 13, 2026 & April 18, 2026
+
+---
+
+# 📅 April 18, 2026 — Notification System Implementation
+
+## Files Changed (13 files)
+
+| # | File | Change Type |
+|---|---|---|
+| 1 | `apis.md` | Section 12 — Notifications appended |
+| 2 | `lib/core/services/notification_service.dart` | `registerFcmToken()` method added |
+| 3 | `lib/core/security/secure_storage_service.dart` | `saveFcmToken` / `getFcmToken` added |
+| 4 | `lib/core/config/app_config.dart` | `keyFcmToken` storage key added |
+| 5 | `lib/features/mpin/mpin_screen.dart` | `_registerFcmTokenAfterLogin()` + imports |
+| 6 | `lib/core/services/fcm_service.dart` | Full FCM implementation (replaces stub) |
+| 7 | `pubspec.yaml` | `firebase_core`, `firebase_messaging`, `flutter_local_notifications` |
+| 8 | `android/settings.gradle.kts` | Google Services plugin declared |
+| 9 | `android/app/build.gradle.kts` | Google Services plugin applied |
+| 10 | `android/app/src/main/AndroidManifest.xml` | `POST_NOTIFICATIONS` permission added |
+| 11 | `android/app/google-services.json` | Placed by developer (Firebase config) |
+| 12 | `lib/main.dart` | `Firebase.initializeApp()` + `kIsWeb` guards + `FcmService.init()` |
+| 13 | `lib/features/home/home_screen.dart` | Bell icon — `GestureDetector` + navigate to `/notifications` |
+
+## Key Changes Detail
+
+### `fcm_service.dart` — Full FCM Service
+- Foreground: shows `flutter_local_notifications` banner
+- Background/Terminated tap: navigates to `/notifications`
+- Token refresh: auto re-registers with backend
+- Design rule: FCM is **trigger only** — never renders payload data
+
+### `main.dart` — Firebase Init + Web Guard
+```dart
+if (!kIsWeb) {
+  await Firebase.initializeApp();
+  await FcmService.init();
+}
+```
+App now runs on both **Android** AND **Chrome** (`flutter run -d chrome`).
+
+### `mpin_screen.dart` — Token Sent After Login
+```dart
+void _registerFcmTokenAfterLogin() {
+  // Fire-and-forget after successful MPIN verify → navigate to /main
+  FcmService.getToken() → NotificationService.registerFcmToken(token)
+}
+```
+
+### `home_screen.dart` — Bell Icon Fixed
+```dart
+// Before: no tap handler (broken)
+// After:
+GestureDetector(
+  onTap: () => Navigator.pushNamed(context, AppRouter.notifications),
+  child: _buildActionIcon(...),
+)
+```
+
+## Notification Flow
+```
+Bell tap / FCM tap → /notifications → POST users/notifications
+  → List (green dot = unread)
+  → Item tap → POST users/notifications/read → dot removed (optimistic)
+```
+
+---
+
 
 > [!IMPORTANT]
 > Complete list of all Dart files modified today. Flutter shares the same `lib/` across Android and iOS — no separate iOS code changes needed.

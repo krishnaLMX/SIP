@@ -11,6 +11,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/services/mpin_service.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/biometric_service.dart';
+import '../../core/services/notification_service.dart';
+import '../../core/services/fcm_service.dart';
 import '../../core/security/secure_storage_service.dart';
 import '../../routes/app_router.dart';
 import '../../shared/theme/app_theme.dart';
@@ -32,6 +35,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
   bool _isMpinEnabledCount = false;
   bool _isBiometricEnabled = false;
   bool _isLoadingStatus = true;
+  DateTime? _lastBackPressTime; // tracks double-tap-to-exit timing
   final LocalAuthentication _localAuth = LocalAuthentication();
   List<String> _shuffledNumbers = [
     '1',
@@ -63,42 +67,29 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
 
   Future<void> _loadMpinStatus() async {
     final enabled = await SecureStorageService.isMpinEnabled();
-    final bioEnabled = await SecureStorageService.isBiometricEnabled();
 
-    // Also verify device capability
-    bool canUseBiometrics = false;
-    try {
-      canUseBiometrics = await _localAuth.canCheckBiometrics ||
-          await _localAuth.isDeviceSupported();
-    } catch (e) {
-      debugPrint('Biometric check failed: $e');
-    }
+    // Use BiometricService.canUseBiometric() which:
+    //  • checks getAvailableBiometrics() (not just hardware presence)
+    //  • auto-disables storage flag if device biometrics were removed
+    final canBio = await BiometricService.canUseBiometric();
 
     debugPrint('── MPIN Screen Status ──');
     debugPrint('  mpinEnabled: $enabled');
-    debugPrint('  bioEnabled (storage): $bioEnabled');
-    debugPrint('  canUseBiometrics (device): $canUseBiometrics');
-    debugPrint(
-        '  final _isBiometricEnabled: ${bioEnabled && canUseBiometrics}');
+    debugPrint('  canUseBiometric: $canBio');
+    debugPrint('── End ──');
 
     if (mounted) {
       setState(() {
-        _isMpinEnabledCount = enabled;
-        _isBiometricEnabled = bioEnabled && canUseBiometrics;
-        _isLoadingStatus = false;
+        _isMpinEnabledCount  = enabled;
+        _isBiometricEnabled  = canBio;
+        _isLoadingStatus     = false;
       });
 
-      // Auto-trigger biometric on app open / biometric enable flow
-      // Excluded: withdrawal_pin (must use MPIN), verify_only (proving identity)
+      // Auto-trigger biometric on app open — skip for withdrawal/verify_only
       final args =
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ??
               {};
       final String? type = args['type'];
-
-      debugPrint('  route type: $type');
-      debugPrint(
-          '  will auto-trigger: ${_isBiometricEnabled && _isMpinEnabledCount && type != 'withdrawal_pin' && type != 'verify_only'}');
-      debugPrint('── End ──');
 
       if (_isBiometricEnabled &&
           _isMpinEnabledCount &&
@@ -111,10 +102,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
 
   Future<void> _authenticateBiometric() async {
     try {
-      final didAuthenticate = await _localAuth.authenticate(
-        localizedReason: 'Please authenticate to unlock the app',
-        biometricOnly: true,
-        persistAcrossBackgrounding: true,
+      final didAuthenticate = await BiometricService.authenticate(
+        reason: 'Please authenticate to unlock the app',
       );
 
       if (didAuthenticate && mounted) {
@@ -225,8 +214,40 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       }
     });
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
+    // Determine if this is a root/exit-eligible screen:
+    // login verify (no type), setup — back should exit the app.
+    // Sub-flows (withdrawal_pin, verify_only, reset_pin) — back pops normally.
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ??
+            {};
+    final String? screenType = args['type'];
+    final bool isRootFlow =
+        screenType == null || screenType == 'setup';
+
+    return PopScope(
+      // Sub-flows: allow normal pop. Root flows: we handle it.
+      canPop: !isRootFlow,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || !isRootFlow) return; // sub-flow handled by Flutter
+        // Root flow: double-tap to exit
+        final now = DateTime.now();
+        final isSecondPress = _lastBackPressTime != null &&
+            now.difference(_lastBackPressTime!) < const Duration(seconds: 2);
+        if (isSecondPress) {
+          SystemNavigator.pop();
+        } else {
+          _lastBackPressTime = now;
+          if (mounted) {
+            AppToast.show(
+              context,
+              'Press back again to exit',
+              type: ToastType.info,
+            );
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
       body: Stack(
         children: [
           // 2. Animated Background Aurora Orbs (Abstract Luxury)
@@ -536,7 +557,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
           ),
         ],
       ),
-    );
+      ),    // closes Scaffold (child of PopScope)
+    );      // closes PopScope
   }
 
   Widget _buildAuroraOrb(
@@ -639,6 +661,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
         } else if (type == 'verify_only') {
           Navigator.pop(context, true);
         } else {
+          // ── Register FCM token with server on successful login ──────────
+          // Fire-and-forget: never blocks navigation.
+          _registerFcmTokenAfterLogin();
           Navigator.pushNamedAndRemoveUntil(
               context, AppRouter.main, (route) => false);
         }
@@ -646,6 +671,26 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
         _shuffleKeypad();
       }
     }
+  }
+
+  /// Called after successful MPIN login before navigating to main.
+  /// Gets the FCM device token and registers it with the backend.
+  /// Completely fire-and-forget — errors are swallowed so login is never blocked.
+  void _registerFcmTokenAfterLogin() {
+    final notifService = NotificationService();
+    Future(() async {
+      try {
+        // FcmService.getToken() requires Firebase to be initialized.
+        // Once Firebase is set up (Step 1 of FCM guide), this will return the token.
+        final token = await FcmService.getToken();
+        if (token != null) {
+          await notifService.registerFcmToken(token);
+        }
+      } catch (e) {
+        // Non-fatal — Firebase may not be set up yet.
+        debugPrint('[FCM] Token registration skipped: $e');
+      }
+    });
   }
 
   /// Forgot PIN flow: Send OTP → verify identity → reset PIN

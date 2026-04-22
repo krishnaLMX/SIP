@@ -13,7 +13,7 @@ class ContactUsScreen extends ConsumerWidget {
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
     }
   }
 
@@ -140,39 +140,42 @@ class ContactUsScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Section label ──────────────────────────────
-          _SectionLabel(label: 'Reach Us', isDark: isDark),
+          _SectionLabel(label: 'Help & Support', isDark: isDark),
           SizedBox(height: 14.h),
 
           // ── Contact cards ──────────────────────────────
           _ContactCard(
             icon: Icons.email_rounded,
             title: 'E-Mail Us',
-            value: data['email'] ?? 'support@startgold.com',
+            value: _resolve(data, 'email') ?? '—',
             isDark: isDark,
-            onTap: () =>
-                _launchUrl('mailto:${data['email'] ?? 'support@startgold.com'}'),
+            onTap: _resolve(data, 'email') != null
+                ? () => _launchUrl('mailto:${_resolve(data, 'email')}')
+                : null,
           ),
           SizedBox(height: 12.h),
           _ContactCard(
             icon: Icons.phone_rounded,
             title: 'Call Us',
-            value: data['phone'] ?? '+91 9876543210',
+            value: _resolve(data, 'phone') ?? '—',
             isDark: isDark,
-            onTap: () => _launchUrl(
-                'tel:${data['phone']?.replaceAll(RegExp(r'[^0-9+]'), '') ?? ''}'),
+            onTap: _resolve(data, 'phone') != null
+                ? () => _launchUrl(
+                    'tel:${_resolve(data, 'phone')!.replaceAll(RegExp(r'[^0-9+]'), '')}')
+                : null,
           ),
           SizedBox(height: 12.h),
           _ContactCard(
             icon: Icons.location_on_rounded,
             title: 'Visit Us',
-            value: data['address'] ?? '123 Gold Street, Bullion City',
+            value: _resolve(data, 'address') ?? '—',
             isDark: isDark,
           ),
           SizedBox(height: 12.h),
           _ContactCard(
             icon: Icons.access_time_rounded,
             title: 'Working Hours',
-            value: data['working_hours'] ?? '10 AM - 7 PM',
+            value: _resolve(data, 'working_hours') ?? '—',
             isDark: isDark,
           ),
 
@@ -287,8 +290,8 @@ class _ContactCardState extends State<_ContactCard>
     super.initState();
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 100));
-    _scale = Tween<double>(begin: 1.0, end: 0.97).animate(
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _scale = Tween<double>(begin: 1.0, end: 0.97)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
   }
 
   @override
@@ -311,9 +314,8 @@ class _ContactCardState extends State<_ContactCard>
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 16.h),
           decoration: BoxDecoration(
-            color: widget.isDark
-                ? Colors.white.withOpacity(0.05)
-                : Colors.white,
+            color:
+                widget.isDark ? Colors.white.withOpacity(0.05) : Colors.white,
             borderRadius: BorderRadius.circular(20.r),
             border: Border.all(
               color: widget.isDark
@@ -383,8 +385,9 @@ class _ContactCardState extends State<_ContactCard>
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 14.sp,
-                  color:
-                      widget.isDark ? Colors.white24 : Colors.black.withOpacity(0.2),
+                  color: widget.isDark
+                      ? Colors.white24
+                      : Colors.black.withOpacity(0.2),
                 ),
             ],
           ),
@@ -423,8 +426,8 @@ class _SocialIconTileState extends State<_SocialIconTile>
     super.initState();
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 100));
-    _scale = Tween<double>(begin: 1.0, end: 0.93).animate(
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _scale = Tween<double>(begin: 1.0, end: 0.93)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
   }
 
   @override
@@ -527,8 +530,7 @@ class _FacebookPainter extends CustomPainter {
     path.lineTo(w * 0.57, h * 0.44);
     path.lineTo(w * 0.41, h * 0.44);
     path.lineTo(w * 0.41, h * 0.36);
-    path.cubicTo(
-        w * 0.41, h * 0.32, w * 0.43, h * 0.29, w * 0.49, h * 0.29);
+    path.cubicTo(w * 0.41, h * 0.32, w * 0.43, h * 0.29, w * 0.49, h * 0.29);
     path.lineTo(w * 0.62, h * 0.29);
     path.close();
 

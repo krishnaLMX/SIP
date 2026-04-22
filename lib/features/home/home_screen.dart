@@ -55,8 +55,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // Per-commodity market open/close status from socket
     final marketStatusMap =
         ref.watch(marketStatusProvider).valueOrNull ?? const {};
-    final commodityId =
-        selectedCommodity == CommodityType.gold ? '1' : '3';
+    final commodityId = selectedCommodity == CommodityType.gold ? '1' : '3';
     final isCurrentMarketClosed = marketStatusMap[commodityId] == false;
 
     // When market transitions closed \u2192 open: restart timer so the header
@@ -82,7 +81,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // ── Race-condition guard: market-reopen vs first rate frame ─────────
     // When `5|...|1` fires, the timer is restarted but `3|...` rate may not
     // have arrived yet. Lock 0-rate gets replaced as soon as non-zero arrives.
-    ref.listen<AsyncValue<MarketRates>>(marketRatesStreamProvider, (prev, next) {
+    ref.listen<AsyncValue<MarketRates>>(marketRatesStreamProvider,
+        (prev, next) {
       next.whenData((rates) {
         if (!mounted) return;
         final currId = selectedCommodity == CommodityType.gold ? '1' : '3';
@@ -130,8 +130,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 selectedCommodity == CommodityType.gold ? '1' : '3';
             if (homeStatusMap[homeCommodityId] != false) {
               ref.read(sellRateTimerProvider.notifier).clear();
-              final homeConfig =
-                  ref.read(savingConfigProvider).valueOrNull;
+              final homeConfig = ref.read(savingConfigProvider).valueOrNull;
               if (homeConfig != null) {
                 ref
                     .read(sellRateTimerProvider.notifier)
@@ -166,8 +165,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics()),
           slivers: [
-            _buildPremiumHeader(context, isDark, customerName, photoUrl,
-                marketRates, selectedCommodity, timerState,
+            _buildPremiumHeader(
+                context,
+                isDark,
+                customerName,
+                photoUrl,
+                marketRates,
+                selectedCommodity,
+                timerState,
                 isCurrentMarketClosed),
             SliverToBoxAdapter(
               child: Stack(
@@ -226,12 +231,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               data: (data) {
                                 if (userProfile?.isNewUser == true ||
                                     data.isNewCustomer) {
-                                  return _buildNewCustomerBanner(
-                                      context, selectedCommodity,
-                                      isCurrentMarketClosed);
+                                  return _buildNewCustomerBanner(context,
+                                      selectedCommodity, isCurrentMarketClosed);
                                 }
-                                return _buildPortfolioOverview(isDark, data,
-                                    selectedCommodity, marketRates,
+                                return _buildPortfolioOverview(
+                                    isDark,
+                                    data,
+                                    selectedCommodity,
+                                    marketRates,
                                     isCurrentMarketClosed);
                               },
                               // On refresh: if we have previous data keep showing it
@@ -241,11 +248,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   if (userProfile?.isNewUser == true ||
                                       prev.isNewCustomer) {
                                     return _buildNewCustomerBanner(
-                                        context, selectedCommodity,
+                                        context,
+                                        selectedCommodity,
                                         isCurrentMarketClosed);
                                   }
-                                  return _buildPortfolioOverview(isDark, prev,
-                                      selectedCommodity, marketRates,
+                                  return _buildPortfolioOverview(
+                                      isDark,
+                                      prev,
+                                      selectedCommodity,
+                                      marketRates,
                                       isCurrentMarketClosed);
                                 }
                                 return _buildPortfolioSkeleton(isDark);
@@ -902,7 +913,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 SizedBox(width: 12.w),
                 Expanded(
                   child: Text(
-                    'Need help?',
+                    'Help & Support?',
                     style: GoogleFonts.lora(
                       fontSize: 14.sp,
                       fontWeight: FontWeight.w600,
@@ -918,7 +929,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     borderRadius: BorderRadius.circular(100.r),
                   ),
                   child: Text(
-                    'Contact',
+                    'Contact Us',
                     style: GoogleFonts.lora(
                       fontSize: 13.sp,
                       fontWeight: FontWeight.w700,
@@ -975,11 +986,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           SizedBox(height: 28.h),
           // Compliance badges
-          SvgPicture.asset(
-            'assets/resources/splash_footer.svg',
-            height: 32.h,
-            fit: BoxFit.contain,
-            alignment: Alignment.centerLeft,
+          Center(
+            child: SvgPicture.asset(
+              'assets/resources/splash_footer.svg',
+              height: 40.h,
+              fit: BoxFit.contain,
+            ),
           ),
           SizedBox(height: 32.h),
           // Company name
@@ -1021,8 +1033,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bool isMarketClosed) {
     // When market is closed, skip the timer's stale locked rate and use the
     // live socket rate (which is already zeroed for that commodity).
-    final lockedRates =
-        (!isMarketClosed && timerState.isActive) ? timerState.lockedRates : null;
+    final lockedRates = (!isMarketClosed && timerState.isActive)
+        ? timerState.lockedRates
+        : null;
     final rate = selected == CommodityType.gold
         ? (lockedRates?.goldSell ?? marketRates.valueOrNull?.goldSell ?? 0.0)
         : (lockedRates?.silverSell ??
@@ -1264,8 +1277,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildPortfolioOverview(bool isDark, PortfolioData data,
-      CommodityType selected, AsyncValue<MarketRates> market,
+  Widget _buildPortfolioOverview(
+      bool isDark,
+      PortfolioData data,
+      CommodityType selected,
+      AsyncValue<MarketRates> market,
       bool isCurrentMarketClosed) {
     // ── Recalculate current value & growth from live rate when API returns 0 ──
     final liveRate = selected == CommodityType.gold
@@ -1524,8 +1540,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
 
-        // ── Referral message (only when non-empty) ──
-        if (referralMsg.isNotEmpty) ...[
+        // ── Referral message (only when market is CLOSED and message non-empty) ──
+        if (isMarketClosed && referralMsg.isNotEmpty) ...[
           SizedBox(height: 12.h),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
@@ -1533,7 +1549,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               color: const Color(0xFFFFFBEB),
               borderRadius: BorderRadius.circular(10.r),
               border: Border.all(
-                color: const Color(0xFFF59E0B).withOpacity(0.4),
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
               ),
             ),
             child: Row(
@@ -1844,8 +1860,12 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
                       color: Colors.white,
                     ),
                   ),
-                  _buildActionIcon(
-                      isDark, Icons.notifications_none_rounded, Colors.white),
+                  GestureDetector(
+                    onTap: () =>
+                        Navigator.pushNamed(context, AppRouter.notifications),
+                    child: _buildActionIcon(
+                        isDark, Icons.notifications_none_rounded, Colors.white),
+                  ),
                 ],
               ),
               SizedBox(height: 10.h),
@@ -1889,9 +1909,7 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  isMarketClosed
-                      ? Icons.warning_amber_rounded
-                      : Icons.sensors,
+                  isMarketClosed ? Icons.warning_amber_rounded : Icons.sensors,
                   color: Colors.white,
                   size: 12.sp,
                 ),

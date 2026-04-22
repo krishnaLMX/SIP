@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import '../../../core/network/api_client.dart';
 import '../models/saving_models.dart';
 import '../../../core/security/secure_logger.dart';
@@ -38,17 +40,19 @@ class SavingService {
     required String customerId,
     required String metalId,
     required String mobile,
-    required String buyType,
+    required int buyType, // 1 = AMOUNT, 2 = GRAMS
     required double amount,
     required double rate,
     required double weight,
     String? couponCode,
   }) async {
+    debugPrint(
+        '[INITIATE] buy_type → $buyType (${buyType == 1 ? 'AMOUNT' : 'GRAMS'}) | amount=$amount | weight=$weight');
     final response = await _apiClient.post('savings/initiate', data: {
       'id_customer': customerId,
       'id_metal': metalId,
       'mobile': mobile,
-      'buy_type': buyType,
+      'buy_type': buyType, // sends 1 or 2 to server
       'amount_inr': amount.toStringAsFixed(2),
       'rate_per_gram': rate,
       'weight': weight,

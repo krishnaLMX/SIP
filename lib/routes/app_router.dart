@@ -33,6 +33,9 @@ import '../core/services/content_service.dart';
 import '../features/mpin/change_mpin_screen.dart';
 import '../features/maintenance/maintenance_screen.dart';
 import '../features/splash/splash_screen.dart';
+import '../features/notifications/notifications_screen.dart';
+import '../features/profile/screens/delete_account_screen.dart';
+import '../features/referral/referee_list_screen.dart';
 
 class AppRouter {
   static const String splash = '/splash';
@@ -75,6 +78,9 @@ class AppRouter {
   static const String transactionDetails = '/transaction-details';
   static const String changeMpin = '/change-mpin';
   static const String maintenance = '/maintenance';
+  static const String notifications = '/notifications';
+  static const String deleteAccount = '/delete-account';
+  static const String refereeList = '/referee-list';
 
   static Map<String, WidgetBuilder> get routes => {
         splash: (context) => const SplashScreen(),
@@ -199,6 +205,8 @@ class AppRouter {
             metalId: args['metal_id'],
             rate: args['rate'],
             couponCode: args['coupon_code'],
+            buyType: (args['buy_type'] as int?) ?? 1,
+            weight: (args['weight'] as num?)?.toDouble() ?? 0.0,
           );
         },
         terms: (context) => ContentScreen(
@@ -235,6 +243,9 @@ class AppRouter {
             resumeRoute: args['resumeRoute'] as String? ?? AppRouter.login,
           );
         },
+        notifications: (context) => const NotificationsScreen(),
+        deleteAccount: (context) => const DeleteAccountScreen(),
+        refereeList: (context) => const RefereeListScreen(),
       };
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
