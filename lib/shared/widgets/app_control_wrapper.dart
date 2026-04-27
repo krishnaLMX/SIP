@@ -31,8 +31,15 @@ class _AppControlWrapperState extends ConsumerState<AppControlWrapper> {
   @override
   void initState() {
     super.initState();
+    // Primary initialization
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(appControlProvider.notifier).initialize();
+    });
+    // Safety net — retry after 3s in case the first call didn't fire
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        ref.read(appControlProvider.notifier).ensureInitialized();
+      }
     });
   }
 
@@ -69,20 +76,23 @@ class _AppControlWrapperState extends ConsumerState<AppControlWrapper> {
           top: 0,
           left: 0,
           right: 0,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Offline / slow network banner
-              const OfflineBanner(),
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Offline / slow network banner
+                const OfflineBanner(),
 
-              // Live alert banner from backend
-              if (appControl.showAlert && appControl.alert != null)
-                AppAlertBanner(
-                  alert: appControl.alert!,
-                  onDismiss: () =>
-                      ref.read(appControlProvider.notifier).dismissAlert(),
-                ),
-            ],
+                // Live alert banner from backend
+                if (appControl.showAlert && appControl.alert != null)
+                  AppAlertBanner(
+                    alert: appControl.alert!,
+                    onDismiss: () =>
+                        ref.read(appControlProvider.notifier).dismissAlert(),
+                  ),
+              ],
+            ),
           ),
         ),
       ],

@@ -70,7 +70,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
             onBack: () => Navigator.pop(context),
           ),
 
-          // ── Body ──────────────────────────────────────────────────────────
+          // â”€â”€ Body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Expanded(
             child: accountsAsync.when(
               data: (methods) => _buildBody(context, methods, isDark),
@@ -85,7 +85,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── BODY ─────────────────────────────────────────────────────────────────
+  // â”€â”€ BODY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildBody(
       BuildContext context, List<WithdrawalMethod> methods, bool isDark) {
     return RefreshIndicator(
@@ -96,7 +96,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
         children: [
           SizedBox(height: 4.h),
 
-          // ── Account cards ────────────────────────────────────────────────
+          // â”€â”€ Account cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (methods.isNotEmpty) ...[
             ...methods.asMap().entries.map((entry) {
               final index = entry.key;
@@ -112,17 +112,17 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
             SizedBox(height: 8.h),
           ],
 
-          // ── Empty state (show add button in body when no accounts) ────────
+          // â”€â”€ Empty state (show add button in body when no accounts) â”€â”€â”€â”€â”€â”€â”€â”€
           if (methods.isEmpty) _buildEmptyState(context, isDark),
 
-          // ── Add a UPI ID row ──────────────────────────────────────────────
+          // â”€â”€ Add a UPI ID row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (methods.isNotEmpty) _buildAddRow(context, isDark),
         ],
       ),
     );
   }
 
-  // ── ACCOUNT CARD ─────────────────────────────────────────────────────────
+  // â”€â”€ ACCOUNT CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildAccountCard(WithdrawalMethod method, bool isDark,
       {bool isFirst = false}) {
     final selectedMethod = ref.watch(withdrawalProvider).selectedMethod;
@@ -153,7 +153,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
         ),
         child: Row(
           children: [
-            // ── Radio dot indicator ──────────────────────────────────────
+            // â”€â”€ Radio dot indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               width: 22.w,
@@ -172,7 +172,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
             ),
             SizedBox(width: 14.w),
 
-            // ── Text ─────────────────────────────────────────────────────
+            // â”€â”€ Text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,7 +197,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
               ),
             ),
 
-            // ── Suggested badge ──────────────────────────────────────────
+            // â”€â”€ Suggested badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (isFirst)
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
@@ -220,7 +220,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── ADD ROW ───────────────────────────────────────────────────────────────
+  // â”€â”€ ADD ROW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildAddRow(BuildContext context, bool isDark) {
     return GestureDetector(
       onTap: () => _showAddOptions(context, ref, isDark),
@@ -264,7 +264,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── EMPTY STATE ──────────────────────────────────────────────────────────
+  // â”€â”€ EMPTY STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildEmptyState(BuildContext context, bool isDark) {
     return Padding(
       padding: EdgeInsets.only(top: 60.h),
@@ -315,7 +315,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── ERROR STATE ───────────────────────────────────────────────────────────
+  // â”€â”€ ERROR STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildErrorState(bool isDark) {
     return Center(
       child: Column(
@@ -341,7 +341,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── FOOTER ────────────────────────────────────────────────────────────────
+  // â”€â”€ FOOTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildFooter(BuildContext context, WidgetRef ref, bool isDark,
       AsyncValue<List<WithdrawalMethod>> accountsAsync) {
     final selected = ref.watch(withdrawalProvider).selectedMethod;
@@ -357,7 +357,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             CustomButton(
-              text: 'Withdrawal',
+              text: 'Withdrawal', svgIconPath: 'assets/buttons/tick.svg',
               onPressed: isEnabled
                   ? () => Navigator.pushNamed(context, '/withdrawal-confirmation')
                   : null,
@@ -388,7 +388,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── ADD ACCOUNT SHEET ────────────────────────────────────────────────────
+  // â”€â”€ ADD ACCOUNT SHEET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void _showAddOptions(BuildContext context, WidgetRef ref, bool isDark) {
     showModalBottomSheet(
       context: context,
@@ -452,7 +452,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                 },
                 isDark,
               ),
-              // TODO: Bank Account feature — to be enabled later
+              // TODO: Bank Account feature â€” to be enabled later
               // SizedBox(height: 12.h),
               // _buildOptionTile(
               //   context,
@@ -528,7 +528,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── UPI FORM SHEET ────────────────────────────────────────────────────────
+  // â”€â”€ UPI FORM SHEET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void _showUpiForm(BuildContext context, WidgetRef ref, bool isDark) {
     final ctrl = TextEditingController();
     bool isVerifying = false;
@@ -656,7 +656,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── BANK FORM SHEET ───────────────────────────────────────────────────────
+  // â”€â”€ BANK FORM SHEET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void _showBankForm(BuildContext context, WidgetRef ref, bool isDark) {
     final nameCtrl = TextEditingController();
     final bankNameCtrl = TextEditingController();
@@ -775,7 +775,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── Shared gradient button ────────────────────────────────────────────────
+  // â”€â”€ Shared gradient button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildGradientButton(
       String label, bool isEnabled, VoidCallback? onPressed,
       {bool isLoading = false}) {
@@ -862,7 +862,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── Field helper ──────────────────────────────────────────────────────────
+  // â”€â”€ Field helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildField(
       String label, String hint, TextEditingController ctrl, bool isDark,
       {TextInputType kbd = TextInputType.text,
@@ -916,7 +916,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     );
   }
 
-  // ── Process UPI ───────────────────────────────────────────────────────────
+  // â”€â”€ Process UPI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _processAddUpi(
       BuildContext sheetCtx, WidgetRef ref, String upi,
       StateSetter setModalState, void Function(bool) setVerifying) async {
@@ -963,7 +963,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
     }
   }
 
-  // ── Process Bank ──────────────────────────────────────────────────────────
+  // â”€â”€ Process Bank â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _processAddBank(BuildContext sheetCtx, WidgetRef ref,
       String name, String bankName, String acc, String ifsc,
       StateSetter setModalState, void Function(bool) setVerifying) async {

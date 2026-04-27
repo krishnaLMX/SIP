@@ -844,6 +844,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
             // Gradient button
             CustomButton(
               text: 'Withdrawal',
+              svgIconPath: 'assets/buttons/tick.svg',
               isLoading: withdrawalState.isProcessing,
               loadingText: 'Processing...',
               onPressed: isEnabled ? () => _handleWithdraw(market, type) : null,

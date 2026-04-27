@@ -1021,6 +1021,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
             SizedBox(height: 16.h),
             CustomButton(
               text: 'Proceed to Pay',
+              svgIconPath: 'assets/buttons/tick.svg',
               isLoading: _isLoading,
               onPressed: isDisabled ? null : _createPaymentOrder,
               gradient: LinearGradient(

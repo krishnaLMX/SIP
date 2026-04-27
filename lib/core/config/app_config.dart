@@ -59,6 +59,10 @@ class AppConfig {
     'mpin/validate',
     'mpin/change',
     'mpin/reset',
+    'sip/create',
+    'sip/cancel',
+    'sip/pause',
+    'users/nominee/update',
   ];
 
   // These fields in the payload will be encrypted

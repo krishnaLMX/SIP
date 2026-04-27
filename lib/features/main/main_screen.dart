@@ -141,7 +141,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     : const SizedBox.shrink(),
               ],
             ),
-            if (selectedIndex == 0) _buildBottomNav(ref, selectedIndex, isDark),
+            _buildBottomNav(ref, selectedIndex, isDark),
           ],
         ),
       ),
@@ -180,18 +180,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(ref, Icons.home_rounded, 'Home',
-                    selectedIndex == 0, isDark, 0,
-                    svgAsset: 'assets/footer/home.svg'),
-                _buildNavItem(ref, Icons.bolt_rounded, 'Invest',
-                    selectedIndex == 1, isDark, 1,
-                    svgAsset: 'assets/footer/invest.svg'),
-                _buildNavItem(ref, Icons.history_rounded, 'History',
-                    selectedIndex == 2, isDark, 2,
-                    svgAsset: 'assets/footer/history.svg'),
-                _buildNavItem(ref, Icons.person_outline_rounded, 'Profile',
-                    selectedIndex == 3, isDark, 3,
-                    svgAsset: 'assets/footer/profile.svg'),
+                _buildNavItem(ref, 'Home',   selectedIndex == 0, isDark, 0, 'assets/footer/home'),
+                _buildNavItem(ref, 'Invest', selectedIndex == 1, isDark, 1, 'assets/footer/invest'),
+                _buildNavItem(ref, 'History',selectedIndex == 2, isDark, 2, 'assets/footer/history'),
+                _buildNavItem(ref, 'Profile',selectedIndex == 3, isDark, 3, 'assets/footer/profile'),
               ],
             ),
           ),
@@ -200,10 +192,17 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     );
   }
 
-  Widget _buildNavItem(WidgetRef ref, IconData icon, String label,
-      bool isActive, bool isDark, int index,
-      {String? svgAsset}) {
+  Widget _buildNavItem(
+    WidgetRef ref,
+    String label,
+    bool isActive,
+    bool isDark,
+    int index,
+    String svgBase, // e.g. 'assets/footer/home'
+  ) {
     final inactiveColor = isDark ? Colors.white54 : const Color(0xFF666666);
+    // Pick the correct pre-coloured SVG variant
+    final svgPath = isActive ? '$svgBase-green.svg' : '$svgBase-grey.svg';
 
     return InkWell(
       onTap: () => _onTabTapped(index),
@@ -213,23 +212,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         children: [
           Container(
             padding: EdgeInsets.all(4.w),
-            child: svgAsset != null
-                ? SvgPicture.asset(
-                    svgAsset,
-                    width: 22.sp,
-                    height: 22.sp,
-                    colorFilter: isActive
-                        ? null
-                        : ColorFilter.mode(
-                            inactiveColor,
-                            BlendMode.srcIn,
-                          ),
-                  )
-                : Icon(
-                    icon,
-                    color: isActive ? AppTheme.primaryGreen : inactiveColor,
-                    size: 22.sp,
-                  ),
+            child: SvgPicture.asset(
+              svgPath,
+              width: 22.sp,
+              height: 22.sp,
+            ),
           ),
           SizedBox(height: 2.h),
           Text(

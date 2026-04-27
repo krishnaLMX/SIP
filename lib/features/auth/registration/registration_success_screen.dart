@@ -164,6 +164,7 @@ class RegistrationSuccessScreen extends ConsumerWidget {
                   delay: const Duration(milliseconds: 700),
                   child: CustomButton(
                     text: 'Get Started',
+                    svgIconPath: 'assets/buttons/getstart.svg',
                     onPressed: () => Navigator.pushNamedAndRemoveUntil(
                       context,
                       AppRouter.home,

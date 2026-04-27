@@ -138,13 +138,15 @@ class FooterInfo {
   final String title;
   final String subtitle;
   final List<ComplianceItem> compliance;
-  final String officeAddress;
+  final String cin;
+  final String copyright;
 
   FooterInfo({
     required this.title,
     required this.subtitle,
     required this.compliance,
-    required this.officeAddress,
+    required this.cin,
+    required this.copyright,
   });
 
   factory FooterInfo.fromJson(Map<String, dynamic> json) {
@@ -155,7 +157,8 @@ class FooterInfo {
               ?.map((e) => ComplianceItem.fromJson(e))
               .toList() ??
           [],
-      officeAddress: json['office_address'] ?? '',
+      cin: json['cin'] ?? '',
+      copyright: json['copyright'] ?? '',
     );
   }
 }

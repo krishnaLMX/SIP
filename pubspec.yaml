@@ -1,7 +1,7 @@
 name: startgold
 description: "A secure Fintech project."
 publish_to: 'none'
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: '>=3.4.1 <4.0.0'
@@ -55,7 +55,7 @@ dependencies:
   share_plus: ^10.0.3
 
   # Payment
-  flutter_cashfree_pg_sdk: ^2.2.10+48
+  flutter_cashfree_pg_sdk: 2.3.3+50
 
   # Splash Screen (must be in dependencies for native integration)
   flutter_native_splash: ^2.4.7
@@ -79,6 +79,8 @@ flutter:
     - assets/footer/
     - assets/home/
     - assets/lottie/
+    - assets/sip/
+    - assets/buttons/
 
   fonts:
     - family: Lora

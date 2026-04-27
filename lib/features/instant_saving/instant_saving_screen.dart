@@ -344,10 +344,11 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
               ),
             ),
           ),
+
+          // ── Pinned bottom action ─────────────────────────────
+          _buildBottomAction(isDark, marketState, type, configAsync),
         ],
       ),
-      bottomNavigationBar:
-          _buildBottomAction(isDark, marketState, type, configAsync),
     );
   }
 
@@ -871,11 +872,19 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
   }
 
   Widget _buildDenominationsRow(List<dynamic> denoms) {
+    // Filter out zero/null values and deduplicate by value
+    final seen = <double>{};
+    final validDenoms = denoms.where((d) {
+      final double val = d.value ?? 0.0;
+      if (val <= 0) return false;
+      return seen.add(val); // false if already present → deduplicates
+    }).toList();
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: denoms.map((d) {
+        children: validDenoms.map((d) {
           final double val = d.value;
           final bool isPopular = d.isPopular;
 
@@ -1159,7 +1168,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     return SafeArea(
       top: false,
       child: Container(
-        padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 16.h),
+        padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 100.h),
         decoration: const BoxDecoration(color: Colors.transparent),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1197,6 +1206,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
             SizedBox(height: 10.h),
             CustomButton(
               text: 'Confirm Order',
+              svgIconPath: 'assets/buttons/tick.svg',
               isLoading: _isProcessing,
               loadingText: 'Processing...',
               onPressed: (isInvalid || _isProcessing)

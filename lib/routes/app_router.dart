@@ -36,6 +36,13 @@ import '../features/splash/splash_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/profile/screens/delete_account_screen.dart';
 import '../features/referral/referee_list_screen.dart';
+import '../features/sip/screens/auto_savings_screen.dart';
+import '../features/sip/screens/manage_savings_screen.dart';
+import '../features/sip/screens/sip_cancel_screen.dart';
+import '../features/sip/screens/sip_payment_screen.dart';
+import '../features/sip/screens/sip_success_screen.dart';
+import '../features/sip/screens/sip_failure_screen.dart';
+import '../features/nominee/screens/nominee_screen.dart';
 
 class AppRouter {
   static const String splash = '/splash';
@@ -81,6 +88,14 @@ class AppRouter {
   static const String notifications = '/notifications';
   static const String deleteAccount = '/delete-account';
   static const String refereeList = '/referee-list';
+  static const String autoSavings = '/auto-savings';
+  static const String sipManage = '/sip-manage';
+  static const String sipCancel = '/sip-cancel';
+  static const String sipPayment = '/sip-payment';
+  static const String sipSuccess = '/sip-success';
+  static const String sipFailure = '/sip-failure';
+  static const String nominee = '/nominee';
+  static const String refundPolicy = '/refund-policy';
 
   static Map<String, WidgetBuilder> get routes => {
         splash: (context) => const SplashScreen(),
@@ -223,7 +238,14 @@ class AppRouter {
             ),
         faq: (context) => const FaqScreen(),
         contact: (context) => const ContactUsScreen(),
-        enquiryForm: (context) => const EnquiryFormScreen(),
+        enquiryForm: (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>? ??
+              {};
+          return EnquiryFormScreen(
+            initialType: args['initial_type'] as String?,
+          );
+        },
         enquiryList: (context) => const EnquiryListScreen(),
         upiSelection: (context) => const UpiSelectionScreen(),
         withdrawalSuccess: (context) => WithdrawalSuccessScreen(
@@ -246,6 +268,39 @@ class AppRouter {
         notifications: (context) => const NotificationsScreen(),
         deleteAccount: (context) => const DeleteAccountScreen(),
         refereeList: (context) => const RefereeListScreen(),
+        autoSavings: (context) => const AutoSavingsScreen(),
+        sipManage: (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>? ??
+              {};
+          return ManageSavingsScreen(
+            subscriptionId: args['subscription_id'] ?? '',
+          );
+        },
+        sipCancel: (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>? ??
+              {};
+          return SipCancelScreen(
+            subscriptionId: args['subscription_id'] ?? '',
+          );
+        },
+        sipPayment: (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
+          return SipPaymentScreen(paymentData: args);
+        },
+        sipSuccess: (context) => SipSuccessScreen(
+            data: ModalRoute.of(context)!.settings.arguments
+                as Map<String, dynamic>),
+        sipFailure: (context) => SipFailureScreen(
+            data: ModalRoute.of(context)!.settings.arguments
+                as Map<String, dynamic>),
+        nominee: (context) => const NomineeScreen(),
+        refundPolicy: (context) => ContentScreen(
+              title: 'Refund Policy',
+              provider: refundPolicyProvider,
+            ),
       };
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {

@@ -1,0 +1,571 @@
+# SIP (Auto Savings) – API Documentation
+
+All SIP APIs use `POST` method and require `Authorization: Bearer <token>` header.
+Base URL: configured via `AppConfig.baseUrl`.
+
+---
+
+## 1. SIP Configuration
+
+### `POST /sip/config`
+
+Fetches the initial configuration for the Auto Savings module.
+
+**Request:** No body required.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "min_amount": 10,
+    "max_amount": 50000,
+    "frequencies": [
+      { "id": 1, "name": "Daily", "is_default": 0 },
+      { "id": 2, "name": "Weekly", "is_default": 0 },
+      { "id": 3, "name": "Monthly", "is_default": 1 }
+    ],
+    "commodities": [
+      { "id": 1, "name": "Gold" },
+      { "id": 3, "name": "Silver" }
+    ]
+  }
+}
+```
+
+---
+
+## 2. Denominations
+
+Denomination endpoints accept an optional `frequency` parameter to return
+frequency-specific amounts (Daily, Weekly, Monthly may have different presets).
+
+### `POST /sip/gold-denominations`
+
+**Request:**
+```json
+{
+  "frequency": 1
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `frequency` | int | ❌ | Frequency ID (`1` = Daily, `2` = Weekly, `3` = Monthly). If omitted, returns default denominations. |
+
+**Response (example — Daily):**
+```json
+{
+  "success": true,
+  "data": [
+    { "value": 10, "is_popular": 0 },
+    { "value": 100, "is_popular": 1 },
+    { "value": 500, "is_popular": 0 },
+    { "value": 1000, "is_popular": 0 }
+  ]
+}
+```
+
+**Response (example — Monthly):**
+```json
+{
+  "success": true,
+  "data": [
+    { "value": 100, "is_popular": 0 },
+    { "value": 500, "is_popular": 1 },
+    { "value": 1000, "is_popular": 0 },
+    { "value": 5000, "is_popular": 0 },
+    { "value": 10000, "is_popular": 0 }
+  ]
+}
+```
+
+### `POST /sip/silver-denominations`
+
+**Request:**
+```json
+{
+  "frequency": 1
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `frequency` | int | ❌ | Frequency ID (`1` = Daily, `2` = Weekly, `3` = Monthly). If omitted, returns default denominations. |
+
+**Response (example — Daily):**
+```json
+{
+  "success": true,
+  "data": [
+    { "value": 10, "is_popular": 0 },
+    { "value": 100, "is_popular": 1 },
+    { "value": 500, "is_popular": 0 },
+    { "value": 1000, "is_popular": 0 }
+  ]
+}
+```
+
+**Response (example — Monthly):**
+```json
+{
+  "success": true,
+  "data": [
+    { "value": 100, "is_popular": 0 },
+    { "value": 500, "is_popular": 1 },
+    { "value": 1000, "is_popular": 0 },
+    { "value": 5000, "is_popular": 0 },
+    { "value": 10000, "is_popular": 0 }
+  ]
+}
+```
+
+> **Note:** The app automatically re-fetches denominations when the user switches
+> frequency tabs (Daily → Weekly → Monthly). If the API does not support
+> frequency filtering yet, it should ignore the field and return default values.
+
+---
+
+## 3. Create SIP Plan
+
+### `POST /sip/create` 🔐 _Encrypted_
+
+Creates a new auto savings plan.
+
+**Daily Payload:**
+```json
+{
+  "frequency": 1,
+  "commodity_id": 1,
+  "amount": 100
+}
+```
+
+**Weekly Payload:**
+```json
+{
+  "frequency": 2,
+  "commodity_id": 1,
+  "amount": 100,
+  "day": "Monday"
+}
+```
+
+**Monthly Payload:**
+```json
+{
+  "frequency": 3,
+  "commodity_id": 1,
+  "amount": 100,
+  "date": 5
+}
+```
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "message": "SIP created",
+  "data": {
+    "subscription_id": "G24D042399DA77",
+    "status": "ACTIVE",
+    "order_id": "cf_order_123",
+    "session_id": "sub_session_abc",
+    "authorization_link": "https://sandbox.cashfree.com/subscription/pay/sub_session_abc",
+    "environment": "SANDBOX"
+  }
+}
+```
+
+> **⚠️ Important:** The `authorization_link` is the full Cashfree checkout URL from the
+> mandate creation response. The app opens this URL in the browser for the user to
+> authorize the UPI Autopay / e-Mandate. Do NOT use the Cashfree PG SDK — it only
+> supports one-time payment sessions, not subscription sessions (`sub_session_...`).
+
+> **Security:** The `amount` field is encrypted via RSA-OAEP-SHA256 before transmission.
+
+---
+
+## 4. SIP Details (Active Plans)
+
+### `POST /sip/details`
+
+Fetches all SIP plans for the user.
+
+**Request:** No body required.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "subscription_id": "G24D042399DA77",
+      "start_date": "2024-04-23",
+      "frequency": "Daily",
+      "frequency_id": 1,
+      "amount": 100,
+      "status": "ACTIVE",
+      "commodity_name": "Gold",
+      "commodity_id": 1
+    },
+    {
+      "subscription_id": "S25W050199BC44",
+      "start_date": "2024-05-01",
+      "frequency": "Weekly",
+      "frequency_id": 2,
+      "amount": 500,
+      "status": "ACTIVE",
+      "commodity_name": "Gold",
+      "commodity_id": 1,
+      "day": "Monday"
+    }
+  ]
+}
+```
+
+---
+
+## 5. Manage Details
+
+### `POST /sip/manage-details`
+
+Fetches detailed info for a specific subscription.
+
+**Request:**
+```json
+{
+  "subscription_id": "G24D042399DA77"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "subscription_id": "G24D042399DA77",
+    "start_date": "2024-04-23",
+    "amount": 100,
+    "status": "ACTIVE",
+    "frequency": "Daily",
+    "commodity_name": "Gold"
+  }
+}
+```
+
+---
+
+## 6. Pause SIP
+
+### `POST /sip/pause` 🔐 _Encrypted_
+
+Pauses an active SIP plan.
+
+**Request:**
+```json
+{
+  "subscription_id": "G24D042399DA77"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "SIP paused successfully"
+}
+```
+
+---
+
+## 7. Resume SIP
+
+### `POST /sip/resume`
+
+Resumes a paused SIP plan.
+
+**Request:**
+```json
+{
+  "subscription_id": "G24D042399DA77"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `subscription_id` | String | ✅ | The subscription ID to resume |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "SIP resumed successfully"
+}
+```
+
+---
+
+## 8. Cancel SIP
+
+### `POST /sip/cancel` 🔐 _Encrypted_
+
+Cancels a SIP plan. **Cannot cancel within 24 hours of creation.**
+
+**Request:**
+```json
+{
+  "subscription_id": "G24D042399DA77",
+  "reason": "No money"
+}
+```
+
+**Reason Options:**
+- `No money`
+- `Change frequency`
+- `Other saving method`
+- `Goal achieved`
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "message": "SIP cancelled successfully"
+}
+```
+
+**Response (Within 24 hours):**
+```json
+{
+  "success": false,
+  "message": "Cannot cancel within 24 hours of creation"
+}
+```
+
+---
+
+## 8.5. Confirm SIP (Mandate Authorization Verification)
+
+### `POST /sip/confirm`
+
+Called after Cashfree SDK callback (success or failure). Verifies the
+mandate authorization status with Cashfree and updates the subscription
+record accordingly.
+
+**Request:**
+```json
+{
+  "order_id": "2727035"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `order_id` | String | ✅ | Order ID returned from `sip/create` and Cashfree SDK callback |
+
+**Response (Success — Mandate authorized):**
+```json
+{
+  "success": true,
+  "message": "Subscription authorized successfully",
+  "data": {
+    "subscription_id": "G26DE49BDBBBF6",
+    "status": "ACTIVE",
+    "mandate_status": "ACTIVE"
+  }
+}
+```
+
+**Response (Pending — Bank approval required):**
+```json
+{
+  "success": true,
+  "message": "Authorization pending bank approval",
+  "data": {
+    "subscription_id": "G26DE49BDBBBF6",
+    "status": "BANK_APPROVAL_PENDING"
+  }
+}
+```
+
+**Response (Failed):**
+```json
+{
+  "success": false,
+  "message": "Mandate authorization failed. Please try again."
+}
+```
+
+> **Note:** For UPI Autopay, `status` is typically `ACTIVE` immediately.
+> For e-Mandate/NACH, it may be `BANK_APPROVAL_PENDING` (2–3 business days).
+
+---
+
+## Encryption Rules
+
+The following SIP endpoints require encryption:
+- `sip/create` – encrypts `amount`
+- `sip/cancel` – encrypts `subscription_id`
+- `sip/pause` – encrypts `subscription_id`
+- `sip/resume` – encrypts `subscription_id`
+- `sip/confirm` – encrypts `order_id`
+- `users/nominee/update` – encrypts `mobile`, `id_number`
+
+Encryption is handled automatically by `ApiSecurityInterceptor` using RSA-OAEP-SHA256.
+
+## Edge Cases
+
+| Scenario | Handling |
+|---|---|
+| API failure | Show error toast, allow retry |
+| Payment failure | Show failure screen with retry |
+| Duplicate plan for same frequency **+ commodity** | Block creation, show existing plan card |
+| Same frequency, different commodity | ✅ **Allowed** (e.g. Daily Gold + Daily Silver) |
+| Cancel within 24h | Server returns error, info banner shown |
+| Nominee not added | Block SIP creation, show alert with "Add Nominee" |
+| Back navigation | State maintained via Riverpod |
+| Offline | Blocked by `ApiSecurityInterceptor` connectivity check |
+
+## Duplicate Prevention Rules
+
+Plans are scoped by **frequency + commodity** combination. This means:
+
+| Gold Daily | Silver Daily | Allowed? |
+|---|---|---|
+| ✅ Active | ❌ None | ✅ Silver Daily can be created |
+| ✅ Active | ✅ Active | ❌ Both occupied |
+| ✅ Active | ❌ None (Weekly) | ✅ Different frequency |
+
+**Examples of valid concurrent plans:**
+- Daily Gold + Daily Silver ✅
+- Daily Gold + Weekly Gold ✅
+- Daily Gold + Weekly Silver + Monthly Gold ✅
+
+**Blocked:**
+- Daily Gold + Daily Gold ❌ (same frequency + same commodity)
+
+---
+
+# Nominee Management – API Documentation
+
+All Nominee APIs use `POST` method and require `Authorization: Bearer <token>` header.
+
+---
+
+## 8. Get Nominee Details
+
+### `POST /user/nominee/details`
+
+Fetches existing nominee details for the current user.
+
+**Request:**
+```json
+{}
+```
+
+**Response (Nominee exists):**
+```json
+{
+  "success": true,
+  "data": {
+    "name": "John Doe",
+    "relationship": "Father",
+    "dob": "1980-05-10",
+    "mobile": "9876543210",
+    "email": "john@example.com",
+    "id_type": "Aadhaar",
+    "id_number": "123456789012",
+    "address": "Chennai",
+    "city": "Chennai",
+    "state": "Tamil Nadu",
+    "pincode": "600001"
+  }
+}
+```
+
+**Response (No nominee):**
+```json
+{
+  "success": true,
+  "data": {}
+}
+```
+
+---
+
+## 9. Update Nominee
+
+### `POST /users/nominee/update` 🔐 _Encrypted_
+
+Creates or updates the nominee for the current user.
+
+**Request:**
+```json
+{
+  "name": "John Doe",
+  "relationship": "Father",
+  "dob": "1980-05-10",
+  "mobile": "9876543210",
+  "email": "john@example.com",
+  "id_type": "Aadhaar",
+  "id_number": "123456789012",
+  "address": "Chennai",
+  "city": "Chennai",
+  "state": "Tamil Nadu",
+  "pincode": "600001"
+}
+```
+
+### Fields:
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `name` | String | ✅ | Alphabets + spaces only, min 2 chars |
+| `relationship` | String | ✅ | One of: Father, Mother, Spouse, Son, Daughter, Brother, Sister, Other |
+| `dob` | String | ✅ | Format: `yyyy-MM-dd`, must be past date |
+| `mobile` | String | ✅ | 10 digits |
+| `email` | String | ❌ | Valid email format if provided |
+| `id_type` | String | ❌ | Aadhaar, PAN, Voter ID, Passport, Driving License, Others |
+| `id_number` | String | ❌ | Min 4 chars if provided |
+| `address` | String | ❌ | Free text |
+| `city` | String | ❌ | Free text |
+| `state` | String | ❌ | Free text |
+| `pincode` | String | ❌ | 6 digits |
+
+> **Security:** Fields `mobile` and `id_number` are encrypted via RSA-OAEP-SHA256 before transmission.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Nominee updated successfully"
+}
+```
+
+---
+
+# Content – Refund Policy API
+
+## 10. Refund Policy
+
+### `POST /content/refund-policy`
+
+Fetches the refund policy content for the application.
+
+**Request:** No body required (POST with empty payload or `{}`).
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "content": "Refund Policy content text goes here. This can include HTML or plain text as returned by the backend."
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `content` | String | The refund policy text/HTML content to display |
+
+> **Note:** This API follows the same pattern as `POST /content/terms`, `POST /content/privacy`, and `POST /content/about-us`. The app renders the `content` field as plain text in a scrollable view.

@@ -95,7 +95,8 @@ class _TransactionDetailsScreenState
   Widget _buildContent(
       BuildContext context, TransactionDetailResponse details, bool isDark) {
     final String routeType = widget.transactionData['type'] ?? '';
-    final bool isSaving = routeType == 'purchase';
+    final bool isSip = routeType == 'sip';
+    final bool isSaving = routeType == 'purchase' || isSip;
     final bool isReferral = routeType == 'referral' ||
         details.title.toLowerCase().contains('referral');
     final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
@@ -108,13 +109,18 @@ class _TransactionDetailsScreenState
       padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
       child: Column(
         children: [
-          _buildTopCard(details, isSaving, isReferral, cardColor, borderColor,
+          _buildTopCard(details, isSaving, isSip, isReferral, cardColor, borderColor,
               textColor, mutedTextColor, isDark),
           SizedBox(height: 16.h),
-          _buildStatusCard(details, isSaving, cardColor, borderColor, textColor,
+          _buildStatusCard(details, isSaving, isSip, cardColor, borderColor, textColor,
               mutedTextColor, isDark),
+          if (isSip && details.schemeInfo != null) ...[
+            SizedBox(height: 16.h),
+            _buildSchemeInfoCard(details.schemeInfo!, cardColor, borderColor,
+                textColor, mutedTextColor, isDark),
+          ],
           SizedBox(height: 16.h),
-          _buildOrderDetails(details, isSaving, isReferral, cardColor, borderColor,
+          _buildOrderDetails(details, isSaving, isSip, isReferral, cardColor, borderColor,
               textColor, mutedTextColor, isDark),
           SizedBox(height: 16.h),
         ],
@@ -125,17 +131,28 @@ class _TransactionDetailsScreenState
   Widget _buildTopCard(
       TransactionDetailResponse details,
       bool isSaving,
+      bool isSip,
       bool isReferral,
       Color cardColor,
       Color borderColor,
       Color textColor,
       Color mutedTextColor,
       bool isDark) {
-    final typeLabel = isSaving
-        ? 'Instant Saving'
-        : isReferral
-            ? 'Referral Reward'
-            : 'Withdrawal';
+    final typeLabel = isSip
+        ? 'SIP Autopay'
+        : isSaving
+            ? 'Instant Saving'
+            : isReferral
+                ? 'Referral Reward'
+                : 'Withdrawal';
+
+    final typeColor = isSip
+        ? const Color(0xFF0D9488)  // teal
+        : isSaving
+            ? const Color(0xFF1B882C)
+            : isReferral
+                ? const Color(0xFF7C3AED)
+                : const Color(0xFFDC2626);
 
     return Container(
       padding: EdgeInsets.all(20.w),
@@ -172,13 +189,20 @@ class _TransactionDetailsScreenState
                   style: GoogleFonts.lora(
                     fontSize: 13.sp,
                     fontWeight: FontWeight.w500,
-                    color: isSaving
-                        ? const Color(0xFF1B882C) // green — Instant Saving
-                        : isReferral
-                            ? const Color(0xFF7C3AED) // purple — Referral
-                            : const Color(0xFFDC2626), // red — Withdrawal
+                    color: typeColor,
                   ),
                 ),
+                if (isSip && details.subtitle.isNotEmpty) ...[
+                  SizedBox(height: 2.h),
+                  Text(
+                    details.subtitle,
+                    style: GoogleFonts.lora(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w500,
+                      color: mutedTextColor,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -212,6 +236,7 @@ class _TransactionDetailsScreenState
   Widget _buildStatusCard(
       TransactionDetailResponse details,
       bool isSaving,
+      bool isSip,
       Color cardColor,
       Color borderColor,
       Color textColor,
@@ -298,7 +323,7 @@ class _TransactionDetailsScreenState
                 ),
                 if (isSaving) SizedBox(width: 12.w),
               ],
-              if (isSaving)
+              if (isSaving && !isSip)
                 Expanded(
                   flex: details.invoiceUrl.isNotEmpty ? 6 : 10,
                   child: DecoratedBox(
@@ -446,9 +471,78 @@ class _TransactionDetailsScreenState
     );
   }
 
+  Widget _buildSchemeInfoCard(
+      SchemeInfo scheme,
+      Color cardColor,
+      Color borderColor,
+      Color textColor,
+      Color mutedTextColor,
+      bool isDark) {
+    final statusColor = scheme.status.toLowerCase() == 'active'
+        ? const Color(0xFF10B981)
+        : scheme.status.toLowerCase() == 'paused'
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFFDC2626);
+
+    return Container(
+      padding: EdgeInsets.all(20.w),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'SIP Plan Details',
+                style: GoogleFonts.lora(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              Container(
+                padding:
+                    EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(6.r),
+                ),
+                child: Text(
+                  scheme.status,
+                  style: GoogleFonts.lora(
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.bold,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14.h),
+          _buildDetailRow(
+              'Plan', scheme.label, textColor, mutedTextColor),
+          _buildDetailRow(
+              'Frequency', scheme.frequency, textColor, mutedTextColor),
+          _buildDetailRow(
+              'SIP Amount', '₹${scheme.amount}', textColor, mutedTextColor),
+          _buildDetailRow(
+              'Total Saved', '₹${scheme.totalSaved}', textColor, mutedTextColor),
+          _buildDetailRow(
+              'Cycles Done', '${scheme.cyclesDone}', textColor, mutedTextColor),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOrderDetails(
       TransactionDetailResponse details,
       bool isSaving,
+      bool isSip,
       bool isReferral,
       Color cardColor,
       Color borderColor,
@@ -456,18 +550,22 @@ class _TransactionDetailsScreenState
       Color mutedTextColor,
       bool isDark) {
     // Section title
-    final String sectionTitle = isSaving
-        ? 'Order Details'
-        : isReferral
-            ? 'Referral Reward Details'
-            : 'Withdrawal Details';
+    final String sectionTitle = isSip
+        ? 'SIP Order Details'
+        : isSaving
+            ? 'Order Details'
+            : isReferral
+                ? 'Referral Reward Details'
+                : 'Withdrawal Details';
 
     // Row labels
-    final String rateLabel = isSaving
-        ? 'Gold Purchased At'
-        : isReferral
-            ? 'Gold Credited At'
-            : 'Gold Sold At';
+    final String rateLabel = isSip
+        ? '${details.metalName} Rate'
+        : isSaving
+            ? 'Gold Purchased At'
+            : isReferral
+                ? 'Gold Credited At'
+                : 'Gold Sold At';
 
     final String subSectionTitle = isSaving
         ? 'Transaction Details'
@@ -622,6 +720,10 @@ class _TransactionDetailsScreenState
         return isGold
             ? 'assets/withdraw/inst_gold.svg'
             : 'assets/withdraw/inst_silver.svg';
+      case 'sip':
+        return isGold
+            ? 'assets/withdraw/sip_gold.svg'
+            : 'assets/withdraw/sip_silver.svg';
       case 'referral':
         return 'assets/withdraw/trans_referal.svg';
       default: // withdrawal

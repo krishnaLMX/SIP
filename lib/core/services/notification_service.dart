@@ -67,6 +67,17 @@ class NotificationService {
         data: {'notification_id': notificationId});
   }
 
+  /// POST /notifications/read-all — mark all notifications as read.
+  Future<void> markAllAsRead() async {
+    await _api.post('users/notifications/read-all');
+  }
+
+  /// POST /notifications/delete — delete a single notification.
+  Future<void> deleteNotification(int notificationId) async {
+    await _api.post('users/notifications/delete',
+        data: {'notification_id': notificationId});
+  }
+
   /// POST /notifications/unread-count — get badge number.
   Future<int> fetchUnreadCount() async {
     final response = await _api.post('users/notifications/unread-count');
@@ -185,6 +196,29 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
     } catch (_) {
       // Silently fail — list is still accurate from last load
     }
+  }
+
+  Future<void> markAllAsRead() async {
+    try {
+      await _service.markAllAsRead();
+      // Optimistic update — mark all locally
+      final updated =
+          state.notifications.map((n) => n.copyWith(isRead: true)).toList();
+      state = state.copyWith(notifications: updated, unreadCount: 0);
+    } catch (_) {}
+  }
+
+  Future<void> deleteNotification(int id) async {
+    try {
+      await _service.deleteNotification(id);
+      // Optimistic: remove from list
+      final updated =
+          state.notifications.where((n) => n.id != id).toList();
+      state = state.copyWith(
+        notifications: updated,
+        unreadCount: updated.where((n) => !n.isRead).length,
+      );
+    } catch (_) {}
   }
 
   Future<void> refreshUnreadCount() async {

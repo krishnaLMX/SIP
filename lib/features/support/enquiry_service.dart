@@ -4,10 +4,11 @@ import 'package:startgold/core/network/api_client.dart';
 
 // ── Type mapping: label → API integer ────────────────────────────────────────
 const Map<String, int> kTicketTypes = {
-  'Enquiry':  1,
-  'Support':  2,
-  'Review':   3,
-  'Others':   4,
+  'Enquiry':      1,
+  'Support':      2,
+  'Review':       3,
+  'Auto Savings': 5,
+  'Others':       4,
 };
 
 // ── Response model from create-ticket ────────────────────────────────────────

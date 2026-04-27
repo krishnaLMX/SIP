@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Premium fintech action button with gradient support and in-button loading.
@@ -7,6 +8,8 @@ import 'package:google_fonts/google_fonts.dart';
 /// When [isLoading] is true the button stays fully visible but disabled,
 /// the label fades out and a "Processing…" label + small spinner fades in
 /// with a smooth cross-fade transition.
+///
+/// [svgIconPath] — optional path to an SVG icon rendered to the left of text.
 class CustomButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -16,6 +19,7 @@ class CustomButton extends StatelessWidget {
   final Color? textColor;
   final Gradient? gradient;
   final List<BoxShadow>? boxShadow;
+  final String? svgIconPath;
 
   const CustomButton({
     super.key,
@@ -27,6 +31,7 @@ class CustomButton extends StatelessWidget {
     this.textColor,
     this.gradient,
     this.boxShadow,
+    this.svgIconPath,
   });
 
   /// Acronym-aware Title Case: "confirm order" → "Confirm Order"
@@ -100,15 +105,33 @@ class CustomButton extends StatelessWidget {
                     ),
                   ],
                 )
-              : Text(
-                  _toTitleCase(text),
+              : Row(
                   key: const ValueKey('label'),
-                  style: TextStyle(
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    color: effectiveColor,
-                  ),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (svgIconPath != null) ...[
+                      SvgPicture.asset(
+                        svgIconPath!,
+                        width: 20.w,
+                        height: 20.w,
+                        colorFilter: ColorFilter.mode(
+                          effectiveColor,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                      SizedBox(width: 8.w),
+                    ],
+                    Text(
+                      _toTitleCase(text),
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: effectiveColor,
+                      ),
+                    ),
+                  ],
                 ),
         ),
       ),

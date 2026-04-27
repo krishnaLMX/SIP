@@ -481,6 +481,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                           : routeType == 'reset_pin'
                                               ? 'RESET PIN'
                                               : 'UNLOCK APP',
+                              svgIconPath: 'assets/buttons/security-user.svg',
                               isLoading: mpinState.isLoading,
                               onPressed:
                                   (mpinState.isComplete && !mpinState.isLocked)

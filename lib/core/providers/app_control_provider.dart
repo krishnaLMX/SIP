@@ -5,8 +5,8 @@ import '../models/app_control_model.dart';
 import '../services/app_control_service.dart';
 
 // ─── Intervals ────────────────────────────────────────────────────────────────
-const _kAlertPollInterval = Duration(minutes: 5);
-const _kMaintenancePollInterval = Duration(minutes: 2); // faster while in maintenance
+const _kAlertPollInterval = Duration(minutes: 1);  // check every 1 min globally
+const _kMaintenancePollInterval = Duration(seconds: 30); // faster while in maintenance
 
 class AppControlState {
   final AppControlData? data;
@@ -55,13 +55,24 @@ class AppControlNotifier extends StateNotifier<AppControlState> {
   final AppControlService _service;
   Timer? _pollTimer;
   Timer? _maintenancePollTimer;
+  bool _initialized = false;
 
   AppControlNotifier(this._service) : super(const AppControlState());
 
-  /// Call once at app startup and begin periodic alert refresh
+  /// Call once at app startup and begin periodic alert refresh.
+  /// Safe to call multiple times — only runs once.
   Future<void> initialize() async {
+    if (_initialized) return;
+    _initialized = true;
     await _fetch();
     _startPolling();
+  }
+
+  /// Safety net — call from build() to guarantee initialization.
+  void ensureInitialized() {
+    if (!_initialized) {
+      initialize();
+    }
   }
 
   /// Faster polling while maintenance screen is showing.
@@ -136,7 +147,13 @@ class AppControlNotifier extends StateNotifier<AppControlState> {
       }
 
       final alert = controlData.alert;
-      final showAlert = alert != null && alert.isActive;
+      // Suppress maintenance-type alerts when maintenance mode is off
+      final showAlert = alert != null &&
+          alert.isActive &&
+          !(alert.isMaintenance && !maintenance.isEnabled);
+
+      print('[AppControl] alert: ${alert != null ? "type=${alert.type}, isActive=${alert.isActive}, isMaintenance=${alert.isMaintenance}" : "null"}');
+      print('[AppControl] showAlert: $showAlert');
 
       state = state.copyWith(
         data: controlData,
@@ -162,6 +179,66 @@ class AppControlNotifier extends StateNotifier<AppControlState> {
 
   void dismissAlert() {
     state = state.copyWith(showAlert: false);
+  }
+
+  /// Pre-action gate — call before any critical transaction (payment,
+  /// withdrawal, SIP creation). Does a **fresh** fetch from the server
+  /// so the check is real-time, not stale from the 5-min poll.
+  ///
+  /// Returns a [MaintenanceGateResult] indicating whether the action
+  /// should be blocked and the reason to show to the user.
+  Future<MaintenanceGateResult> checkBeforeAction() async {
+    try {
+      final raw = await _service.fetchAppControl();
+      if (raw == null) {
+        // Network failed — allow action (don't block on connectivity issues)
+        return MaintenanceGateResult.clear;
+      }
+
+      final controlData = AppControlData.fromJson(raw);
+      final maintenance = controlData.maintenance;
+
+      // ── Full maintenance → block immediately ──
+      if (maintenance.isEnabled) {
+        // Also update the app state so the wrapper can redirect
+        state = state.copyWith(
+          data: controlData,
+          isMaintenance: true,
+        );
+        return MaintenanceGateResult(
+          blocked: true,
+          title: maintenance.title.isNotEmpty
+              ? maintenance.title
+              : 'Under Maintenance',
+          message: maintenance.subtitle.isNotEmpty
+              ? maintenance.subtitle
+              : 'We are upgrading our systems. Please try again later.',
+          isMaintenance: true,
+        );
+      }
+
+      // ── Active alert (warning/info) → block with alert message ──
+      final alert = controlData.alert;
+      if (alert != null && alert.isActive && alert.isMaintenance) {
+        return MaintenanceGateResult(
+          blocked: true,
+          title: alert.title,
+          message: alert.message,
+          isMaintenance: false,
+        );
+      }
+
+      // ── All clear — update state with latest data ──
+      state = state.copyWith(
+        data: controlData,
+        isMaintenance: false,
+        showAlert: alert != null && alert.isActive,
+      );
+      return MaintenanceGateResult.clear;
+    } catch (e) {
+      // On error, allow action (don't block user on client-side failures)
+      return MaintenanceGateResult.clear;
+    }
   }
 
   Future<void> refresh() => _fetch();
@@ -198,3 +275,21 @@ final appControlProvider =
     StateNotifierProvider<AppControlNotifier, AppControlState>(
   (ref) => AppControlNotifier(ref.read(_appControlServiceProvider)),
 );
+
+/// Result of a [checkBeforeAction] call.
+class MaintenanceGateResult {
+  final bool blocked;
+  final String title;
+  final String message;
+  final bool isMaintenance; // true = full maintenance, false = warning alert
+
+  const MaintenanceGateResult({
+    this.blocked = false,
+    this.title = '',
+    this.message = '',
+    this.isMaintenance = false,
+  });
+
+  /// Convenience constant — action is allowed.
+  static const clear = MaintenanceGateResult();
+}

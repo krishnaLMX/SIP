@@ -11,6 +11,7 @@ import 'widgets/profile_photo_widget.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/custom_button.dart';
+import '../../shared/utils/upper_case_words_formatter.dart';
 
 class AccountDetailsScreen extends ConsumerStatefulWidget {
   const AccountDetailsScreen({super.key});
@@ -55,7 +56,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
     _emailController.addListener(() => setState(() {}));
     _pincodeController.addListener(() => setState(() {}));
 
-    // Always re-fetch on screen entry — profileProvider is a persistent singleton
+    // Always re-fetch on screen entry â€” profileProvider is a persistent singleton
     // so its constructor only runs once; we must manually refresh each visit.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(profileProvider.notifier).fetchProfileDetails().then((_) {
@@ -111,14 +112,14 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
   }
 
   Future<void> _handleSubmit() async {
-    // ── Validate Name ──────────────────────────────────────────────────
+    // â”€â”€ Validate Name â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       AppToast.show(context, 'Name as per PAN is required', type: ToastType.error);
       return;
     }
 
-    // ── Validate Email ─────────────────────────────────────────────────
+    // â”€â”€ Validate Email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     final email = _emailController.text.trim();
     if (email.isEmpty) {
       setState(() => _emailError = 'E-Mail is required');
@@ -130,7 +131,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
     }
     setState(() => _emailError = null);
 
-    // ── Validate Pincode ───────────────────────────────────────────────
+    // â”€â”€ Validate Pincode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     final pincode = _pincodeController.text.trim();
     if (pincode.isEmpty) {
       AppToast.show(context, 'Pincode is required', type: ToastType.error);
@@ -188,7 +189,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // ── Gradient Header ───────────────────────────────────────────────
+          // â”€â”€ Gradient Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           GradientHeader(
             title: 'Account Details',
             trailing: TextButton.icon(
@@ -220,7 +221,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
             ),
           ),
 
-          // ── Body ─────────────────────────────────────────────────────────
+          // â”€â”€ Body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Expanded(
             child: profileState.isLoading && user.name == 'Investor'
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.arcticBlue))
@@ -248,7 +249,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                           ),
                         ),
                         SizedBox(height: 32.h),
-                        _buildInputField(label: 'Name as per PAN *', controller: _nameController, isEditable: profileState.isEditing, isDark: isDark, textCapitalization: TextCapitalization.words, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z ]')), _UpperCaseWordsFormatter()]),
+                        _buildInputField(label: 'Name as per PAN *', controller: _nameController, isEditable: profileState.isEditing, isDark: isDark, textCapitalization: TextCapitalization.words, inputFormatters: [UpperCaseWordsFormatter()]),
                         _buildInputField(label: 'Phone Number *', hint: MaskingUtils.maskMobile(user.phone), isEditable: false, isDark: isDark),
                         _buildInputField(label: 'E-Mail *', controller: _emailController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.emailAddress, errorText: _emailError, onChanged: (_) { if (_emailError != null) setState(() => _emailError = null); }),
                         _buildInputField(label: 'DOB *', hint: user.dob, isEditable: false, isDark: isDark),
@@ -262,7 +263,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                   ),
           ),
 
-          // ── Footer Save Button ────────────────────────────────────────────
+          // â”€â”€ Footer Save Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (profileState.isEditing)
             SafeArea(
               top: false,
@@ -270,7 +271,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                 padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 16.h),
                 decoration: const BoxDecoration(color: Colors.transparent),
                 child: CustomButton(
-                  text: 'Save',
+                  text: 'Save', svgIconPath: 'assets/buttons/folder-add.svg',
                   isLoading: profileState.isLoading,
                   onPressed: (profileState.isLoading || !_canSave)
                       ? null
@@ -388,50 +389,6 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
           ],
         ],
       ),
-    );
-  }
-}
-
-/// Capitalizes the first letter of every word as the user types.
-/// Also strips any character that is not a letter or a space (defense-in-depth).
-class _UpperCaseWordsFormatter extends TextInputFormatter {
-  // Allow only a-z, A-Z and space
-  static final _allowed = RegExp(r'[a-zA-Z ]');
-
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    // Strip disallowed characters first
-    final cleaned = newValue.text.split('').where((ch) => _allowed.hasMatch(ch)).join();
-
-    if (cleaned.isEmpty) {
-      return newValue.copyWith(
-        text: '',
-        selection: const TextSelection.collapsed(offset: 0),
-      );
-    }
-
-    final buf = StringBuffer();
-    bool capitalizeNext = true;
-    for (int i = 0; i < cleaned.length; i++) {
-      final ch = cleaned[i];
-      if (ch == ' ') {
-        capitalizeNext = true;
-        buf.write(ch);
-      } else if (capitalizeNext) {
-        buf.write(ch.toUpperCase());
-        capitalizeNext = false;
-      } else {
-        buf.write(ch);
-      }
-    }
-
-    final newText = buf.toString();
-    // Clamp the cursor so it never goes out of bounds after stripping
-    final offset = newValue.selection.end.clamp(0, newText.length) as int;
-    return newValue.copyWith(
-      text: newText,
-      selection: TextSelection.collapsed(offset: offset),
     );
   }
 }

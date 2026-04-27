@@ -60,6 +60,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
+        <!-- Cashfree — enable subscription checkout flow (UPI Autopay/e-Mandate) -->
+        <meta-data
+            android:name="cashfree_subscription_flow_enable"
+            android:value="true"
+            tools:replace="android:value"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

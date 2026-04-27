@@ -1,0 +1,236 @@
+/// SIP (Auto Savings) data models.
+///
+/// All models follow the same serialisation pattern used across the codebase:
+///   • Named constructors via `fromJson`
+///   • Defensive null-coalescing (`??`)
+///   • No code-generation dependencies
+
+// ─── SIP Configuration ──────────────────────────────────────────────────────
+
+class SipFrequency {
+  final int id;
+  final String name;
+  final bool isDefault;
+
+  SipFrequency({
+    required this.id,
+    required this.name,
+    this.isDefault = false,
+  });
+
+  factory SipFrequency.fromJson(Map<String, dynamic> json) {
+    return SipFrequency(
+      id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      name: json['name']?.toString() ?? '',
+      isDefault: (json['is_default'] ?? 0) == 1,
+    );
+  }
+}
+
+class SipCommodity {
+  final int id;
+  final String name;
+
+  SipCommodity({required this.id, required this.name});
+
+  factory SipCommodity.fromJson(Map<String, dynamic> json) {
+    return SipCommodity(
+      id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      name: json['name']?.toString() ?? '',
+    );
+  }
+}
+
+class SipConfig {
+  final double minAmount;
+  final double maxAmount;
+  final List<SipFrequency> frequencies;
+  final List<SipCommodity> commodities;
+
+  SipConfig({
+    required this.minAmount,
+    required this.maxAmount,
+    required this.frequencies,
+    required this.commodities,
+  });
+
+  factory SipConfig.fromJson(Map<String, dynamic> json) {
+    final List freqList = json['frequencies'] ?? [];
+    final List commodityList = json['commodities'] ?? [];
+    return SipConfig(
+      minAmount: (json['min_amount'] ?? 0).toDouble(),
+      maxAmount: (json['max_amount'] ?? 0).toDouble(),
+      frequencies: freqList.map((e) => SipFrequency.fromJson(e)).toList(),
+      commodities: commodityList.map((e) => SipCommodity.fromJson(e)).toList(),
+    );
+  }
+}
+
+// ─── SIP Denomination ───────────────────────────────────────────────────────
+
+class SipDenomination {
+  final double value;
+  final bool isPopular;
+
+  SipDenomination({required this.value, this.isPopular = false});
+
+  factory SipDenomination.fromJson(Map<String, dynamic> json) {
+    return SipDenomination(
+      value: (json['value'] ?? 0).toDouble(),
+      isPopular: (json['is_popular'] ?? 0) == 1,
+    );
+  }
+}
+
+// ─── SIP Create Response ────────────────────────────────────────────────────
+
+class SipCreateResponse {
+  final bool success;
+  final String message;
+  final String? subscriptionId;
+  final String? status;
+  final String? orderId;
+  final String? sessionId;
+  final String? environment;
+  /// Full Cashfree subscription checkout URL.
+  /// Backend obtains this from Cashfree's mandate creation response.
+  final String? authorizationLink;
+
+  SipCreateResponse({
+    required this.success,
+    required this.message,
+    this.subscriptionId,
+    this.status,
+    this.orderId,
+    this.sessionId,
+    this.environment,
+    this.authorizationLink,
+  });
+
+  factory SipCreateResponse.fromJson(Map<String, dynamic> json) {
+    final data = json['data'] as Map<String, dynamic>? ?? {};
+    return SipCreateResponse(
+      success: json['success'] == true,
+      message: json['message']?.toString() ?? '',
+      subscriptionId: data['subscription_id']?.toString(),
+      status: data['status']?.toString(),
+      orderId: data['order_id']?.toString(),
+      sessionId: data['session_id']?.toString(),
+      environment: data['environment']?.toString(),
+      authorizationLink: data['authorization_link']?.toString(),
+    );
+  }
+}
+
+// ─── SIP Plan Detail ────────────────────────────────────────────────────────
+
+class SipPlanDetail {
+  final String subscriptionId;
+  final String startDate;
+  final String frequency;
+  final int frequencyId;
+  final double amount;
+  final String status;
+  final String commodityName;
+  final int commodityId;
+  final String? day;
+  final int? date;
+
+  SipPlanDetail({
+    required this.subscriptionId,
+    required this.startDate,
+    required this.frequency,
+    required this.frequencyId,
+    required this.amount,
+    required this.status,
+    required this.commodityName,
+    required this.commodityId,
+    this.day,
+    this.date,
+  });
+
+  factory SipPlanDetail.fromJson(Map<String, dynamic> json) {
+    return SipPlanDetail(
+      subscriptionId: json['subscription_id']?.toString() ?? '',
+      startDate: json['start_date']?.toString() ?? '',
+      frequency: json['frequency']?.toString() ?? '',
+      frequencyId:
+          int.tryParse(json['frequency_id']?.toString() ?? '0') ?? 0,
+      amount: (json['amount'] ?? 0).toDouble(),
+      status: json['status']?.toString() ?? '',
+      commodityName: json['commodity_name']?.toString() ?? '',
+      commodityId:
+          int.tryParse(json['commodity_id']?.toString() ?? '0') ?? 0,
+      day: json['day']?.toString(),
+      date: int.tryParse(json['date']?.toString() ?? ''),
+    );
+  }
+
+  bool get isActive =>
+      status.toUpperCase() == 'ACTIVE';
+
+  bool get isPaused =>
+      status.toUpperCase() == 'PAUSED';
+
+  bool get isPendingAuth =>
+      status.toUpperCase() == 'PENDING_AUTH' ||
+      status.toUpperCase() == 'BANK_APPROVAL_PENDING';
+
+  /// Whether this plan is occupying a frequency slot (blocks new creation).
+  /// Only ACTIVE and PAUSED plans block — PENDING_AUTH means incomplete mandate.
+  bool get isOccupying => isActive || isPaused;
+}
+
+// ─── SIP Manage Details Response ────────────────────────────────────────────
+
+class SipManageDetails {
+  final String subscriptionId;
+  final String startDate;
+  final double amount;
+  final String status;
+  final String frequency;
+  final String commodityName;
+  final String? day;
+  final int? date;
+
+  SipManageDetails({
+    required this.subscriptionId,
+    required this.startDate,
+    required this.amount,
+    required this.status,
+    required this.frequency,
+    required this.commodityName,
+    this.day,
+    this.date,
+  });
+
+  factory SipManageDetails.fromJson(Map<String, dynamic> json) {
+    return SipManageDetails(
+      subscriptionId: json['subscription_id']?.toString() ?? '',
+      startDate: json['start_date']?.toString() ?? '',
+      amount: (json['amount'] ?? 0).toDouble(),
+      status: json['status']?.toString() ?? '',
+      frequency: json['frequency']?.toString() ?? '',
+      commodityName: json['commodity_name']?.toString() ?? '',
+      day: json['day']?.toString(),
+      date: int.tryParse(json['date']?.toString() ?? ''),
+    );
+  }
+}
+
+// ─── Cancel Reason ──────────────────────────────────────────────────────────
+
+class CancelReason {
+  final String label;
+  final String value;
+
+  const CancelReason({required this.label, required this.value});
+}
+
+/// Pre-defined cancel reasons as specified.
+const List<CancelReason> sipCancelReasons = [
+  CancelReason(label: 'No money', value: 'No money'),
+  CancelReason(label: 'Change frequency', value: 'Change frequency'),
+  CancelReason(label: 'Other saving method', value: 'Other saving method'),
+  CancelReason(label: 'Goal achieved', value: 'Goal achieved'),
+];

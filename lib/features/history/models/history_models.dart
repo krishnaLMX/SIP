@@ -39,7 +39,9 @@ class HistoryResponse {
 class TransactionItem {
   final String transactionId;
   final String title;
+  final String subtitle;
   final String type;
+  final int soType;
   final double amount;
   final String weightGrams;
   final String displayDate;
@@ -50,7 +52,9 @@ class TransactionItem {
   TransactionItem({
     required this.transactionId,
     required this.title,
+    this.subtitle = '',
     required this.type,
+    this.soType = 0,
     required this.amount,
     required this.weightGrams,
     required this.displayDate,
@@ -64,7 +68,9 @@ class TransactionItem {
     return TransactionItem(
       transactionId: json['transaction_id']?.toString() ?? '',
       title: json['title'] ?? '',
+      subtitle: json['subtitle'] ?? '',
       type: json['type'] ?? '',
+      soType: json['so_type'] ?? 0,
       amount: double.tryParse(json['amount']?.toString() ?? '0') ?? 0.0,
       weightGrams: json['weight_grams']?.toString() ?? '0',
       displayDate: json['display_date'] ?? '',
@@ -83,12 +89,15 @@ class TransactionDetailResponse {
   final String amount;
   final String weightGrams;
   final String metalName;
+  final String scheduledDate;
+  final String paymentMethod;
   final List<TimelineStep> timeline;
   final String footerMessage;
   final String invoiceNumber;
   final String invoiceUrl;
   final PriceBreakdown priceBreakdown;
   final TechnicalDetails technicalDetails;
+  final SchemeInfo? schemeInfo;
 
   TransactionDetailResponse({
     required this.transactionId,
@@ -98,12 +107,15 @@ class TransactionDetailResponse {
     required this.amount,
     required this.weightGrams,
     required this.metalName,
+    this.scheduledDate = '',
+    this.paymentMethod = '',
     required this.timeline,
     required this.footerMessage,
     required this.invoiceNumber,
     required this.invoiceUrl,
     required this.priceBreakdown,
     required this.technicalDetails,
+    this.schemeInfo,
   });
 
   factory TransactionDetailResponse.fromJson(Map<String, dynamic> json) {
@@ -121,6 +133,8 @@ class TransactionDetailResponse {
       amount: root['amount']?.toString() ?? '0',
       weightGrams: root['weight_grams']?.toString() ?? '0',
       metalName: root['metal_name'] ?? 'Gold 24K',
+      scheduledDate: root['scheduled_date'] ?? '',
+      paymentMethod: root['payment_method'] ?? '',
       timeline: timelineList.map((i) => TimelineStep.fromJson(i)).toList(),
       footerMessage: root['footer_message'] ?? '',
       invoiceNumber: root['invoice_number'] ?? '',
@@ -128,6 +142,9 @@ class TransactionDetailResponse {
       priceBreakdown: PriceBreakdown.fromJson(root['price_breakdown'] ?? {}),
       technicalDetails:
           TechnicalDetails.fromJson(root['technical_details'] ?? {}),
+      schemeInfo: root['scheme_info'] != null
+          ? SchemeInfo.fromJson(root['scheme_info'])
+          : null,
     );
   }
 }
@@ -205,6 +222,38 @@ class TechnicalDetails {
       orderId: json['order_id']?.toString() ?? '',
       placedOn: json['placed_on'] ?? '',
       paidVia: json['paid_via'] ?? '',
+    );
+  }
+}
+
+class SchemeInfo {
+  final int schemeId;
+  final String label;
+  final String frequency;
+  final String amount;
+  final String totalSaved;
+  final int cyclesDone;
+  final String status;
+
+  SchemeInfo({
+    required this.schemeId,
+    required this.label,
+    required this.frequency,
+    required this.amount,
+    required this.totalSaved,
+    required this.cyclesDone,
+    required this.status,
+  });
+
+  factory SchemeInfo.fromJson(Map<String, dynamic> json) {
+    return SchemeInfo(
+      schemeId: json['scheme_id'] ?? 0,
+      label: json['label'] ?? '',
+      frequency: json['frequency'] ?? '',
+      amount: json['amount']?.toString() ?? '0',
+      totalSaved: json['total_saved']?.toString() ?? '0',
+      cyclesDone: json['cycles_done'] ?? 0,
+      status: json['status'] ?? '',
     );
   }
 }

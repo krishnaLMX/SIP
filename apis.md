@@ -64,8 +64,19 @@ This document summarizes the complete set of API endpoints required for the Star
 ### 0.2.1 Fetch App Control Data
 *   **Endpoint:** `POST app/control`
 *   **Authorization:** None (public endpoint — called before login and periodically while app is open)
-*   **Purpose:** Central runtime control gate. Returns current version info (with platform-specific popups) and any live global alerts.
+*   **Purpose:** Central runtime control gate. Returns current version info (with platform-specific popups), live global alerts, and maintenance status.
 *   **Polling:** App polls this endpoint every **5 minutes** while active to pick up live alert changes without requiring a restart.
+*   **Request Body:**
+    ```json
+    {
+      "platform": "android"
+    }
+    ```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `platform` | String | Yes | `"android"` or `"ios"` — sent so the server can return platform-specific version info, alerts, and maintenance status |
+
 *   **Response:**
     ```json
     {
@@ -1689,3 +1700,216 @@ A `showGeneralDialog` dialog with a scale+fade animation is shown **before** the
 - **Yes, Delete** → proceeds to call `POST delete-account`.
 
 ---
+---
+
+# Content – Refund Policy API
+
+## 10. Refund Policy
+
+### `POST /content/refund-policy`
+
+Fetches the refund policy content for the application.
+
+**Request:** No body required (POST with empty payload or `{}`).
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "content": "Refund Policy content text goes here. This can include HTML or plain text as returned by the backend."
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `content` | String | The refund policy text/HTML content to display |
+
+> **Note:** This API follows the same pattern as `POST /content/terms`, `POST /content/privacy`, and `POST /content/about-us`. The app renders the `content` field as plain text in a scrollable view.
+
+---
+---
+
+# Nominee Management APIs
+
+## 13. Nominee
+
+### 13.1 Fetch Nominee Relationship List (Dynamic)
+
+*   **Endpoint:** `POST users/nominee/update/relationships`
+*   **Authorization:** `Bearer Token`
+*   **Purpose:** Fetches the list of valid nominee relationships dynamically from the server. This replaces the previously hardcoded relationship list and allows the backend to control relationship options.
+*   **Request Body:**
+    ```json
+    {}
+    ```
+*   **Response (Success):**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "relationships": [
+          {
+            "id": 1,
+            "name": "Father"
+          },
+          {
+            "id": 2,
+            "name": "Mother"
+          },
+          {
+            "id": 3,
+            "name": "Spouse"
+          },
+          {
+            "id": 4,
+            "name": "Son"
+          },
+          {
+            "id": 5,
+            "name": "Daughter"
+          },
+          {
+            "id": 6,
+            "name": "Brother"
+          },
+          {
+            "id": 7,
+            "name": "Sister"
+          },
+          {
+            "id": 8,
+            "name": "Other"
+          }
+        ]
+      }
+    }
+    ```
+*   **Response (Error):**
+    ```json
+    {
+      "success": false,
+      "message": "Unable to fetch relationship list"
+    }
+    ```
+
+| Field | Type | Description |
+|---|---|---|
+| `relationships` | Array | List of relationship objects |
+| `relationships[].id` | Integer | Unique identifier for the relationship type |
+| `relationships[].name` | String | Display name of the relationship (used in the dropdown) |
+
+*   **Client Usage:**
+    - Called once when the Nominee form screen is opened.
+    - Populates the "Relationship" dropdown dynamically.
+    - Falls back to a hardcoded list if the API fails, ensuring the form remains functional.
+*   **Client Provider:** `nomineeRelationshipsProvider` — fetches and caches the relationship list.
+
+---
+
+### 13.2 Fetch Nominee Details
+
+*   **Endpoint:** `POST user/nominee/details`
+*   **Authorization:** `Bearer Token`
+*   **Purpose:** Retrieves the currently saved nominee details for the logged-in user.
+*   **Request Body:**
+    ```json
+    {}
+    ```
+*   **Response (Success — nominee exists):**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "name": "John Doe",
+        "relationship": "Father",
+        "dob": "1970-05-15",
+        "mobile": "9876543210",
+        "email": "john@example.com",
+        "address": "123 Main Street",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "pincode": "400001"
+      }
+    }
+    ```
+*   **Response (Success — no nominee):**
+    ```json
+    {
+      "success": true,
+      "data": {}
+    }
+    ```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | String | Yes | Full name of the nominee |
+| `relationship` | String | Yes | Relationship with the user (from relationship list) |
+| `dob` | String | Yes | Date of birth in `yyyy-MM-dd` format |
+| `mobile` | String | Yes | 10-digit mobile number |
+| `email` | String | No | Email address |
+| `address` | String | No | Street address |
+| `city` | String | No | City name (auto-filled from pincode) |
+| `state` | String | No | State name (auto-filled from pincode) |
+| `pincode` | String | No | 6-digit pincode |
+
+*   **Client Provider:** `nomineeDetailsProvider` — auto-fetched when NomineeScreen loads.
+
+---
+
+### 13.3 Create / Update Nominee
+
+*   **Endpoint:** `POST users/nominee/update`
+*   **Authorization:** `Bearer Token`
+*   **Purpose:** Creates or updates the nominee details for the logged-in user.
+*   **Request Body:**
+    ```json
+    {
+      "name": "John Doe",
+      "relationship": "Father",
+      "relationship_id": 1,
+      "dob": "1970-05-15",
+      "mobile": "9876543210",
+      "email": "john@example.com",
+      "address": "123 Main Street",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "pincode": "400001",
+      "id_city": 456,
+      "id_state": 78,
+      "id_country": 101
+    }
+    ```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | String | Yes | Full name of the nominee |
+| `relationship` | String | Yes | Relationship name (e.g. "Father") |
+| `relationship_id` | Int | No | Relationship ID from `/relationships` API |
+| `dob` | String | Yes | Date of birth in `yyyy-MM-dd` format |
+| `mobile` | String | Yes | 10-digit mobile number |
+| `email` | String | No | Email address |
+| `address` | String | No | Street address |
+| `city` | String | No | City name (auto-filled via pincode check) |
+| `state` | String | No | State name (auto-filled via pincode check) |
+| `pincode` | String | No | 6-digit pincode |
+| `id_city` | Int | No | City ID from pincode check |
+| `id_state` | Int | No | State ID from pincode check |
+| `id_country` | Int | No | Country ID (default: 101 for India) |
+
+*   **Response (Success):**
+    ```json
+    {
+      "success": true,
+      "message": "Nominee updated successfully"
+    }
+    ```
+*   **Response (Error):**
+    ```json
+    {
+      "success": false,
+      "message": "Failed to update nominee"
+    }
+    ```
+*   **Client Action:** On success, invalidates `nomineeDetailsProvider` to refetch and switches back to view mode.

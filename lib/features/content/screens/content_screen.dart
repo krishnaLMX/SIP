@@ -29,9 +29,11 @@ class ContentScreen extends ConsumerWidget {
               data: (data) {
                 final content = data['content'] ?? 'No content available.';
                 return SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
                   padding: EdgeInsets.all(24.w),
                   child: Text(
                     content,
+                    textAlign: TextAlign.justify,
                     style: GoogleFonts.lora(
                       fontSize: 13.sp,
                       height: 1.6,
@@ -41,7 +43,9 @@ class ContentScreen extends ConsumerWidget {
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => const Center(child: Text('Failed to load content. Please try again later.')),
+              error: (e, _) => const Center(
+                  child:
+                      Text('Failed to load content. Please try again later.')),
             ),
           ),
         ],

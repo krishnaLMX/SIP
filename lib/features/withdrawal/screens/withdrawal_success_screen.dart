@@ -28,14 +28,14 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
         body: SafeArea(
         child: Column(
           children: [
-            // ── Non-scrollable content (fits the screen) ────────
+            // â”€â”€ Non-scrollable content (fits the screen) â”€â”€â”€â”€â”€â”€â”€â”€
             Expanded(
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24.w),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // ── Success icon (animated) ──────────────
+                    // â”€â”€ Success icon (animated) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     SizedBox(
                       width: 90.w,
                       height: 90.w,
@@ -47,7 +47,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
 
                     SizedBox(height: 16.h),
 
-                    // ── Title ───────────────────────────────────
+                    // â”€â”€ Title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Text(
                       'Withdrawal Successful!',
                       style: GoogleFonts.lora(
@@ -59,7 +59,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
 
                     SizedBox(height: 6.h),
 
-                    // ── Subtitle ────────────────────────────────
+                    // â”€â”€ Subtitle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12.w),
                       child: Text(
@@ -75,7 +75,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
 
                     SizedBox(height: 20.h),
 
-                    // ── Dark green summary card ─────────────────
+                    // â”€â”€ Dark green summary card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
@@ -98,7 +98,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
                       ),
                       child: Column(
                         children: [
-                          // ─ Top section: commodity + amount ──
+                          // â”€ Top section: commodity + amount â”€â”€
                           Padding(
                             padding: EdgeInsets.fromLTRB(24.w, 18.h, 24.w, 14.h),
                             child: Column(
@@ -136,7 +136,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
 
                                 // Amount
                                 Text(
-                                  '₹${data['amount'] ?? '0.00'}',
+                                  'â‚¹${data['amount'] ?? '0.00'}',
                                   style: GoogleFonts.lora(
                                     fontSize: 32.sp,
                                     fontWeight: FontWeight.w800,
@@ -155,7 +155,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
                             ),
                           ),
 
-                          // ─ Bottom section: detail rows ──────
+                          // â”€ Bottom section: detail rows â”€â”€â”€â”€â”€â”€
                           Container(
                             width: double.infinity,
                             padding: EdgeInsets.symmetric(
@@ -174,7 +174,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
                                 _detailRow(
                                   icon: Icons.receipt_long_outlined,
                                   label: 'Transaction ID',
-                                  value: _truncateId(data['txnId'] ?? '—'),
+                                  value: _truncateId(data['txnId'] ?? 'â€”'),
                                   primaryText: primaryText,
                                   secondaryText: secondaryText,
                                   showCopy: (data['txnId'] ?? '').toString().isNotEmpty,
@@ -185,7 +185,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
                                 _detailRow(
                                   icon: Icons.account_balance_wallet_outlined,
                                   label: 'Target Account',
-                                  value: data['account'] ?? '—',
+                                  value: data['account'] ?? 'â€”',
                                   primaryText: primaryText,
                                   secondaryText: secondaryText,
                                   context: context,
@@ -211,11 +211,11 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
               ),
             ),
 
-            // ── Done button ──────────────────────────────────────
+            // â”€â”€ Done button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Padding(
               padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
               child: CustomButton(
-                text: 'BACK TO HOME',
+                text: 'BACK TO HOME', svgIconPath: 'assets/buttons/back-home.svg',
                 onPressed: () => _navigateHome(context, ref),
                 gradient: const LinearGradient(
                   begin: Alignment.centerLeft,
@@ -239,7 +239,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
   );          // closes PopScope
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   String _getCommodityLabel() {
     final commodity = (data['commodity'] ?? '').toString().toUpperCase().trim();

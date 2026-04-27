@@ -268,6 +268,7 @@ class _PinCreationScreenState extends ConsumerState<PinCreationScreen> {
                 delay: const Duration(milliseconds: 400),
                 child: CustomButton(
                   text: _isConfirming ? 'Complete Setup' : 'Next Step',
+                  svgIconPath: 'assets/buttons/getstart.svg',
                   isLoading: authState.isLoading,
                   onPressed: () {
                     if (!_isConfirming && _pin.length == 4) {

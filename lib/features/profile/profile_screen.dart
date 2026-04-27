@@ -202,13 +202,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 : null,
                           ),
                           // Nominee Details - Commented as requested
-                          /*
-                    _buildMenuItem(
-                      'Nominee Details',
-                      'assets/sidemenu/nominee.svg',
-                      onTap: () {},
-                    ),
-                    */
+
+                          _buildMenuItem(
+                            'Nominee Details',
+                            'assets/sidemenu/nominee.svg',
+                            onTap: () => Navigator.pushNamed(
+                                context, AppRouter.nominee),
+                          ),
+
                           // Auto Savings - Commented as requested
                           /*
                     _buildMenuItem(
@@ -230,16 +231,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 context, AppRouter.referral),
                           ),
                           _buildMenuItem(
+                            'Terms & Conditions',
+                            'assets/sidemenu/tc.svg',
+                            onTap: () =>
+                                Navigator.pushNamed(context, AppRouter.terms),
+                          ),
+                          _buildMenuItem(
                             'Privacy Policy',
                             'assets/sidemenu/privacy.svg',
                             onTap: () =>
                                 Navigator.pushNamed(context, AppRouter.privacy),
                           ),
                           _buildMenuItem(
-                            'Terms & Conditions',
-                            'assets/sidemenu/tc.svg',
-                            onTap: () =>
-                                Navigator.pushNamed(context, AppRouter.terms),
+                            'Refund Policy',
+                            'assets/sidemenu/refund.svg',
+                            onTap: () => Navigator.pushNamed(
+                                context, AppRouter.refundPolicy),
                           ),
                           _buildMenuItem(
                             'Enquiry',
@@ -316,7 +323,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         },
                       ),
                     ),
-                    SizedBox(height: 48.h),
+                    // Extra space so last item scrolls above the floating nav bar
+                    SizedBox(height: 120.h),
                   ],
                 ),
               ),
@@ -331,10 +339,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildSkeleton(bool isDark) {
     final baseLight = Colors.white.withValues(alpha: 0.15);
     final highlightLight = Colors.white.withValues(alpha: 0.30);
-    final baseDark =
-        Colors.black.withValues(alpha: isDark ? 0.12 : 0.06);
-    final highlightDark =
-        Colors.black.withValues(alpha: isDark ? 0.22 : 0.12);
+    final baseDark = Colors.black.withValues(alpha: isDark ? 0.12 : 0.06);
+    final highlightDark = Colors.black.withValues(alpha: isDark ? 0.22 : 0.12);
 
     // Helper — shimmering pill on the green header
     Widget headerPill(double w, double h) => Shimmer.fromColors(
@@ -370,8 +376,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           highlightColor: highlightDark,
           child: Container(
             margin: EdgeInsets.only(bottom: 12.h),
-            padding:
-                EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(15.r),

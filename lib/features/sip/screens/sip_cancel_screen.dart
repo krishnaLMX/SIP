@@ -1,0 +1,287 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+
+import '../../../shared/widgets/gradient_header.dart';
+import '../../../shared/widgets/custom_button.dart';
+import '../../../shared/widgets/app_toast.dart';
+import '../../../core/security/secure_logger.dart';
+import '../controller/sip_controller.dart';
+import '../models/sip_models.dart';
+
+/// Cancel Savings screen â€“ reason selection + confirmation.
+///
+/// â€¢ Cannot cancel within 24 hours of creation (enforced server-side;
+///   an info banner is shown if the API returns an error hinting at this).
+/// â€¢ Reason is mandatory.
+class SipCancelScreen extends ConsumerStatefulWidget {
+  final String subscriptionId;
+
+  const SipCancelScreen({super.key, required this.subscriptionId});
+
+  @override
+  ConsumerState<SipCancelScreen> createState() => _SipCancelScreenState();
+}
+
+class _SipCancelScreenState extends ConsumerState<SipCancelScreen> {
+  String? _selectedReason;
+  bool _isCancelling = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          GradientHeader(
+            title: 'Cancel Savings',
+            onBack: () => Navigator.pop(context),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 24.h),
+
+                    // â”€â”€ 24-hour info banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                    Container(
+                      padding: EdgeInsets.all(14.w),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: const Color(0xFFD97706).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline_rounded,
+                              size: 18.sp,
+                              color: const Color(0xFFD97706)),
+                          SizedBox(width: 10.w),
+                          Expanded(
+                            child: Text(
+                              'You cannot cancel a plan within 24 hours of creation. '
+                              'If your plan was created less than 24 hours ago, the cancellation will not be processed.',
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF92400E),
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 24.h),
+
+                    Text(
+                      'Why are you cancelling?',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1A1A2E),
+                      ),
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      'Please select a reason to proceed',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Colors.black45,
+                      ),
+                    ),
+
+                    SizedBox(height: 16.h),
+
+                    ...sipCancelReasons.map((reason) {
+                      final isSelected = _selectedReason == reason.value;
+                      return GestureDetector(
+                        onTap: () =>
+                            setState(() => _selectedReason = reason.value),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: EdgeInsets.only(bottom: 10.h),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16.w, vertical: 14.h),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFF064E3B).withOpacity(0.06)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(14.r),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF064E3B)
+                                  : Colors.black.withOpacity(0.06),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF064E3B)
+                                          .withOpacity(0.08),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    )
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 22.w,
+                                height: 22.w,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isSelected
+                                      ? const Color(0xFF064E3B)
+                                      : Colors.transparent,
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? const Color(0xFF064E3B)
+                                        : Colors.black.withOpacity(0.15),
+                                    width: isSelected ? 0 : 1.5,
+                                  ),
+                                ),
+                                child: isSelected
+                                    ? Icon(Icons.check,
+                                        size: 14.sp, color: Colors.white)
+                                    : null,
+                              ),
+                              SizedBox(width: 12.w),
+                              Text(
+                                reason.label,
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? const Color(0xFF064E3B)
+                                      : const Color(0xFF1A1A2E),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                    SizedBox(height: 16.h),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // â”€â”€ Pinned Cancel button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 16.h),
+              color: Colors.transparent,
+              child: CustomButton(
+                text: 'Cancel Savings', svgIconPath: 'assets/buttons/tick.svg',
+                isLoading: _isCancelling,
+                loadingText: 'Cancelling...',
+                onPressed: _selectedReason != null && !_isCancelling
+                    ? _executeCancelConfirmation
+                    : null,
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _executeCancelConfirmation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        title: Text(
+          'Are you sure?',
+          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'This action will permanently cancel your auto savings plan. '
+          'You can create a new plan anytime.',
+          style: TextStyle(fontSize: 13.sp, color: Colors.black54),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Go Back',
+              style: TextStyle(
+                  color: Colors.black45, fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _executeCancel();
+            },
+            child: Text(
+              'Yes, Cancel',
+              style: TextStyle(
+                color: const Color(0xFFDC2626),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executeCancel() async {
+    setState(() => _isCancelling = true);
+    try {
+      final service = ref.read(sipServiceProvider);
+      final response = await service.cancelSip(
+        subscriptionId: widget.subscriptionId,
+        reason: _selectedReason!,
+      );
+
+      if (mounted) {
+        final success = response['success'] == true;
+        if (success) {
+          ref.invalidate(sipDetailsProvider);
+          AppToast.show(
+            context,
+            response['message'] ?? 'Savings cancelled successfully',
+            type: ToastType.success,
+          );
+          Navigator.pop(context); // Back to manage screen
+        } else {
+          AppToast.show(
+            context,
+            response['message'] ?? 'Unable to cancel at this time',
+            type: ToastType.error,
+          );
+        }
+      }
+    } catch (e) {
+      SecureLogger.e('SIP: Cancel failed: $e');
+      if (mounted) {
+        AppToast.show(
+          context,
+          'Something went wrong. Please try again.',
+          type: ToastType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCancelling = false);
+    }
+  }
+}

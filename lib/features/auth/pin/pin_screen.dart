@@ -148,6 +148,7 @@ class _PinScreenState extends ConsumerState<PinScreen> {
                           delay: const Duration(milliseconds: 400),
                           child: CustomButton(
                             text: ref.tr('secureAccess'),
+                            svgIconPath: 'assets/buttons/login.svg',
                             isLoading: authState.isLoading,
                             loadingText: 'Verifying...',
                             onPressed: _pinController.text.length == 4

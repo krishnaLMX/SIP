@@ -7,7 +7,11 @@ import 'package:startgold/shared/widgets/app_toast.dart';
 import 'package:startgold/shared/widgets/gradient_header.dart';
 
 class EnquiryFormScreen extends ConsumerStatefulWidget {
-  const EnquiryFormScreen({super.key});
+  /// Optional: pre-select a ticket type when navigating from a specific screen.
+  /// E.g. 'Auto Savings' when coming from ManageSavingsScreen.
+  final String? initialType;
+
+  const EnquiryFormScreen({super.key, this.initialType});
 
   @override
   ConsumerState<EnquiryFormScreen> createState() => _EnquiryFormScreenState();
@@ -28,15 +32,25 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
 
   // Icon for each type chip
   static const Map<String, IconData> _typeIcons = {
-    'General':   Icons.chat_bubble_outline_rounded,
-    'Payment':   Icons.payments_outlined,
-    'Technical': Icons.build_outlined,
-    'Account':   Icons.manage_accounts_outlined,
+    'General':      Icons.chat_bubble_outline_rounded,
+    'Payment':      Icons.payments_outlined,
+    'Technical':    Icons.build_outlined,
+    'Account':      Icons.manage_accounts_outlined,
+    'Enquiry':      Icons.help_outline_rounded,
+    'Support':      Icons.support_agent_outlined,
+    'Review':       Icons.rate_review_outlined,
+    'Others':       Icons.more_horiz_rounded,
+    'Auto Savings': Icons.savings_outlined,
   };
 
   @override
   void initState() {
     super.initState();
+    // Pre-select type if passed from the calling screen
+    if (widget.initialType != null &&
+        kTicketTypes.containsKey(widget.initialType)) {
+      _selectedType = widget.initialType!;
+    }
     _fadeCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 500));
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);

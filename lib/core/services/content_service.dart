@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/api_client.dart';
 
 class ContentService {
@@ -62,6 +62,15 @@ class ContentService {
       return {};
     }
   }
+
+  Future<Map<String, dynamic>> getRefundPolicy() async {
+    try {
+      final response = await _apiClient.post('content/refund-policy');
+      return response.data['data'] ?? {};
+    } catch (e) {
+      return {};
+    }
+  }
 }
 
 final contentServiceProvider =
@@ -91,5 +100,9 @@ final aboutUsProvider = FutureProvider<Map<String, dynamic>>((ref) {
 
 final contactUsProvider = FutureProvider<Map<String, dynamic>>((ref) {
   return ref.watch(contentServiceProvider).getContactUs();
+});
+
+final refundPolicyProvider = FutureProvider<Map<String, dynamic>>((ref) {
+  return ref.watch(contentServiceProvider).getRefundPolicy();
 });
 

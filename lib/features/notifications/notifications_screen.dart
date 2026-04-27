@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/services/notification_service.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/gradient_header.dart';
+import '../../shared/widgets/app_toast.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -29,17 +31,50 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(notificationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasUnread = state.notifications.any((n) => !n.isRead);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          GradientHeader(title: 'Notifications'),
+          GradientHeader(
+            title: 'Notifications',
+            trailing: hasUnread && !state.isLoading
+                ? GestureDetector(
+                    onTap: _onMarkAllRead,
+                    child: Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(100.r),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.25),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.done_all_rounded,
+                              size: 14.sp, color: Colors.white),
+                          SizedBox(width: 4.w),
+                          Text(
+                            'Mark All Read',
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : null,
+          ),
           Expanded(
             child: state.isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: AppTheme.primaryGreen))
+                ? _buildShimmerList()
                 : state.error != null
                     ? _buildError(state.error!, isDark)
                     : state.notifications.isEmpty
@@ -51,29 +86,110 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  // ── List ─────────────────────────────────────────────────────────────────
+  // ── Mark all read ──────────────────────────────────────────────────────────
+
+  void _onMarkAllRead() {
+    HapticFeedback.lightImpact();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        title: Text(
+          'Mark All as Read',
+          style: GoogleFonts.lora(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF1E293B),
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to mark all notifications as read?',
+          style: GoogleFonts.lora(
+            fontSize: 13.sp,
+            color: Colors.black54,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel',
+                style: GoogleFonts.lora(color: Colors.black45)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(notificationProvider.notifier).markAllAsRead();
+            },
+            child: Text('Confirm',
+                style: GoogleFonts.lora(
+                    color: AppTheme.primaryGreen,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── List ────────────────────────────────────────────────────────────────────
 
   Widget _buildList(NotificationState state, bool isDark) {
     return RefreshIndicator(
       color: AppTheme.primaryGreen,
       onRefresh: () => ref.read(notificationProvider.notifier).load(),
       child: ListView.separated(
-        physics: const BouncingScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics()),
         padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
         itemCount: state.notifications.length,
         separatorBuilder: (_, __) => SizedBox(height: 10.h),
-        itemBuilder: (context, index) =>
-            _buildCard(state.notifications[index], isDark),
+        itemBuilder: (context, index) {
+          final notif = state.notifications[index];
+          return _buildDismissibleCard(notif, isDark);
+        },
       ),
     );
   }
+
+  // ── Dismissible card (swipe to delete) ──────────────────────────────────────
+
+  Widget _buildDismissibleCard(AppNotification notif, bool isDark) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16.r),
+      child: Dismissible(
+        key: ValueKey(notif.id),
+        direction: DismissDirection.endToStart,
+        dismissThresholds: const {DismissDirection.endToStart: 0.35},
+        movementDuration: const Duration(milliseconds: 200),
+        onDismissed: (_) {
+          HapticFeedback.mediumImpact();
+          ref.read(notificationProvider.notifier).deleteNotification(notif.id);
+          AppToast.show(context, 'Notification removed',
+              type: ToastType.info);
+        },
+        background: Container(
+          color: const Color(0xFFDC2626),
+          alignment: Alignment.centerRight,
+          padding: EdgeInsets.only(right: 28.w),
+          child: Icon(
+            Icons.delete_rounded,
+            color: Colors.white,
+            size: 24.sp,
+          ),
+        ),
+        child: _buildCard(notif, isDark),
+      ),
+    );
+  }
+
+  // ── Card ────────────────────────────────────────────────────────────────────
 
   Widget _buildCard(AppNotification notif, bool isDark) {
     final isUnread = !notif.isRead;
 
     return GestureDetector(
       onTap: () {
-        // Mark as read via API + optimistic UI update
         if (isUnread) {
           ref.read(notificationProvider.notifier).markAsRead(notif.id);
         }
@@ -163,12 +279,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       ),
                     ),
                     SizedBox(height: 6.h),
-                    Text(
-                      notif.createdAt,
-                      style: GoogleFonts.lora(
-                        fontSize: 10.sp,
-                        color: isDark ? Colors.white38 : Colors.black38,
-                      ),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time_rounded,
+                          size: 11.sp,
+                          color: isDark ? Colors.white30 : Colors.black26,
+                        ),
+                        SizedBox(width: 4.w),
+                        Text(
+                          notif.createdAt,
+                          style: GoogleFonts.lora(
+                            fontSize: 10.sp,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -176,6 +302,86 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ── Shimmer loading ────────────────────────────────────────────────────────
+
+  Widget _buildShimmerList() {
+    return ListView.separated(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+      itemCount: 6,
+      separatorBuilder: (_, __) => SizedBox(height: 10.h),
+      itemBuilder: (_, __) => _buildShimmerCard(),
+    );
+  }
+
+  Widget _buildShimmerCard() {
+    return Container(
+      padding: EdgeInsets.all(14.r),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: Colors.black.withOpacity(0.04)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Circle shimmer
+          Container(
+            width: 42.w,
+            height: 42.w,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey.shade200,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 120.w,
+                  height: 14.h,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4.r),
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Container(
+                  width: double.infinity,
+                  height: 12.h,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(4.r),
+                  ),
+                ),
+                SizedBox(height: 4.h),
+                Container(
+                  width: 180.w,
+                  height: 12.h,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(4.r),
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Container(
+                  width: 80.w,
+                  height: 10.h,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(4.r),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

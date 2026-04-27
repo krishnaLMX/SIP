@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,9 @@ import '../../shared/widgets/loaders.dart';
 import './models/home_dashboard.dart';
 import '../profile/profile_controller.dart';
 import '../main/main_screen.dart';
+import 'widgets/micro_savings_banner.dart';
+import 'widgets/learn_carousel.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/providers/timer_provider.dart';
 import '../instant_saving/controller/saving_controller.dart';
 
@@ -29,6 +33,15 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch fresh notification badge count on home load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(notificationProvider.notifier).refreshUnreadCount();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -382,6 +395,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ...() {
                 final learn = dashboard.learningSection ??
                     LearningSection(title: 'Learn Something New', banners: []);
+
+                // Use dynamic banner images from API if available,
+                // otherwise fall back to static asset images.
+                final List<String> carouselImages = learn.banners.isNotEmpty
+                    ? learn.banners.map((b) => b.image).toList()
+                    : const [
+                        'assets/home/learn1.png',
+                        'assets/home/learn2.png',
+                        'assets/home/learn3.png',
+                      ];
+
                 return [
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20.w),
@@ -390,7 +414,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   SizedBox(height: 16.h),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20.w),
-                    child: _buildLearningContent(learn),
+                    child: LearnCarousel(images: carouselImages),
                   ),
                 ];
               }(),
@@ -646,20 +670,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// Renders learning section: static SVG if empty, dynamic banners otherwise.
-  Widget _buildLearningContent(LearningSection section) {
-    if (section.banners.isEmpty) {
-      return _buildStaticLearningBanner();
-    }
-    return _buildLearningBanners(section.banners);
-  }
 
   /// Static fallback invest cards when API blocks list is empty.
   Widget _buildStaticInvestBlocks() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildStaticInvestCard('assets/home/micro.png'),
+        MicroSavingsBanner(
+          onSwipeComplete: () =>
+              Navigator.pushNamed(context, AppRouter.autoSavings),
+        ),
         SizedBox(height: 16.h),
         _buildStaticInvestCard(
           'assets/home/safe.gif',
@@ -730,77 +750,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// Static fallback learning card when API banners list is empty.
-  Widget _buildStaticLearningBanner() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24.r),
-      child: Image.asset(
-        'assets/home/learn.png',
-        width: double.infinity,
-        fit: BoxFit.fitWidth,
-      ),
-    );
-  }
-
   Widget _buildSectionHeader(String title, bool isDark) {
     return Text(
       title,
       style: GoogleFonts.lora(
         fontSize: 16.sp,
-        fontWeight: FontWeight.w600, // SemiBold
+        fontWeight: FontWeight.w600,
         color: isDark ? Colors.white : Colors.black87,
-        height: 1.0, // line-height: 100%
-        letterSpacing: 0, // letter-spacing: 0px
-      ),
-    );
-  }
-
-  Widget _buildLearningBanners(List<LearningBanner> banners) {
-    return SizedBox(
-      height: 160.h,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.zero,
-        itemCount: banners.length,
-        separatorBuilder: (_, __) => SizedBox(width: 16.w),
-        itemBuilder: (context, index) {
-          final banner = banners[index];
-          final isAsset = banner.image.startsWith('assets/');
-          final imageProvider = isAsset
-              ? AssetImage(banner.image) as ImageProvider
-              : NetworkImage(banner.image) as ImageProvider;
-
-          return Container(
-            width: 280.w,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24.r),
-              image: DecorationImage(
-                image: imageProvider,
-                fit: BoxFit.cover,
-                colorFilter: ColorFilter.mode(
-                  Colors.black.withValues(alpha: 0.3),
-                  BlendMode.darken,
-                ),
-              ),
-            ),
-            padding: EdgeInsets.all(20.r),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (banner.title != null && banner.title!.isNotEmpty)
-                  Text(
-                    banner.title!,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18.sp,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
+        height: 1.0,
+        letterSpacing: 0,
       ),
     );
   }
@@ -968,19 +926,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               fontSize: 26.sp,
               fontWeight: FontWeight.w700,
               color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-              height: 36 / 26, // line-height: 36px
+              height: 36 / 26,
               letterSpacing: 0,
             ),
           ),
           SizedBox(height: 16.h),
-          // Subtitle — auto-wrap
+          // Subtitle
           Text(
             info.subtitle,
             style: GoogleFonts.lora(
               fontSize: 13.sp,
               fontWeight: FontWeight.w500,
               color: isDark ? Colors.white70 : const Color(0xFF4B4B4B),
-              height: 20 / 13, // line-height: 20px
+              height: 20 / 13,
               letterSpacing: 0,
             ),
           ),
@@ -994,33 +952,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           SizedBox(height: 32.h),
-          // Company name
-          Text(
-            'startGOLD Capital Solutions Private Limited',
-            style: GoogleFonts.lora(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white70 : const Color(0xFF1A1A1A),
-              height: 1.0, // line-height: 100%
-              letterSpacing: 0,
+          // CIN row
+          if (info.cin.isNotEmpty) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'CIN: ',
+                  style: GoogleFonts.lora(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white70 : const Color(0xFF1A1A1A),
+                    height: 1.4,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    info.cin,
+                    style: GoogleFonts.lora(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white54 : const Color(0xFF4B4B4B),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          SizedBox(height: 8.h),
-          // Address
-          Text(
-            info.officeAddress,
-            style: GoogleFonts.lora(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white54 : const Color(0xFF4B4B4B),
-              height: 17 / 12, // line-height: 17px
-              letterSpacing: 0,
+            SizedBox(height: 10.h),
+          ],
+          // Copyright
+          if (info.copyright.isNotEmpty)
+            Text(
+              info.copyright,
+              style: GoogleFonts.lora(
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white38 : const Color(0xFF888888),
+                height: 1.4,
+                letterSpacing: 0,
+              ),
             ),
-          ),
         ],
       ),
     );
   }
+
 
   Widget _buildPremiumHeader(
       BuildContext context,
@@ -1068,6 +1045,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         timerText: timerText,
         isMarketClosed: isMarketClosed,
         selected: selected,
+        unreadCount: ref.watch(unreadCountProvider),
       ),
     );
   }
@@ -1139,8 +1117,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: SizedBox(
                         height: 40.h,
                         child: ElevatedButton(
-                          onPressed: () => Navigator.pushNamed(
-                              context, AppRouter.instantSaving),
+                          onPressed: () =>
+                              ref.read(selectedTabProvider.notifier).state = 1,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: activeOrange,
                             foregroundColor: Colors.white,
@@ -1419,7 +1397,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () =>
-                      Navigator.pushNamed(context, AppRouter.instantSaving),
+                      ref.read(selectedTabProvider.notifier).state = 1,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF064E3B),
@@ -1739,8 +1717,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         child: SizedBox(
                           height: 40.h,
                           child: ElevatedButton(
-                            onPressed: () => Navigator.pushNamed(
-                                context, AppRouter.instantSaving),
+                            onPressed: () =>
+                                ref.read(selectedTabProvider.notifier).state = 1,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: const Color(0xFF033214),
@@ -1815,6 +1793,7 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
   final String? timerText; // e.g. '02:00' — null if timer not active
   final CommodityType selected;
   final bool isMarketClosed;
+  final int unreadCount;
 
   PremiumHomeHeader({
     required this.expandedHeight,
@@ -1827,6 +1806,7 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
     this.timerText,
     required this.isMarketClosed,
     required this.selected,
+    this.unreadCount = 0,
   });
 
   @override
@@ -1863,8 +1843,47 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
                   GestureDetector(
                     onTap: () =>
                         Navigator.pushNamed(context, AppRouter.notifications),
-                    child: _buildActionIcon(
-                        isDark, Icons.notifications_none_rounded, Colors.white),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        _buildActionIcon(
+                            isDark, Icons.notifications_none_rounded, Colors.white),
+                        if (unreadCount > 0)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              padding: EdgeInsets.all(unreadCount > 9 ? 3.r : 4.r),
+                              constraints: BoxConstraints(minWidth: 18.r, minHeight: 18.r),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFF1A1A), Color(0xFFCC0000)],
+                                ),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFF003716), width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFFF1A1A).withOpacity(0.5),
+                                    blurRadius: 6,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Text(
+                                  unreadCount > 99 ? '99+' : '$unreadCount',
+                                  style: TextStyle(
+                                    fontSize: unreadCount > 9 ? 8.sp : 9.sp,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1896,35 +1915,10 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // LIVE or CLOSED badge
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-            decoration: BoxDecoration(
-              color: isMarketClosed
-                  ? const Color(0xFFD97706)
-                  : const Color(0xFFFF1A1A),
-              borderRadius: BorderRadius.circular(100.r),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isMarketClosed ? Icons.warning_amber_rounded : Icons.sensors,
-                  color: Colors.white,
-                  size: 12.sp,
-                ),
-                SizedBox(width: 4.w),
-                Text(
-                  isMarketClosed ? 'CLOSED' : 'LIVE',
-                  style: TextStyle(
-                    fontSize: 10.sp,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Animated LIVE or CLOSED badge
+          isMarketClosed
+              ? const _ClosedBadge()
+              : const _LiveBadge(),
           SizedBox(width: 14.w),
           // Full rate — tabular figures so digit changes don't shift width
           Text(
@@ -2000,3 +1994,195 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(SliverPersistentHeaderDelegate oldDelegate) => true;
 }
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANIMATED LIVE BADGE — Signal wave bars + pulsing glow
+// ═══════════════════════════════════════════════════════════════════════════════
+class _LiveBadge extends StatefulWidget {
+  const _LiveBadge();
+
+  @override
+  State<_LiveBadge> createState() => _LiveBadgeState();
+}
+
+class _LiveBadgeState extends State<_LiveBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        final glowVal = math.sin(t * 2 * math.pi);
+        final glowOpacity = (0.2 + 0.3 * glowVal).clamp(0.0, 1.0);
+
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFF1A1A), Color(0xFFCC0000)],
+            ),
+            borderRadius: BorderRadius.circular(100.r),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF1A1A).withOpacity(glowOpacity),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Wave bars
+              SizedBox(
+                width: 16.sp,
+                height: 12.sp,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: List.generate(4, (i) {
+                    final phase = t * 2 * math.pi + (i * 0.8);
+                    final barH = 4.0 + 8.0 * ((math.sin(phase) + 1) / 2);
+                    return Container(
+                      width: 2.sp,
+                      height: barH.sp,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(1.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.4),
+                            blurRadius: 2,
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
+              ),
+              SizedBox(width: 5.w),
+              Text(
+                'LIVE',
+                style: TextStyle(
+                  fontSize: 10.sp,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANIMATED CLOSED BADGE — Flat bars + gentle amber breathing
+// ═══════════════════════════════════════════════════════════════════════════════
+class _ClosedBadge extends StatefulWidget {
+  const _ClosedBadge();
+
+  @override
+  State<_ClosedBadge> createState() => _ClosedBadgeState();
+}
+
+class _ClosedBadgeState extends State<_ClosedBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final glow = 0.1 + 0.2 * _controller.value;
+
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFD97706), Color(0xFFB45309)],
+            ),
+            borderRadius: BorderRadius.circular(100.r),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFD97706).withOpacity(glow),
+                blurRadius: 8,
+                spreadRadius: 0.5,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Static flat bars (paused wave)
+              SizedBox(
+                width: 16.sp,
+                height: 12.sp,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: List.generate(4, (i) {
+                    return Container(
+                      width: 2.sp,
+                      height: 3.sp,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(1.r),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+              SizedBox(width: 5.w),
+              Text(
+                'CLOSED',
+                style: TextStyle(
+                  fontSize: 10.sp,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+

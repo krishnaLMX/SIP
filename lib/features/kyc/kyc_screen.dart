@@ -87,6 +87,7 @@ class KycScreen extends ConsumerWidget {
 
                   CustomButton(
                     text: 'Commence Verification',
+                    svgIconPath: 'assets/buttons/security-user.svg',
                     onPressed: kycState.steps.isEmpty
                         ? null
                         : () {

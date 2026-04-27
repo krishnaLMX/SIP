@@ -167,8 +167,15 @@ class ContactUsScreen extends ConsumerWidget {
           SizedBox(height: 12.h),
           _ContactCard(
             icon: Icons.location_on_rounded,
-            title: 'Visit Us',
-            value: _resolve(data, 'address') ?? '—',
+            title: 'Office Address',
+            value: _resolve(data, 'office_address') ?? '—',
+            isDark: isDark,
+          ),
+          SizedBox(height: 12.h),
+          _ContactCard(
+            icon: Icons.business_rounded,
+            title: 'Registered Address',
+            value: _resolve(data, 'registered_address') ?? '—',
             isDark: isDark,
           ),
           SizedBox(height: 12.h),

@@ -8,6 +8,7 @@ import 'package:flutter_svg/svg.dart';
 import '../controller/auth_controller.dart';
 import '../../../core/utils/validators.dart';
 import '../../../routes/app_router.dart';
+import '../../../main.dart' show navigatorKey;
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/animations.dart';
 import '../../../shared/widgets/app_toast.dart';
@@ -29,6 +30,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TapGestureRecognizer _termsRecognizer = TapGestureRecognizer();
   final TapGestureRecognizer _privacyRecognizer = TapGestureRecognizer();
   DateTime? _lastBackPressTime; // tracks double-tap-to-exit timing
+  bool _navigating = false; // guards against double-tap navigation
 
   @override
   void initState() {
@@ -321,6 +323,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       delay: const Duration(milliseconds: 400),
                       child: CustomButton(
                         text: 'Initiate Secure Login',
+                        svgIconPath: 'assets/buttons/login.svg',
                         isLoading: authState.isLoading,
                         onPressed: isValid ? _handleLogin : null,
                         gradient: LinearGradient(
@@ -467,24 +470,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    if (_navigating) return; // prevent double-tap
     ref.read(authControllerProvider.notifier).clearError();
     final success = await ref.read(authControllerProvider.notifier).sendOtp(
           _mobileController.text,
           _countryCode,
           _selectedCountryId,
         );
-    if (success && mounted) {
+    if (success && mounted && !_navigating) {
+      _navigating = true;
       final authData = ref.read(authControllerProvider).data;
-      Navigator.pushNamed(
-        context,
-        AppRouter.otp,
-        arguments: {
-          'mobile': _mobileController.text,
-          'countryCode': _countryCode,
-          'idCountry': _selectedCountryId,
-          'otpReferenceId': authData?['otp_reference_id'] ?? '',
-        },
-      );
+      // Short delay to let AppControlWrapper state updates settle and
+      // release any navigator locks before we push.
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) {
+        navigatorKey.currentState?.pushNamed(
+          AppRouter.otp,
+          arguments: {
+            'mobile': _mobileController.text,
+            'countryCode': _countryCode,
+            'idCountry': _selectedCountryId,
+            'otpReferenceId': authData?['otp_reference_id'] ?? '',
+          },
+        );
+      }
+      _navigating = false;
     }
   }
 }

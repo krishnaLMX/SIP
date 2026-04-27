@@ -262,6 +262,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 delay: const Duration(milliseconds: 400),
                 child: CustomButton(
                   text: 'Confirm',
+                  svgIconPath: 'assets/buttons/tick.svg',
                   isLoading: authState.isLoading,
                   onPressed: _handleRegistration,
                   gradient: const LinearGradient(

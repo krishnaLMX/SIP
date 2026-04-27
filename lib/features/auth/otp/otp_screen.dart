@@ -328,6 +328,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 delay: const Duration(milliseconds: 400),
                 child: CustomButton(
                   text: 'Verify OTP',
+                  svgIconPath: 'assets/buttons/tick.svg',
                   isLoading: authState.isLoading,
                   onPressed: _otpController.text.length == 6
                       ? () => _verifyOtp(_otpController.text)

@@ -21,7 +21,7 @@ class DeleteAccountService {
   /// POST /delete-account — permanently delete the account.
   Future<void> confirmDelete() async {
     final response =
-        await _apiClient.post('delete-account', data: {'confirm': true});
+        await _apiClient.post('users/delete-account', data: {'confirm': true});
     if (response.data == null || response.data['success'] != true) {
       throw Exception(response.data?['message'] ??
           'Account deletion failed. Please try again.');

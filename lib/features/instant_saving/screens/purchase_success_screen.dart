@@ -488,6 +488,7 @@ class PurchaseSuccessScreen extends ConsumerWidget {
       padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
       child: CustomButton(
         text: isSuccess ? 'BACK TO HOME' : 'TRY AGAIN',
+        svgIconPath: 'assets/buttons/back-home.svg',
         onPressed: () {
           if (isSuccess) {
             final container = ProviderScope.containerOf(context);

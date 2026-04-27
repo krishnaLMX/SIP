@@ -681,6 +681,8 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
         return 'Withdrawal';
       case 'referral':
         return 'Referral';
+      case 'sip':
+        return 'SIP Autopay';
       default:
         return _capitalise(raw);
     }

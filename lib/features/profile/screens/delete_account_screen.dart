@@ -11,7 +11,7 @@ import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/gradient_header.dart';
 import '../services/delete_account_service.dart';
 
-// ─── Providers ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Providers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 final _deleteAccountServiceProvider =
     Provider<DeleteAccountService>((ref) => DeleteAccountService());
@@ -20,7 +20,7 @@ final _deleteInfoProvider = FutureProvider.autoDispose<Map<String, dynamic>>(
   (ref) => ref.read(_deleteAccountServiceProvider).fetchDeleteInfo(),
 );
 
-// ─── Screen ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
@@ -33,7 +33,7 @@ class DeleteAccountScreen extends ConsumerStatefulWidget {
 class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   bool _isDeleting = false;
 
-  // ── Confirm deletion flow ─────────────────────────────────────────────────
+  // â”€â”€ Confirm deletion flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _onConfirmTap() async {
     final confirmed = await _showConfirmationDialog();
     if (!confirmed || !mounted) return;
@@ -88,24 +88,24 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         false;
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   @override
   Widget build(BuildContext context) {
     final infoAsync = ref.watch(_deleteInfoProvider);
 
     return Scaffold(
-      // Transparent → global AppTheme.lightGradient shows through (same as
+      // Transparent â†’ global AppTheme.lightGradient shows through (same as
       // WithdrawalScreen, ReferralScreen, etc.)
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // ── Green gradient header — matches every other screen ──────────
+          // â”€â”€ Green gradient header â€” matches every other screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           GradientHeader(
             title: 'Delete Account',
             onBack: () => Navigator.pop(context),
           ),
 
-          // ── Page body ─────────────────────────────────────────────────
+          // â”€â”€ Page body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Expanded(
             child: infoAsync.when(
               data: (info) => _buildBody(info),
@@ -118,7 +118,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     );
   }
 
-  // ── Main body ─────────────────────────────────────────────────────────────
+  // â”€â”€ Main body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildBody(Map<String, dynamic> info) {
     final content = info['content'] as String? ?? '';
     final isAllowed = info['is_allowed'] as bool? ?? false;
@@ -134,12 +134,12 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
               children: [
                 SizedBox(height: 14.h),
 
-                // ── Danger icon ──────────────────────────────────────────
+                // â”€â”€ Danger icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 _buildDangerIcon(),
 
                 SizedBox(height: 12.h),
 
-                // ── Title ────────────────────────────────────────────────
+                // â”€â”€ Title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 Text(
                   'Permanently Delete Your Account?',
                   textAlign: TextAlign.center,
@@ -153,7 +153,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
 
                 SizedBox(height: 8.h),
 
-                // ── Warning badge ────────────────────────────────────────
+                // â”€â”€ Warning badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 Container(
                   padding:
                       EdgeInsets.symmetric(horizontal: 12.w, vertical: 5.h),
@@ -187,12 +187,12 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
 
                 SizedBox(height: 14.h),
 
-                // ── Content card from API ─────────────────────────────────
+                // â”€â”€ Content card from API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 if (content.isNotEmpty) _buildContentCard(content),
 
                 SizedBox(height: 10.h),
 
-                // ── What will be deleted ──────────────────────────────────
+                // â”€â”€ What will be deleted â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 _buildDeletionList(),
 
                 SizedBox(height: 12.h),
@@ -201,13 +201,13 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
           ),
         ),
 
-        // ── Pinned footer — only shown when is_allowed == true ────────────
+        // â”€â”€ Pinned footer â€” only shown when is_allowed == true â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (isAllowed) _buildFooter(),
       ],
     );
   }
 
-  // ── Danger icon ───────────────────────────────────────────────────────────
+  // â”€â”€ Danger icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildDangerIcon() {
     return Container(
       width: 60.w,
@@ -228,7 +228,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     );
   }
 
-  // ── Content card from API ─────────────────────────────────────────────────
+  // â”€â”€ Content card from API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildContentCard(String content) {
     return Container(
       width: double.infinity,
@@ -272,7 +272,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     );
   }
 
-  // ── What will be deleted list ─────────────────────────────────────────────
+  // â”€â”€ What will be deleted list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildDeletionList() {
     final items = [
       (Icons.account_circle_outlined, 'Profile & Personal Data'),
@@ -340,17 +340,17 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     );
   }
 
-  // ── Pinned footer button ──────────────────────────────────────────────────
+  // â”€â”€ Pinned footer button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildFooter() {
     return SafeArea(
       top: false,
       child: Padding(
         padding: EdgeInsets.fromLTRB(20.w, 10.h, 20.w, 12.h),
         child: CustomButton(
-          text: 'Delete My Account',
+          text: 'Delete My Account', svgIconPath: 'assets/buttons/tick.svg',
           isLoading: _isDeleting,
           loadingText: 'Deleting Account...',
-          // Red gradient — matches the destructive action intent
+          // Red gradient â€” matches the destructive action intent
           gradient: const LinearGradient(
             begin: Alignment(-0.87, -0.5),
             end: Alignment(0.87, 0.5),
@@ -369,7 +369,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     );
   }
 
-  // ── Skeleton loader ───────────────────────────────────────────────────────
+  // â”€â”€ Skeleton loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildSkeleton() {
     final base = Colors.black.withValues(alpha: 0.05);
     return SingleChildScrollView(
@@ -406,7 +406,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         ),
       );
 
-  // ── Error state ───────────────────────────────────────────────────────────
+  // â”€â”€ Error state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildError(Object e) {
     return Center(
       child: Padding(
@@ -452,7 +452,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   }
 }
 
-// ─── Confirmation Dialog ─────────────────────────────────────────────────────
+// â”€â”€â”€ Confirmation Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _ConfirmDialog extends StatelessWidget {
   const _ConfirmDialog();
@@ -544,7 +544,7 @@ class _ConfirmDialog extends StatelessWidget {
             // Buttons
             Row(
               children: [
-                // Cancel — neutral outlined
+                // Cancel â€” neutral outlined
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context, false),
@@ -567,7 +567,7 @@ class _ConfirmDialog extends StatelessWidget {
                   ),
                 ),
                 SizedBox(width: 12.w),
-                // Confirm — red gradient matching footer button
+                // Confirm â€” red gradient matching footer button
                 Expanded(
                   child: DecoratedBox(
                     decoration: BoxDecoration(

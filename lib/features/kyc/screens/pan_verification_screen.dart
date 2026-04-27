@@ -152,6 +152,7 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
             const Spacer(),
             CustomButton(
               text: 'VERIFY & PROCEED',
+              svgIconPath: 'assets/buttons/tick.svg',
               isLoading: _isLoading,
               onPressed: _handleVerify,
               backgroundColor: AppTheme.arcticBlue,

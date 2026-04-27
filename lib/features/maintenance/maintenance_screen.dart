@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/models/app_control_model.dart';
 import '../../core/providers/app_control_provider.dart';
@@ -118,42 +119,31 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen>
                   children: [
                     const Spacer(flex: 2),
 
-                    // ── Pulsing wrench icon ──────────────────────────────
+                    // ── Pulsing brand logo ───────────────────────────────
                     ScaleTransition(
                       scale: _pulseAnim,
                       child: Container(
-                        width: 100.w,
-                        height: 100.w,
+                        width: 120.w,
+                        height: 120.w,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFFB941), Color(0xFFE27903)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                          color: Colors.white,
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFE27903).withOpacity(0.35),
-                              blurRadius: 30,
+                              color: const Color(0xFFE27903).withOpacity(0.20),
+                              blurRadius: 40,
                               spreadRadius: 8,
                             ),
                           ],
                         ),
-                        child: Icon(
-                          Icons.construction_rounded,
-                          size: 48.sp,
-                          color: Colors.white,
+                        child: Padding(
+                          padding: EdgeInsets.all(16.w),
+                          child: SvgPicture.asset(
+                            'assets/images/startGold.svg',
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
-                    ),
-
-                    SizedBox(height: 12.h),
-
-                    // ── startGOLD brand wordmark ─────────────────────────
-                    Image.asset(
-                      'assets/images/header.png',
-                      height: 36.h,
-                      fit: BoxFit.contain,
                     ),
 
                     SizedBox(height: 40.h),

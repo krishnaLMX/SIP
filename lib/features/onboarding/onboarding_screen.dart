@@ -75,6 +75,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       text: _currentPage == pages.length - 1
                           ? 'Begin Your Legacy'
                           : 'Advance Forward',
+                      svgIconPath: 'assets/buttons/getstart.svg',
                       gradient: AppTheme.greenGradient,
                       boxShadow: [
                         BoxShadow(

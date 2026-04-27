@@ -349,7 +349,7 @@ class _TransactionHistoryScreenState
   Widget _buildList(BuildContext context,
       Map<String, List<TransactionItem>> filtered, int total, bool isDark) {
     return ListView.builder(
-      padding: EdgeInsets.only(top: 4.h, bottom: 40.h),
+      padding: EdgeInsets.only(top: 4.h, bottom: 120.h),
       itemCount: filtered.keys.length,
       itemBuilder: (context, index) {
         final dateKey = filtered.keys.elementAt(index);
@@ -422,17 +422,28 @@ class _TransactionHistoryScreenState
       BuildContext context, TransactionItem tx, bool isDark) {
     final isSaving = tx.type == 'purchase';
     final isReferral = tx.type == 'referral';
+    final isSip = tx.type == 'sip';
     final cardColor = isDark ? Colors.white.withOpacity(0.04) : Colors.white;
     final borderColor =
         isDark ? Colors.white10 : Colors.black.withOpacity(0.05);
     final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
     final mutedColor = isDark ? Colors.white54 : const Color(0xFF64748B);
 
-    final typeLabel = isSaving
-        ? 'Instant Saving'
-        : isReferral
-            ? 'Referral Reward'
-            : 'Withdrawal';
+    final typeLabel = isSip
+        ? 'SIP Autopay'
+        : isSaving
+            ? 'Instant Saving'
+            : isReferral
+                ? 'Referral Reward'
+                : 'Withdrawal';
+
+    final typeColor = isSip
+        ? const Color(0xFF0D9488)  // teal — SIP
+        : isSaving
+            ? const Color(0xFF1B882C)   // green — Instant Saving
+            : isReferral
+                ? const Color(0xFF7C3AED) // purple — Referral
+                : const Color(0xFFDC2626); // red — Withdrawal
 
     final statusColor = _statusColor(tx.status);
 
@@ -482,11 +493,7 @@ class _TransactionHistoryScreenState
                     style: GoogleFonts.lora(
                       fontSize: 12.sp,
                       fontWeight: FontWeight.w500,
-                      color: isSaving
-                          ? const Color(0xFF1B882C)   // green — Instant Saving
-                          : isReferral
-                              ? const Color(0xFF7C3AED) // purple — Referral
-                              : const Color(0xFFDC2626), // red — Withdrawal
+                      color: typeColor,
                     ),
                   ),
                   SizedBox(height: 5.h),
@@ -657,6 +664,10 @@ class _TransactionHistoryScreenState
         return isGold
             ? 'assets/withdraw/inst_gold.svg'
             : 'assets/withdraw/inst_silver.svg';
+      case 'sip':
+        return isGold
+            ? 'assets/withdraw/sip_gold.svg'
+            : 'assets/withdraw/sip_silver.svg';
       case 'referral':
         return 'assets/withdraw/trans_referal.svg';
       default:

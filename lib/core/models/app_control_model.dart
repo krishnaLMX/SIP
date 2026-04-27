@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Platform-specific version + popup configuration.
 /// Each platform (Android / iOS) now carries its own version numbers,
@@ -90,8 +91,11 @@ class AppVersionInfo {
   }
 
   /// Returns the correct platform block for the running OS.
-  PlatformVersionInfo get current =>
-      Platform.isAndroid ? android : ios;
+  /// On web, defaults to android since web has no platform-specific store.
+  PlatformVersionInfo get current {
+    if (kIsWeb) return android;
+    return Platform.isAndroid ? android : ios;
+  }
 }
 
 /// Live global alert banner

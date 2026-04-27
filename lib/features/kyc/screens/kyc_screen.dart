@@ -476,6 +476,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
         decoration: const BoxDecoration(color: Colors.transparent),
         child: CustomButton(
           text: 'Continue',
+          svgIconPath: 'assets/buttons/tick.svg',
           isLoading: submitState.isLoading,
           onPressed: () => _submit(docs),
           gradient: AppTheme.greenGradient,
