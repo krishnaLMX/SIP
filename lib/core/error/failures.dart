@@ -44,9 +44,20 @@ class ApiFailureMapper {
         if (status != null && status >= 500) {
           return ServerFailure(statusCode: status);
         }
+        // Extract message from nested error structures:
+        // { "error": { "message": "..." } } or { "data": { "message": "..." } }
+        final responseData = err.response?.data;
+        String? serverMessage;
+        if (responseData is Map<String, dynamic>) {
+          serverMessage = responseData['message']?.toString() ??
+              (responseData['error'] as Map<String, dynamic>?)?['message']
+                  ?.toString() ??
+              (responseData['data'] as Map<String, dynamic>?)?['message']
+                  ?.toString();
+        }
         return ServerFailure(
-          message: err.response?.data?['message'] ?? 'Server error code: $status',
-          statusCode: status
+          message: serverMessage ?? 'Server error code: $status',
+          statusCode: status,
         );
 
       case DioExceptionType.cancel:

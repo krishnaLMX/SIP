@@ -109,9 +109,17 @@ class SipCreateResponse {
 
   factory SipCreateResponse.fromJson(Map<String, dynamic> json) {
     final data = json['data'] as Map<String, dynamic>? ?? {};
+    final error = json['error'] as Map<String, dynamic>? ?? {};
+
+    // Message can be at top-level, inside 'error', or inside 'data'
+    final message = json['message']?.toString() ??
+        error['message']?.toString() ??
+        data['message']?.toString() ??
+        '';
+
     return SipCreateResponse(
       success: json['success'] == true,
-      message: json['message']?.toString() ?? '',
+      message: message,
       subscriptionId: data['subscription_id']?.toString(),
       status: data['status']?.toString(),
       orderId: data['order_id']?.toString(),

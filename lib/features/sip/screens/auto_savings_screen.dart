@@ -1634,7 +1634,7 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
       if (mounted) {
         AppToast.show(
           context,
-          'Something went wrong. Please try again.',
+          e.toString().replaceAll('Exception: ', ''),
           type: ToastType.error,
         );
       }
