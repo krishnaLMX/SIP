@@ -728,7 +728,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
 
       if (result['success'] == true && mounted) {
         final otpRefId = result['data']?['otp_reference_id'] ?? '';
-        Navigator.pushReplacementNamed(
+        Navigator.pushNamed(
           context,
           AppRouter.otp,
           arguments: {

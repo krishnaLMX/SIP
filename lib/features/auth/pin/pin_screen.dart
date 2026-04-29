@@ -12,6 +12,7 @@ import '../../../shared/widgets/animations.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../shared/theme/app_theme.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../core/localization/language_provider.dart';
 
 class PinScreen extends ConsumerStatefulWidget {
@@ -81,7 +82,7 @@ class _PinScreenState extends ConsumerState<PinScreen> {
                         IconButton(
                           icon: Icon(Icons.arrow_back_ios_new_rounded,
                               size: 22.sp),
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () => NavigationUtils.safePop(context),
                         ),
                         SizedBox(height: 32.h),
                         FadeInAnimation(

@@ -59,6 +59,8 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
     // Always re-fetch on screen entry â€” profileProvider is a persistent singleton
     // so its constructor only runs once; we must manually refresh each visit.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Always start in view mode — reset any stale editing state
+      ref.read(profileProvider.notifier).setEditing(false);
       ref.read(profileProvider.notifier).fetchProfileDetails().then((_) {
         if (!mounted) return;
         // Sync controllers with freshly loaded data
@@ -76,6 +78,10 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
 
   @override
   void dispose() {
+    // Reset editing state so it doesn't persist when navigating away
+    Future.microtask(() {
+      ref.read(profileProvider.notifier).setEditing(false);
+    });
     _nameController.dispose();
     _emailController.dispose();
     _dobController.dispose();
@@ -254,9 +260,11 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                         _buildInputField(label: 'E-Mail *', controller: _emailController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.emailAddress, errorText: _emailError, onChanged: (_) { if (_emailError != null) setState(() => _emailError = null); }),
                         _buildInputField(label: 'DOB *', hint: user.dob, isEditable: false, isDark: isDark),
                         _buildInputField(label: 'Pincode *', controller: _pincodeController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.number, actionLabel: 'Check', onAction: _handlePincodeCheck, isActionLoading: _isPincodeChecking),
-                        _buildInputField(label: 'State', controller: _stateController, isEditable: false, isDark: isDark),
-                        _buildInputField(label: 'City', controller: _cityController, isEditable: false, isDark: isDark),
-                        _buildInputField(label: 'Residential Address', controller: _addressController, isEditable: profileState.isEditing, isDark: isDark, maxLines: 4),
+                        if (_stateController.text.isNotEmpty)
+                          _buildInputField(label: 'State', controller: _stateController, isEditable: false, isDark: isDark),
+                        if (_cityController.text.isNotEmpty)
+                          _buildInputField(label: 'City', controller: _cityController, isEditable: false, isDark: isDark),
+                        _buildInputField(label: 'Residential Address', controller: _addressController, isEditable: profileState.isEditing, isDark: isDark, maxLines: 4, textCapitalization: TextCapitalization.words, inputFormatters: [UpperCaseWordsFormatter()]),
                         SizedBox(height: 40.h),
                       ],
                     ),

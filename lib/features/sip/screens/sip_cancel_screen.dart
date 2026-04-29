@@ -264,9 +264,15 @@ class _SipCancelScreenState extends ConsumerState<SipCancelScreen> {
           );
           Navigator.pop(context); // Back to manage screen
         } else {
+          final errorObj = response['error'];
+          final dataObj = response['data'];
+          final serverMsg = (errorObj is Map ? errorObj['message'] : null) ??
+              (dataObj is Map ? dataObj['message'] : null) ??
+              response['message'] ??
+              'Unable to cancel at this time';
           AppToast.show(
             context,
-            response['message'] ?? 'Unable to cancel at this time',
+            serverMsg,
             type: ToastType.error,
           );
         }

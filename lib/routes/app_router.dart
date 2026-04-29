@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../core/security/session_manager.dart';
+import '../core/security/secure_storage_service.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/auth/login/login_screen.dart';
 import '../features/auth/otp/otp_screen.dart';
@@ -42,6 +44,8 @@ import '../features/sip/screens/sip_cancel_screen.dart';
 import '../features/sip/screens/sip_payment_screen.dart';
 import '../features/sip/screens/sip_success_screen.dart';
 import '../features/sip/screens/sip_failure_screen.dart';
+import '../features/sip/screens/sip_transaction_history_screen.dart';
+import '../features/sip/screens/sip_transaction_details_screen.dart';
 import '../features/nominee/screens/nominee_screen.dart';
 
 class AppRouter {
@@ -96,6 +100,8 @@ class AppRouter {
   static const String sipFailure = '/sip-failure';
   static const String nominee = '/nominee';
   static const String refundPolicy = '/refund-policy';
+  static const String sipTransactions = '/sip-transactions';
+  static const String sipTransactionDetails = '/sip-transaction-details';
 
   static Map<String, WidgetBuilder> get routes => {
         splash: (context) => const SplashScreen(),
@@ -301,6 +307,12 @@ class AppRouter {
               title: 'Refund Policy',
               provider: refundPolicyProvider,
             ),
+        sipTransactions: (context) => const SipTransactionHistoryScreen(),
+        sipTransactionDetails: (context) {
+          final tx = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
+          return SipTransactionDetailsScreen(transactionData: tx);
+        },
       };
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -310,80 +322,42 @@ class AppRouter {
         settings: settings,
       );
     }
-    // Fallback: unknown or null route — show recoverable error screen
+    // Fallback: unknown or null route — redirect to the correct screen.
+    // This catches edge cases where the navigator stack is empty
+    // (e.g. back-press from a pushReplacement chain) and prevents
+    // the user from ever seeing a "Page Not Found" screen.
+    //
+    // Authenticated users → MPIN (re-verify identity)
+    // Unauthenticated users → Login
+    debugPrint('[AppRouter] Unknown route "${settings.name}" — redirecting.');
     return MaterialPageRoute(
-      builder: (context) => Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF064E3B).withOpacity(0.08),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.explore_off_rounded,
-                      size: 48,
-                      color: Color(0xFF064E3B),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Page Not Found',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1A2E),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'The route "${settings.name ?? 'unknown'}" does not exist.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.black45,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                        context,
-                        AppRouter.main,
-                        (route) => false,
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF064E3B),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Go to Home',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      builder: (context) {
+        // Use addPostFrameCallback to navigate after the current frame,
+        // avoiding "setState during build" issues.
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          String fallbackRoute = AppRouter.login;
+          try {
+            final loggedIn =
+                await SessionManager.isAuthenticated();
+            final mpinEnabled =
+                await SecureStorageService.isMpinEnabled();
+            if (loggedIn && mpinEnabled) {
+              fallbackRoute = AppRouter.mpin;
+            }
+          } catch (_) {}
+          if (context.mounted) {
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              fallbackRoute,
+              (route) => false,
+            );
+          }
+        });
+        // Show a brief loading spinner while determining destination
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      },
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/utils/navigation_utils.dart';
 
 /// Reusable green-gradient page header matching the app-wide design system.
 ///
@@ -45,7 +46,7 @@ class GradientHeader extends StatelessWidget {
               IconButton(
                 icon: Icon(Icons.arrow_back_ios_new_rounded,
                     color: Colors.white, size: 20.sp),
-                onPressed: onBack ?? () => Navigator.pop(context),
+                onPressed: onBack ?? () => NavigationUtils.safePop(context),
               ),
               Expanded(
                 child: Text(

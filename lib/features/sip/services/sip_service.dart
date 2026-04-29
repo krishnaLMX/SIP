@@ -171,4 +171,45 @@ class SipService {
     final response = await _apiClient.post('sip/confirm', data: payload);
     return response.data;
   }
+
+  // ─── SIP Transaction History ─────────────────────────────────────────
+  /// Fetches SIP transaction history.
+  ///
+  /// Reuses the same [HistoryResponse] model from the history module
+  /// since the response structure is identical.
+  Future<Map<String, dynamic>> getSipTransactions() async {
+    SecureLogger.d('SIP: Fetching SIP transaction history');
+    final response = await _apiClient.post('sip/transactions');
+    if (response.data != null) {
+      if (response.data['success'] == false) {
+        final errorMsg = response.data['error']?['message'] ??
+            response.data['error']?['internal_message'] ??
+            'Failed to load SIP transactions';
+        throw Exception(errorMsg);
+      }
+      return response.data;
+    }
+    throw Exception('Failed to load SIP transactions');
+  }
+
+  // ─── SIP Transaction Details ─────────────────────────────────────────
+  /// Fetches details for a single SIP transaction.
+  Future<Map<String, dynamic>> getSipTransactionDetails({
+    required String transactionId,
+  }) async {
+    SecureLogger.d('SIP: Fetching SIP transaction details for $transactionId');
+    final response = await _apiClient.post('sip/transaction-details', data: {
+      'transaction_id': transactionId,
+    });
+    if (response.data != null) {
+      if (response.data['success'] == false) {
+        final errorMsg = response.data['error']?['message'] ??
+            response.data['error']?['internal_message'] ??
+            'Failed to load SIP transaction details';
+        throw Exception(errorMsg);
+      }
+      return response.data;
+    }
+    throw Exception('Failed to load SIP transaction details');
+  }
 }

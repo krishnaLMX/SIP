@@ -15,6 +15,7 @@ import '../../../shared/widgets/app_toast.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/localization/language_provider.dart';
 import '../../../core/utils/masking_utils.dart';
+import '../../../core/utils/navigation_utils.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
   final String mobile;
@@ -135,7 +136,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           IconButton(
                             icon: Icon(Icons.arrow_back,
                                 size: 24.sp, color: primaryTextColor),
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () => NavigationUtils.safePop(context),
                             padding: EdgeInsets.zero,
                             alignment: Alignment.centerLeft,
                           ),
@@ -191,7 +192,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   ),
                                 ),
                                 GestureDetector(
-                                  onTap: () => Navigator.pop(context),
+                                  onTap: () => NavigationUtils.safePop(context),
                                   child: Text(
                                     'Edit',
                                     style: GoogleFonts.lora(

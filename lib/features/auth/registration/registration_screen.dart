@@ -10,6 +10,7 @@ import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/animations.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/utils/navigation_utils.dart';
 
 class RegistrationScreen extends ConsumerStatefulWidget {
   final String mobile;
@@ -113,7 +114,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                           children: [
                             IconButton(
                               icon: Icon(Icons.arrow_back, color: primaryTextColor),
-                              onPressed: () => Navigator.pop(context),
+                              onPressed: () => NavigationUtils.safePop(context),
                             ),
                             SvgPicture.asset(
                               'assets/images/startGold.svg',

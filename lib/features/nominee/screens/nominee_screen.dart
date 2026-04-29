@@ -54,6 +54,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
   int? _idCity;
   int? _idState;
   int? _idCountry;
+  int? _nomineeId;
 
   late AnimationController _fadeController;
 
@@ -88,6 +89,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
 
   /// Populate form fields from existing nominee data.
   void _populateFields(NomineeDetails nominee) {
+    _nomineeId = nominee.id;
     _nameCtrl.text = nominee.name;
     _mobileCtrl.text = nominee.mobile;
     _emailCtrl.text = nominee.email ?? '';
@@ -107,9 +109,30 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
         : null;
     if (nominee.dob.isNotEmpty) {
       try {
-        _selectedDob = DateFormat('yyyy-MM-dd').parse(nominee.dob);
+        _selectedDob = _parseDob(nominee.dob);
       } catch (_) {}
     }
+  }
+
+  /// Clear all form fields (used when server returns empty nominee data).
+  void _clearForm() {
+    _nomineeId = null;
+    _nameCtrl.clear();
+    _mobileCtrl.clear();
+    _emailCtrl.clear();
+    _idNumberCtrl.clear();
+    _addressCtrl.clear();
+    _cityCtrl.clear();
+    _stateCtrl.clear();
+    _pincodeCtrl.clear();
+    _selectedRelationship = null;
+    _selectedRelationshipId = null;
+    _selectedIdType = null;
+    _selectedDob = null;
+    _idCity = null;
+    _idState = null;
+    _idCountry = null;
+    _isEditing = false;
   }
 
   @override
@@ -120,9 +143,15 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
     ref.listen<AsyncValue<NomineeDetails?>>(nomineeDetailsProvider,
         (prev, next) {
       next.whenData((nominee) {
-        if (!_isInitialized && nominee != null && nominee.isValid) {
-          _populateFields(nominee);
-          _isInitialized = true;
+        if (nominee != null && nominee.isValid) {
+          if (!_isInitialized) {
+            _populateFields(nominee);
+            _isInitialized = true;
+          }
+        } else {
+          // Server returned empty data — clear stale form fields
+          _clearForm();
+          _isInitialized = false;
         }
       });
     });
@@ -139,38 +168,38 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
               title: 'Nominee Details',
               onBack: () => Navigator.pop(context),
             ),
-          Expanded(
-            child: nomineeAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF064E3B),
-                  strokeWidth: 2.5,
+            Expanded(
+              child: nomineeAsync.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF064E3B),
+                    strokeWidth: 2.5,
+                  ),
                 ),
+                error: (err, _) => _buildErrorState(),
+                data: (nominee) {
+                  // Seed fields on first load only
+                  if (!_isInitialized && nominee != null && nominee.isValid) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _populateFields(nominee);
+                      setState(() => _isInitialized = true);
+                    });
+                  }
+
+                  final hasNominee = nominee != null && nominee.isValid;
+                  final showForm = !hasNominee || _isEditing;
+
+                  return FadeTransition(
+                    opacity: _fadeController,
+                    child: showForm
+                        ? _buildFormView(nominee)
+                        : _buildDetailView(nominee),
+                  );
+                },
               ),
-              error: (err, _) => _buildErrorState(),
-              data: (nominee) {
-                // Seed fields on first load only
-                if (!_isInitialized && nominee != null && nominee.isValid) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _populateFields(nominee);
-                    setState(() => _isInitialized = true);
-                  });
-                }
-
-                final hasNominee = nominee != null && nominee.isValid;
-                final showForm = !hasNominee || _isEditing;
-
-                return FadeTransition(
-                  opacity: _fadeController,
-                  child: showForm
-                      ? _buildFormView(nominee)
-                      : _buildDetailView(nominee),
-                );
-              },
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -270,7 +299,8 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                   if (nominee.email != null && nominee.email!.isNotEmpty) ...[
                     _divider(),
                     _buildDetailRow(
-                        Icons.email_rounded, 'Email', nominee.email!),
+                        Icons.email_rounded, 'Email', nominee.email!,
+                        fullWidth: true),
                   ],
                   if (nominee.address != null &&
                       nominee.address!.isNotEmpty) ...[
@@ -284,6 +314,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                         nominee.state,
                         nominee.pincode,
                       ].where((e) => e != null && e.isNotEmpty).join(', '),
+                      fullWidth: true,
                     ),
                   ],
                 ],
@@ -312,44 +343,86 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
     );
   }
 
-  Widget _buildDetailRow(IconData icon, String label, String value) {
+  Widget _buildDetailRow(IconData icon, String label, String value,
+      {bool fullWidth = false}) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 10.h),
-      child: Row(
-        children: [
-          Container(
-            width: 36.w,
-            height: 36.w,
-            decoration: BoxDecoration(
-              color: const Color(0xFF064E3B).withOpacity(0.06),
-              borderRadius: BorderRadius.circular(10.r),
+      child: fullWidth
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36.w,
+                      height: 36.w,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF064E3B).withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(10.r),
+                      ),
+                      child: Icon(icon,
+                          size: 18.sp, color: const Color(0xFF064E3B)),
+                    ),
+                    SizedBox(width: 12.w),
+                    Text(
+                      label,
+                      style: GoogleFonts.lora(
+                        fontSize: 13.sp,
+                        color: const Color(0xFF8D8D8D),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: EdgeInsets.only(left: 48.w, top: 6.h),
+                  child: Text(
+                    value,
+                    style: GoogleFonts.lora(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF333333),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 36.w,
+                  height: 36.w,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF064E3B).withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  child: Icon(icon,
+                      size: 18.sp, color: const Color(0xFF064E3B)),
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: GoogleFonts.lora(
+                      fontSize: 13.sp,
+                      color: const Color(0xFF8D8D8D),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: Text(
+                    value,
+                    textAlign: TextAlign.left,
+                    style: GoogleFonts.lora(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF333333),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            child: Icon(icon, size: 18.sp, color: const Color(0xFF064E3B)),
-          ),
-          SizedBox(width: 12.w),
-          Expanded(
-            child: Text(
-              label,
-              style: GoogleFonts.lora(
-                fontSize: 13.sp,
-                color: const Color(0xFF8D8D8D),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: GoogleFonts.lora(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF333333),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -429,7 +502,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
               SizedBox(height: 20.h),
 
               // â”€â”€ Section: Address â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-              _buildSectionLabel('Address (Optional)'),
+              _buildSectionLabel('Address'),
               SizedBox(height: 12.h),
 
               _buildTextField(
@@ -452,32 +525,35 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                 },
               ),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildReadOnlyField(
-                      label: 'State',
-                      value: _stateCtrl.text,
-                      icon: Icons.map_rounded,
+              // Only show State/City after pincode validation or if data exists
+              if (_stateCtrl.text.isNotEmpty || _cityCtrl.text.isNotEmpty)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildReadOnlyField(
+                        label: 'State',
+                        value: _stateCtrl.text,
+                        icon: Icons.map_rounded,
+                      ),
                     ),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: _buildReadOnlyField(
-                      label: 'City',
-                      value: _cityCtrl.text,
-                      icon: Icons.location_city_rounded,
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: _buildReadOnlyField(
+                        label: 'City',
+                        value: _cityCtrl.text,
+                        icon: Icons.location_city_rounded,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
 
               _buildTextField(
                 controller: _addressCtrl,
-                label: 'Address Line',
+                label: 'Residential Address',
                 hint: 'Enter address',
                 icon: Icons.location_on_rounded,
                 textCapitalization: TextCapitalization.words,
+                maxLines: 4,
                 inputFormatters: [
                   UpperCaseWordsFormatter(),
                 ],
@@ -551,6 +627,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
     String? actionLabel,
     VoidCallback? onAction,
     bool isActionLoading = false,
+    int maxLines = 1,
   }) {
     return Padding(
       padding: EdgeInsets.only(bottom: 16.h),
@@ -601,6 +678,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                     keyboardType: keyboardType,
                     textCapitalization: textCapitalization,
                     maxLength: maxLength,
+                    maxLines: maxLines,
                     inputFormatters: inputFormatters,
                     validator: validator,
                     style: GoogleFonts.lora(
@@ -716,7 +794,8 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
               onChanged: (v) {
                 setState(() {
                   _selectedRelationship = v;
-                  final match = relationships.where((r) => r.name == v).toList();
+                  final match =
+                      relationships.where((r) => r.name == v).toList();
                   _selectedRelationshipId =
                       match.isNotEmpty ? match.first.id : null;
                 });
@@ -856,6 +935,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
           ),
           SizedBox(height: 8.h),
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: _pickDate,
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
@@ -900,11 +980,17 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
+    final first = DateTime(1900);
+    final last = now.subtract(const Duration(days: 1));
+    // Clamp initialDate within [firstDate, lastDate] to avoid assertion errors
+    DateTime initial = _selectedDob ?? DateTime(now.year - 25);
+    if (initial.isBefore(first)) initial = first;
+    if (initial.isAfter(last)) initial = last;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDob ?? DateTime(now.year - 25),
-      firstDate: DateTime(1900),
-      lastDate: now.subtract(const Duration(days: 1)),
+      initialDate: initial,
+      firstDate: first,
+      lastDate: last,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -938,22 +1024,26 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
     }
 
     if (_selectedRelationship == null || _selectedRelationship!.isEmpty) {
-      AppToast.show(context, 'Please select relationship', type: ToastType.error);
+      AppToast.show(context, 'Please select relationship',
+          type: ToastType.error);
       return;
     }
 
     if (_selectedDob == null) {
-      AppToast.show(context, 'Please select date of birth', type: ToastType.error);
+      AppToast.show(context, 'Please select date of birth',
+          type: ToastType.error);
       return;
     }
 
     final mobile = _mobileCtrl.text.trim();
     if (mobile.isEmpty) {
-      AppToast.show(context, 'Mobile number is required', type: ToastType.error);
+      AppToast.show(context, 'Mobile number is required',
+          type: ToastType.error);
       return;
     }
     if (mobile.length != 10) {
-      AppToast.show(context, 'Enter a valid 10-digit mobile number', type: ToastType.error);
+      AppToast.show(context, 'Enter a valid 10-digit mobile number',
+          type: ToastType.error);
       return;
     }
 
@@ -961,6 +1051,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
 
     try {
       final nominee = NomineeDetails(
+        id: _nomineeId,
         name: _nameCtrl.text.trim(),
         relationship: _selectedRelationship ?? '',
         relationshipId: _selectedRelationshipId,
@@ -1000,9 +1091,15 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
             type: ToastType.success,
           );
         } else {
+          final errorObj = response['error'];
+          final dataObj = response['data'];
+          final serverMsg = (errorObj is Map ? errorObj['message'] : null) ??
+              (dataObj is Map ? dataObj['message'] : null) ??
+              response['message'] ??
+              'Failed to update nominee';
           AppToast.show(
             context,
-            response['message'] ?? 'Failed to update nominee',
+            serverMsg,
             type: ToastType.error,
           );
         }
@@ -1062,11 +1159,21 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
 
   String _formatDisplayDate(String dob) {
     try {
-      final date = DateFormat('yyyy-MM-dd').parse(dob);
+      final date = _parseDob(dob);
       return DateFormat('dd MMM yyyy').format(date);
     } catch (_) {
       return dob;
     }
+  }
+
+  /// Parse DOB string — handles both dd-MM-yyyy (server) and yyyy-MM-dd formats.
+  DateTime _parseDob(String dob) {
+    // Try dd-MM-yyyy first (server format)
+    try {
+      return DateFormat('dd-MM-yyyy').parse(dob);
+    } catch (_) {}
+    // Fallback to yyyy-MM-dd
+    return DateFormat('yyyy-MM-dd').parse(dob);
   }
 
   // â”€â”€â”€ Pincode Check (same pattern as account details) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1101,49 +1208,34 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
     required IconData icon,
   }) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 14.h),
+      padding: EdgeInsets.only(bottom: 16.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w600,
-              color: Colors.black54,
+            style: GoogleFonts.lora(
+              fontSize: 15.sp,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF8D8D8D),
             ),
           ),
-          SizedBox(height: 6.h),
+          SizedBox(height: 8.h),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
             decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(14.r),
-              border: Border.all(
-                color: Colors.black.withOpacity(0.04),
-              ),
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(15.r),
+              border: Border.all(color: Colors.black.withOpacity(0.06)),
             ),
-            child: Row(
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: 8.w),
-                  child: Icon(icon,
-                      size: 20.sp,
-                      color: const Color(0xFF064E3B).withOpacity(0.5)),
-                ),
-                Expanded(
-                  child: Text(
-                    value.isNotEmpty ? value : '—',
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
-                      color: value.isNotEmpty
-                          ? const Color(0xFF1A1A2E)
-                          : Colors.black26,
-                    ),
-                  ),
-                ),
-              ],
+            child: Text(
+              value.isNotEmpty ? value : '—',
+              style: GoogleFonts.lora(
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
+                color: value.isNotEmpty ? const Color(0xFF333333) : Colors.grey,
+              ),
             ),
           ),
         ],

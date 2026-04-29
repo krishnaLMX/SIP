@@ -401,6 +401,214 @@ record accordingly.
 
 ---
 
+## 9. SIP Transactions (History)
+
+### `POST /sip/transactions`
+
+Fetches the SIP transaction history for the current user. Returns grouped transactions by date.
+
+**Request:** No body required.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "plans": [
+      { "frequency": "Daily", "commodity_name": "Gold 24K" },
+      { "frequency": "Daily", "commodity_name": "Silver" },
+      { "frequency": "Weekly", "commodity_name": "Gold 24K" }
+    ],
+    "grouped_transactions": {
+      "28 Apr 2026": [
+        {
+          "transaction_id": "SIP_TXN_001",
+          "title": "SIP Autopay",
+          "subtitle": "Daily Gold Auto-Savings",
+          "type": "sip",
+          "amount": 100,
+          "weight_grams": "0.0125",
+          "display_date": "28 Apr 2026, 10:30 AM",
+          "status": "success",
+          "metal_name": "Gold 24K"
+        },
+        {
+          "transaction_id": "SIP_TXN_002",
+          "title": "SIP Autopay",
+          "subtitle": "Daily Silver Auto-Savings",
+          "type": "sip",
+          "amount": 50,
+          "weight_grams": "0.5612",
+          "display_date": "28 Apr 2026, 10:30 AM",
+          "status": "success",
+          "metal_name": "Silver"
+        },
+        {
+          "transaction_id": "SIP_TXN_004",
+          "title": "SIP Autopay",
+          "subtitle": "Weekly Gold Auto-Savings",
+          "type": "sip",
+          "amount": 500,
+          "weight_grams": "0.0628",
+          "display_date": "28 Apr 2026, 10:30 AM",
+          "status": "success",
+          "metal_name": "Gold 24K"
+        }
+      ],
+      "27 Apr 2026": [
+        {
+          "transaction_id": "SIP_TXN_003",
+          "title": "SIP Autopay",
+          "subtitle": "Daily Gold Auto-Savings",
+          "type": "sip",
+          "amount": 100,
+          "weight_grams": "0.0126",
+          "display_date": "27 Apr 2026, 10:30 AM",
+          "status": "failed",
+          "metal_name": "Gold 24K"
+        }
+      ]
+    }
+  }
+}
+```
+
+| Response Field | Type | Description |
+|---|---|---|
+| `plans` | Array | List of SIP plans (used to build frequency tabs + commodity chips) |
+| `plans[].frequency` | String | `"Daily"`, `"Weekly"`, or `"Monthly"` — used for tab segmentation |
+| `plans[].commodity_name` | String | Plan commodity name (e.g., "Gold 24K", "Silver") |
+| `grouped_transactions` | Object | Transactions grouped by display date key |
+| `grouped_transactions[date]` | Array | List of transactions for that date |
+| `transaction_id` | String | Unique transaction identifier |
+| `title` | String | Transaction title |
+| `subtitle` | String | **Must include frequency** (e.g., "Daily Gold Auto-Savings", "Weekly Silver Auto-Savings") — used for filtering |
+| `type` | String | Always `"sip"` for SIP transactions |
+| `amount` | Number | Transaction amount in ₹ |
+| `weight_grams` | String | Weight of commodity purchased |
+| `display_date` | String | Human-readable date + time string |
+| `status` | String | `success`, `pending`, `failed`, `cancelled` |
+| `metal_name` | String | `"Gold 24K"` or `"Silver"` |
+
+> **App Behavior — Frequency Segmentation:**
+> - **Primary**: Transactions are segmented by frequency (Daily / Weekly / Monthly) tabs.
+> - If only one frequency exists → no tabs, just a frequency badge.
+> - If multiple frequencies exist → TabBar with Daily | Weekly | Monthly.
+> - **Secondary**: Within each frequency tab, if both Gold and Silver exist → horizontal toggle chips ("All" | "Gold 24K" | "Silver").
+> - API is called fresh every time the screen is entered (no caching).
+> - The `subtitle` field **must contain the frequency name** (e.g., "Daily", "Weekly", "Monthly") as it is used for client-side filtering.
+
+---
+
+## 10. SIP Transaction Details
+
+### `POST /sip/transaction-details`
+
+Fetches details for a single SIP transaction.
+
+**Request:**
+```json
+{
+  "transaction_id": "SIP_TXN_001"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `transaction_id` | String | ✅ | The transaction ID to fetch details for |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "transaction_id": "SIP_TXN_001",
+    "order_id": "2727035",
+    "title": "Gold 24K",
+    "subtitle": "Daily Gold Auto-Savings",
+    "amount": "100.00",
+    "weight_grams": "0.0125",
+    "metal_name": "Gold 24K",
+    "scheduled_date": "28 Apr 2026",
+    "payment_method": "UPI Autopay",
+    "timeline": [
+      {
+        "step_name": "Order Placed",
+        "status": "Success",
+        "time": "28 Apr 2026, 10:30 AM"
+      },
+      {
+        "step_name": "Payment Received",
+        "status": "Success",
+        "time": "28 Apr 2026, 10:30 AM"
+      },
+      {
+        "step_name": "Gold Credited",
+        "status": "Success",
+        "time": "28 Apr 2026, 10:31 AM"
+      }
+    ],
+    "footer_message": "Gold has been credited to your vault successfully.",
+    "invoice_number": "INV-2026-001234",
+    "invoice_url": "https://api.example.com/invoices/INV-2026-001234.pdf",
+    "price_breakdown": {
+      "rate": "7950.00",
+      "quantity": "0.0125",
+      "value": "99.38",
+      "gst": "0.62",
+      "total_amount": "100.00"
+    },
+    "technical_details": {
+      "transaction_id_display": "SIP_TXN_001",
+      "gold_transaction_id": "GT_12345",
+      "order_id": "2727035",
+      "placed_on": "28 Apr 2026, 10:30 AM",
+      "paid_via": "UPI Autopay"
+    },
+    "scheme_info": {
+      "scheme_id": 1,
+      "label": "Daily Gold 24K",
+      "frequency": "Daily",
+      "amount": "100",
+      "total_saved": "2500",
+      "cycles_done": 25,
+      "status": "ACTIVE"
+    }
+  }
+}
+```
+
+| Response Field | Type | Description |
+|---|---|---|
+| `transaction_id` | String | Unique transaction ID |
+| `order_id` | String | Payment order ID |
+| `title` | String | Metal name |
+| `subtitle` | String | Plan label |
+| `amount` | String | Amount in ₹ |
+| `weight_grams` | String | Weight purchased |
+| `metal_name` | String | `"Gold 24K"` or `"Silver"` |
+| `timeline` | Array | Status timeline steps |
+| `timeline[].step_name` | String | Step label (e.g., "Order Placed") |
+| `timeline[].status` | String | `Success`, `Pending`, `Failed` |
+| `timeline[].time` | String | Timestamp string |
+| `footer_message` | String | Summary message |
+| `invoice_url` | String | Download URL (empty if unavailable) |
+| `price_breakdown` | Object | Rate, quantity, value, GST, total |
+| `technical_details` | Object | Order ID, transaction ID, placed on, paid via |
+| `scheme_info` | Object\|null | SIP plan details (null if not a SIP transaction) |
+| `scheme_info.label` | String | Plan name (e.g., "Daily Gold 24K") |
+| `scheme_info.frequency` | String | `Daily`, `Weekly`, `Monthly` |
+| `scheme_info.total_saved` | String | Total saved across all cycles |
+| `scheme_info.cycles_done` | int | Number of completed cycles |
+| `scheme_info.status` | String | `ACTIVE`, `PAUSED`, `CANCELLED` |
+
+> **App Behavior:**
+> - API is called fresh every time the screen is entered (no caching).
+> - Response structure is identical to `/transactions/details` — reuses the same `TransactionDetailResponse` model.
+> - `scheme_info` block is shown as a dedicated "SIP Plan Details" card if present.
+
+---
+
 ## Encryption Rules
 
 The following SIP endpoints require encryption:

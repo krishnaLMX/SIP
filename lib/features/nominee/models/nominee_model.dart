@@ -3,6 +3,7 @@
 /// Follows the same defensive null-coalescing serialisation
 /// pattern used across the codebase.
 class NomineeDetails {
+  final int? id;
   final String name;
   final String relationship;
   final int? relationshipId;
@@ -20,6 +21,7 @@ class NomineeDetails {
   final int? idCountry;
 
   NomineeDetails({
+    this.id,
     required this.name,
     required this.relationship,
     this.relationshipId,
@@ -39,6 +41,7 @@ class NomineeDetails {
 
   factory NomineeDetails.fromJson(Map<String, dynamic> json) {
     return NomineeDetails(
+      id: json['id'] as int?,
       name: json['name']?.toString() ?? '',
       relationship: json['relationship']?.toString() ?? '',
       relationshipId: json['relationship_id'] as int?,
@@ -65,6 +68,7 @@ class NomineeDetails {
       'mobile': mobile,
       'id_country': idCountry ?? 101,
     };
+    if (id != null) map['id'] = id;
     if (relationshipId != null) map['relationship_id'] = relationshipId;
     if (email != null && email!.isNotEmpty) map['email'] = email;
     if (idType != null && idType!.isNotEmpty) map['id_type'] = idType;
@@ -83,6 +87,7 @@ class NomineeDetails {
       name.isNotEmpty && relationship.isNotEmpty && dob.isNotEmpty && mobile.isNotEmpty;
 
   NomineeDetails copyWith({
+    int? id,
     String? name,
     String? relationship,
     int? relationshipId,
@@ -100,6 +105,7 @@ class NomineeDetails {
     int? idCountry,
   }) {
     return NomineeDetails(
+      id: id ?? this.id,
       name: name ?? this.name,
       relationship: relationship ?? this.relationship,
       relationshipId: relationshipId ?? this.relationshipId,

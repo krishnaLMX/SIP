@@ -96,7 +96,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
               errorMsg = errorMsg.substring('Exception: '.length);
             }
             AppToast.show(context, errorMsg, type: ToastType.error);
-            Navigator.pop(context);
+            // Stay on the page so the user can correct their input
           }
           return;
         }

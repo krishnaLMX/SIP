@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -325,7 +325,7 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
                     SizedBox(width: 12.w),
                     Expanded(
                       child: Text(
-                        'You\'ve already set up a\n$freqName ${plan.commodityName} Auto-Savings plan',
+                        'You\'ve already subscribed to a\n$freqName ${plan.commodityName} Auto-Savings plan',
                         style: TextStyle(
                           fontSize: 14.sp,
                           fontWeight: FontWeight.w700,

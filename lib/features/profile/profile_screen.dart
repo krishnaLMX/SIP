@@ -206,18 +206,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           _buildMenuItem(
                             'Nominee Details',
                             'assets/sidemenu/nominee.svg',
-                            onTap: () => Navigator.pushNamed(
-                                context, AppRouter.nominee),
+                            onTap: () =>
+                                Navigator.pushNamed(context, AppRouter.nominee),
                           ),
 
-                          // Auto Savings - Commented as requested
-                          /*
-                    _buildMenuItem(
-                      'Auto Savings',
-                      'assets/sidemenu/autosaving.svg',
-                      onTap: () {},
-                    ),
-                    */
+                          _buildMenuItem(
+                            'SIP Transactions',
+                            'assets/sidemenu/autosaving.svg',
+                            onTap: () => Navigator.pushNamed(
+                                context, AppRouter.sipTransactions),
+                          ),
                         ],
                         isDark),
                     SizedBox(height: 16.h),

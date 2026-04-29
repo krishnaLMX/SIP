@@ -71,15 +71,29 @@ class _SipPaymentScreenState extends ConsumerState<SipPaymentScreen>
   /// if the SDK callback never fired, auto-trigger verification.
   /// This handles the SANDBOX redirect issue where the callback
   /// doesn't fire even though the mandate was successfully authorized.
+  ///
+  /// A 2-second delay is added to let the SDK callback fire first —
+  /// the SDK may deliver its callback shortly after the app resumes.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    SecureLogger.d('SIP PAYMENT: Lifecycle → $state '
+        '(sdkCallback=$_sdkCallbackReceived, verifying=$_isVerifying)');
     if (state == AppLifecycleState.resumed &&
         !_sdkCallbackReceived &&
         !_isVerifying &&
         _error == null) {
-      SecureLogger.d(
-          'SIP PAYMENT: App resumed without SDK callback — triggering fallback verify');
-      _verifyMandateStatus();
+      // Delay slightly so the SDK callback has a chance to fire first.
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        if (_sdkCallbackReceived || _isVerifying) {
+          SecureLogger.d(
+              'SIP PAYMENT: SDK callback arrived during delay — skipping fallback');
+          return;
+        }
+        SecureLogger.d(
+            'SIP PAYMENT: App resumed without SDK callback — triggering fallback verify');
+        _verifyMandateStatus();
+      });
     }
   }
 
@@ -96,7 +110,14 @@ class _SipPaymentScreenState extends ConsumerState<SipPaymentScreen>
           widget.paymentData['environment'] as String? ?? 'SANDBOX';
       final orderId = widget.paymentData['order_id']?.toString() ?? '';
 
+      SecureLogger.d('SIP PAYMENT: paymentData received:');
+      SecureLogger.d('  subscription_id: $subscriptionId');
+      SecureLogger.d('  session_id: ${sessionId.isNotEmpty ? '${sessionId.substring(0, 20)}...' : 'EMPTY'}');
+      SecureLogger.d('  environment: $envString');
+      SecureLogger.d('  order_id: $orderId');
+
       if (subscriptionId.isEmpty || sessionId.isEmpty) {
+        SecureLogger.e('SIP PAYMENT: Missing subscriptionId or sessionId!');
         setState(() {
           _isProcessing = false;
           _error = 'Invalid payment session. Please try again.';
@@ -133,6 +154,7 @@ class _SipPaymentScreenState extends ConsumerState<SipPaymentScreen>
           .build();
 
       // Step 4: Launch
+      SecureLogger.d('SIP PAYMENT: Calling doPayment with subscription checkout object...');
       _cfPaymentGatewayService.doPayment(cfSubscriptionCheckout);
     } on CFException catch (e) {
       SecureLogger.e('SIP PAYMENT: CFException: ${e.message}');
@@ -162,7 +184,7 @@ class _SipPaymentScreenState extends ConsumerState<SipPaymentScreen>
   void _onSubscriptionVerify(String subscriptionId) {
     _sdkCallbackReceived = true;
     SecureLogger.d(
-        'SIP PAYMENT: Subscription verify callback → $subscriptionId');
+        'SIP PAYMENT: ✅ Subscription VERIFY callback → $subscriptionId');
     _verifyMandateStatus();
   }
 
@@ -170,7 +192,8 @@ class _SipPaymentScreenState extends ConsumerState<SipPaymentScreen>
   void _onSubscriptionFailure(CFErrorResponse errorResponse, String data) {
     _sdkCallbackReceived = true;
     final errorMsg = errorResponse.getMessage() ?? 'Payment failed';
-    SecureLogger.e('SIP PAYMENT: Subscription failure → $errorMsg ($data)');
+    SecureLogger.e('SIP PAYMENT: ❌ Subscription FAILURE callback → $errorMsg');
+    SecureLogger.e('SIP PAYMENT: Failure data: $data');
 
     if (!mounted) return;
 

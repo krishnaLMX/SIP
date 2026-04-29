@@ -161,3 +161,22 @@ final sipControllerProvider =
     StateNotifierProvider<SipNotifier, SipState>((ref) {
   return SipNotifier();
 });
+
+// ─── SIP Transaction History ────────────────────────────────────────────────
+/// Raw SIP transaction data — returns the full API response map.
+/// Invalidated on every screen entry to always get fresh data.
+final sipTransactionsProvider =
+    FutureProvider<Map<String, dynamic>>((ref) async {
+  final service = ref.watch(sipServiceProvider);
+  return service.getSipTransactions();
+});
+
+// ─── SIP Transaction Details ────────────────────────────────────────────────
+/// SIP transaction detail — keyed by transaction ID.
+/// Invalidated on every screen entry to always get fresh data.
+final sipTransactionDetailsProvider =
+    FutureProvider.family<Map<String, dynamic>, String>(
+        (ref, transactionId) async {
+  final service = ref.watch(sipServiceProvider);
+  return service.getSipTransactionDetails(transactionId: transactionId);
+});

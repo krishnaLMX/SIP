@@ -12,6 +12,7 @@ import '../../../shared/widgets/animations.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/security/secure_storage_service.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/fcm_service.dart';
 
@@ -158,7 +159,7 @@ class _PinCreationScreenState extends ConsumerState<PinCreationScreen> {
                               });
                               _shuffleKeypad();
                             } else {
-                              Navigator.pop(context);
+                              NavigationUtils.safePop(context);
                             }
                           },
                         ),
