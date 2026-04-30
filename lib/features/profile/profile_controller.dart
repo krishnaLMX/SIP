@@ -168,21 +168,29 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     state = state.copyWith(isEditing: editing, error: null);
   }
 
-  Future<Map<String, String>?> checkPincode(String pincode) async {
+  /// Returns {'success': true, 'data': {...}} or {'success': false, 'message': '...'}.
+  Future<Map<String, dynamic>> checkPincode(String pincode) async {
     try {
       final result = await _profileService.checkPincode(pincode);
-      if (result != null) {
+      if (result['success'] == true && result['data'] != null) {
+        final data = result['data'] as Map<String, dynamic>;
         return {
-          'state': result['state'] ?? '',
-          'city': result['city'] ?? '',
-          'id_country': result['id_country']?.toString() ?? '101',
-          'id_state': result['id_state']?.toString() ?? '',
-          'id_city': result['id_city']?.toString() ?? '',
+          'success': true,
+          'data': {
+            'state': data['state']?.toString() ?? '',
+            'city': data['city']?.toString() ?? '',
+            'id_country': data['id_country']?.toString() ?? '101',
+            'id_state': data['id_state']?.toString() ?? '',
+            'id_city': data['id_city']?.toString() ?? '',
+          },
         };
       }
-      return null;
+      return {
+        'success': false,
+        'message': result['message']?.toString() ?? 'Pincode not found.',
+      };
     } catch (e) {
-      return null;
+      return {'success': false, 'message': 'Failed to verify pincode.'};
     }
   }
 

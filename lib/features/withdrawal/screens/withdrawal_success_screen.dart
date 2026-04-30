@@ -136,7 +136,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
 
                                 // Amount
                                 Text(
-                                  'â‚¹${data['amount'] ?? '0.00'}',
+                                  '\u20b9${data['amount'] ?? '0.00'}',
                                   style: GoogleFonts.lora(
                                     fontSize: 32.sp,
                                     fontWeight: FontWeight.w800,

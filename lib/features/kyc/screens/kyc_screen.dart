@@ -384,10 +384,10 @@ class _KycScreenState extends ConsumerState<KycScreen> {
               LengthLimitingTextInputFormatter(10),
             ];
           } else if (isNameField) {
-            // Name field: letters and spaces only, no digits / special chars
+            // Name as on PAN: ALL UPPERCASE, letters and spaces only
             return <TextInputFormatter>[
               FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z ]')),
-              _TitleCaseFormatter(),
+              _UpperCaseNameFormatter(),
             ];
           } else if (!isNumeric) {
             return <TextInputFormatter>[UpperCaseFormatter()];
@@ -411,11 +411,9 @@ class _KycScreenState extends ConsumerState<KycScreen> {
                 controller: _docControllers[doc.id]?[field.name],
                 keyboardType:
                     isNumeric ? TextInputType.number : TextInputType.text,
-                textCapitalization: isNameField
-                    ? TextCapitalization.words
-                    : (isPanNumber
-                        ? TextCapitalization.characters
-                        : TextCapitalization.none),
+                textCapitalization: isNameField || isPanNumber
+                    ? TextCapitalization.characters
+                    : TextCapitalization.none,
                 inputFormatters: formatters,
                 style: GoogleFonts.lora(
                     color: stylized
@@ -505,38 +503,20 @@ class UpperCaseFormatter extends TextInputFormatter {
   }
 }
 
-/// Title-case formatter for name fields — letters and spaces only.
-class _TitleCaseFormatter extends TextInputFormatter {
+/// Converts name input to ALL UPPERCASE — matches PAN card format.
+/// Only letters and spaces are allowed.
+class _UpperCaseNameFormatter extends TextInputFormatter {
   static final _allowed = RegExp(r'[a-zA-Z ]');
 
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    // Strip disallowed characters
     final cleaned =
         newValue.text.split('').where((c) => _allowed.hasMatch(c)).join();
-    if (cleaned.isEmpty) {
-      return newValue.copyWith(
-          text: '', selection: const TextSelection.collapsed(offset: 0));
-    }
-    // Capitalise first letter of each word
-    final buf = StringBuffer();
-    bool capNext = true;
-    for (final ch in cleaned.characters) {
-      if (ch == ' ') {
-        capNext = true;
-        buf.write(ch);
-      } else if (capNext) {
-        buf.write(ch.toUpperCase());
-        capNext = false;
-      } else {
-        buf.write(ch.toLowerCase());
-      }
-    }
-    final text = buf.toString();
-    final offset = text.length.clamp(0, text.length);
+    final upper = cleaned.toUpperCase();
+    final offset = upper.length.clamp(0, upper.length);
     return newValue.copyWith(
-      text: text,
+      text: upper,
       selection: TextSelection.collapsed(offset: offset),
     );
   }

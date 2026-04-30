@@ -30,13 +30,14 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
   late TextEditingController _addressController;
   bool _isPincodeChecking = false;
   String? _emailError;
+  bool _isPincodeValid = true;
 
   // Returns true only when all mandatory fields have content
   bool get _canSave {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final pincode = _pincodeController.text.trim();
-    return name.isNotEmpty && email.isNotEmpty && pincode.length == 6;
+    return name.isNotEmpty && email.isNotEmpty && pincode.length == 6 && _isPincodeValid;
   }
 
   @override
@@ -96,19 +97,27 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
     if (_pincodeController.text.length != 6) return;
     setState(() => _isPincodeChecking = true);
     final result = await ref.read(profileProvider.notifier).checkPincode(_pincodeController.text);
+    if (!mounted) return;
     setState(() => _isPincodeChecking = false);
-    if (result != null && mounted) {
-      _stateController.text = result['state'] ?? '';
-      _cityController.text = result['city'] ?? '';
+    if (result['success'] == true) {
+      final data = result['data'] as Map<String, dynamic>;
+      setState(() => _isPincodeValid = true);
+      _stateController.text = data['state'] ?? '';
+      _cityController.text = data['city'] ?? '';
       ref.read(profileProvider.notifier).updateLocationInfo(
-            stateVal: result['state'] ?? '',
-            city: result['city'] ?? '',
-            idCountry: result['id_country'] ?? '101',
-            idState: result['id_state'] ?? '',
-            idCity: result['id_city'] ?? '',
+            stateVal: data['state'] ?? '',
+            city: data['city'] ?? '',
+            idCountry: data['id_country'] ?? '101',
+            idState: data['id_state'] ?? '',
+            idCity: data['id_city'] ?? '',
           );
-    } else if (mounted) {
-      AppToast.show(context, 'Invalid pincode or server error', type: ToastType.error);
+    } else {
+      setState(() {
+        _isPincodeValid = false;
+        _stateController.text = '';
+        _cityController.text = '';
+      });
+      AppToast.show(context, result['message']?.toString() ?? 'Pincode not found.', type: ToastType.error);
     }
   }
 
@@ -259,7 +268,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                         _buildInputField(label: 'Phone Number *', hint: MaskingUtils.maskMobile(user.phone), isEditable: false, isDark: isDark),
                         _buildInputField(label: 'E-Mail *', controller: _emailController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.emailAddress, errorText: _emailError, onChanged: (_) { if (_emailError != null) setState(() => _emailError = null); }),
                         _buildInputField(label: 'DOB *', hint: user.dob, isEditable: false, isDark: isDark),
-                        _buildInputField(label: 'Pincode *', controller: _pincodeController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.number, actionLabel: 'Check', onAction: _handlePincodeCheck, isActionLoading: _isPincodeChecking),
+                        _buildInputField(label: 'Pincode *', controller: _pincodeController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)], actionLabel: 'Check', onAction: _handlePincodeCheck, isActionLoading: _isPincodeChecking, onChanged: (_) { if (!_isPincodeValid) setState(() => _isPincodeValid = true); }),
                         if (_stateController.text.isNotEmpty)
                           _buildInputField(label: 'State', controller: _stateController, isEditable: false, isDark: isDark),
                         if (_cityController.text.isNotEmpty)

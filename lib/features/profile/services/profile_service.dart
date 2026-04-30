@@ -59,18 +59,26 @@ class ProfileService {
     }
   }
 
-  Future<Map<String, dynamic>?> checkPincode(String pincode) async {
+  /// Returns a map with 'success' bool, 'data' (location info), and 'message' (error message).
+  Future<Map<String, dynamic>> checkPincode(String pincode) async {
     try {
       final response = await _apiClient.post(
         'users/shared/check-pincode',
         data: {'pincode': pincode},
       );
       if (response.data != null && response.data['success'] == true) {
-        return response.data['data'];
+        return {
+          'success': true,
+          'data': response.data['data'],
+        };
       }
-      return null;
+      // API returned success: false — extract message
+      final msg = response.data?['message']?.toString()
+          ?? response.data?['error']?['details']?.toString()
+          ?? 'Pincode not found.';
+      return {'success': false, 'message': msg};
     } catch (e) {
-      return null;
+      return {'success': false, 'message': 'Failed to verify pincode. Please try again.'};
     }
   }
 

@@ -1832,12 +1832,16 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Hello, $customerName',
-                    style: GoogleFonts.lora(
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                  Flexible(
+                    child: Text(
+                      'Hello, $customerName',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.lora(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                   GestureDetector(

@@ -1059,7 +1059,7 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
                 ),
                 SizedBox(height: 2.h),
                 Text(
-                  '${yearlyGrams.toStringAsFixed(3)} gm worth \u20b9${yearlyAmount.toStringAsFixed(0)}',
+                  '${yearlyGrams.toStringAsFixed(4)} gm worth \u20b9${yearlyAmount.toStringAsFixed(0)}',
                   style: TextStyle(
                     fontSize: 14.sp,
                     fontWeight: FontWeight.w700,

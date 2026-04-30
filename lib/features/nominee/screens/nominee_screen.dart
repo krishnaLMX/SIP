@@ -49,6 +49,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
   bool _isSaving = false;
   bool _isInitialized = false;
   bool _isPincodeChecking = false;
+  bool _isPincodeValid = true;
 
   // Location IDs from pincode check or existing data
   int? _idCity;
@@ -517,6 +518,11 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                 actionLabel: 'Check',
                 onAction: _handlePincodeCheck,
                 isActionLoading: _isPincodeChecking,
+                onChanged: (_) {
+                  if (!_isPincodeValid) {
+                    setState(() => _isPincodeValid = true);
+                  }
+                },
                 validator: (v) {
                   if (v != null && v.isNotEmpty && v.length != 6) {
                     return 'Enter valid 6-digit pincode';
@@ -568,7 +574,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                 svgIconPath: 'assets/buttons/folder-add.svg',
                 isLoading: _isSaving,
                 loadingText: 'Saving...',
-                onPressed: _isSaving ? null : _handleSubmit,
+                onPressed: (_isSaving || !_isPincodeValid) ? null : _handleSubmit,
                 gradient: const LinearGradient(
                   colors: [Color(0xFF003716), Color(0xFF167525)],
                 ),
@@ -628,6 +634,8 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
     VoidCallback? onAction,
     bool isActionLoading = false,
     int maxLines = 1,
+    String? errorText,
+    ValueChanged<String>? onChanged,
   }) {
     return Padding(
       padding: EdgeInsets.only(bottom: 16.h),
@@ -660,7 +668,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(15.r),
-              border: Border.all(color: Colors.black.withOpacity(0.1)),
+              border: Border.all(color: errorText != null ? Colors.redAccent : Colors.black.withOpacity(0.1)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.02),
@@ -681,6 +689,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                     maxLines: maxLines,
                     inputFormatters: inputFormatters,
                     validator: validator,
+                    onChanged: onChanged,
                     style: GoogleFonts.lora(
                       fontSize: 16.sp,
                       fontWeight: FontWeight.w500,
@@ -723,6 +732,17 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
               ],
             ),
           ),
+          if (errorText != null) ...[
+            SizedBox(height: 6.h),
+            Text(
+              errorText,
+              style: GoogleFonts.lora(
+                fontSize: 12.sp,
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1187,16 +1207,23 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
     if (!mounted) return;
     setState(() => _isPincodeChecking = false);
 
-    if (result != null) {
+    if (result['success'] == true) {
+      final data = result['data'] as Map<String, dynamic>;
       setState(() {
-        _stateCtrl.text = result['state'] ?? '';
-        _cityCtrl.text = result['city'] ?? '';
-        _idCity = int.tryParse(result['id_city'] ?? '');
-        _idState = int.tryParse(result['id_state'] ?? '');
-        _idCountry = int.tryParse(result['id_country'] ?? '') ?? 101;
+        _isPincodeValid = true;
+        _stateCtrl.text = data['state'] ?? '';
+        _cityCtrl.text = data['city'] ?? '';
+        _idCity = int.tryParse(data['id_city'] ?? '');
+        _idState = int.tryParse(data['id_state'] ?? '');
+        _idCountry = int.tryParse(data['id_country'] ?? '') ?? 101;
       });
     } else {
-      AppToast.show(context, 'Invalid pincode or server error',
+      setState(() {
+        _isPincodeValid = false;
+        _stateCtrl.text = '';
+        _cityCtrl.text = '';
+      });
+      AppToast.show(context, result['message']?.toString() ?? 'Pincode not found.',
           type: ToastType.error);
     }
   }

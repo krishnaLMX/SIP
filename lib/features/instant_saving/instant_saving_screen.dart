@@ -76,8 +76,11 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
               .startOrRefresh(existingConfig.sellRateLockSeconds);
         }
       }
-      // Always re-fetch rate config so the listener fires and re-locks rates.
+      // Always re-fetch rate config and denominations so the listener fires
+      // and re-locks rates, and denomination chips show fresh API data.
       ref.invalidate(savingConfigProvider);
+      ref.invalidate(amountDenominationsProvider);
+      ref.invalidate(weightDenominationsProvider);
     });
   }
 
@@ -97,13 +100,12 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     final weightDenoms = ref.watch(weightDenominationsProvider);
     final timerState = ref.watch(sellRateTimerProvider);
 
-    // Refresh rate config when navigating back to the Invest tab.
-    // Do NOT invalidate denomination providers — they auto-refresh via
-    // selectedMetalIdProvider and invalidating them here causes a full
-    // page loading flicker on every tab switch.
+    // Refresh rate config and denominations when navigating back to the Invest tab.
     ref.listen<int>(selectedTabProvider, (previous, next) {
       if (next == 1) {
         ref.invalidate(savingConfigProvider);
+        ref.invalidate(amountDenominationsProvider);
+        ref.invalidate(weightDenominationsProvider);
       }
     });
 

@@ -102,7 +102,7 @@ class _WithdrawalConfirmationScreenState
         ? AsyncData(timerState.lockedRates!)
         : ref.watch(marketRatesStreamProvider);
 
-    // Market reopen â†’ restart timer
+    // Market reopen \u2192 restart timer
     ref.listen<AsyncValue<Map<String, bool>>>(marketStatusProvider,
         (prev, next) {
       next.whenData((statusMap) {
@@ -120,8 +120,8 @@ class _WithdrawalConfirmationScreenState
       });
     });
 
-    // â”€â”€ Race-condition guard: market-reopen vs first rate frame â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // `5|...|1` fires before `3|...` rate arrives â€” buyRateTimer may lock 0.
+    // Race-condition guard: market-reopen vs first rate frame
+    // `5|...|1` fires before `3|...` rate arrives \u2014 buyRateTimer may lock 0.
     // Restart as soon as the first valid buy rate is received from the socket.
     ref.listen<AsyncValue<MarketRates>>(marketRatesStreamProvider, (prev, next) {
       next.whenData((rates) {
@@ -153,7 +153,7 @@ class _WithdrawalConfirmationScreenState
     // Watch config to trigger the API fetch
     final configAsync = ref.watch(savingConfigProvider);
 
-    // Sync timer with config â€” prioritise _isRefreshing over timer.isActive
+    // Sync timer with config \u2014 prioritise _isRefreshing over timer.isActive
     // so _onRateUpdated fires even after our clear()+startOrRefresh() cycle.
     ref.listen<AsyncValue<SavingConfig>>(savingConfigProvider, (prev, next) {
       final config = next.valueOrNull;
@@ -193,7 +193,7 @@ class _WithdrawalConfirmationScreenState
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // â”€â”€ Gradient Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          // Gradient Header
           GradientHeader(
             title: AppConstants.confirmWithdrawal,
             onBack: () => Navigator.pop(context),
@@ -231,7 +231,7 @@ class _WithdrawalConfirmationScreenState
                 : const SizedBox.shrink(),
           ),
 
-          // â”€â”€ Body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          // Body
           Expanded(
             child: market.when(
               data: (rates) {
@@ -241,7 +241,7 @@ class _WithdrawalConfirmationScreenState
                 final amountInINR = withdrawal.isGrams
                     ? withdrawal.amount * price
                     : withdrawal.amount;
-                // Guard: price may be 0.0 when market is closed â€” avoid Infinity
+                // Guard: price may be 0.0 when market is closed \u2014 avoid Infinity
                 final amountInGrams = withdrawal.isGrams
                     ? withdrawal.amount
                     : (price > 0 ? withdrawal.amount / price : 0.0);
@@ -287,15 +287,15 @@ class _WithdrawalConfirmationScreenState
       double rate, CommodityType type, bool isCurrentMarketClosed, bool isGrams) {
     // When market is closed: weight and rate can't be calculated reliably.
     final weightText = isCurrentMarketClosed
-        ? 'â€”'
-        : '${amountGrams.toStringAsFixed(4)} g';
+        ? '\u2014'
+        : '${amountGrams.toStringAsFixed(4)} gm';
     final rateText = isCurrentMarketClosed
         ? 'Market Closed'
-        : 'â‚¹${rate.toStringAsFixed(2)} / g';
+        : '\u20b9${rate.toStringAsFixed(2)} / gm';
     // Suppress INR display in grams mode when market is closed (amountINR = 0)
     final amountText = (isGrams && isCurrentMarketClosed)
-        ? 'â€”'
-        : 'â‚¹${amountINR.toStringAsFixed(2)}';
+        ? '\u2014'
+        : '\u20b9${amountINR.toStringAsFixed(2)}';
 
     return Container(
       padding: EdgeInsets.all(24.w),
