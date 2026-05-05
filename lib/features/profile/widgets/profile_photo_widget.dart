@@ -106,7 +106,7 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt, color: AppTheme.arcticBlue),
-              title: Text('Take Photo', style: GoogleFonts.lora()),
+              title: Text('Take Photo', style: GoogleFonts.playfairDisplay()),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.camera);
@@ -115,7 +115,7 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
             ListTile(
               leading:
                   const Icon(Icons.photo_library, color: AppTheme.arcticBlue),
-              title: Text('Choose from Gallery', style: GoogleFonts.lora()),
+              title: Text('Choose from Gallery', style: GoogleFonts.playfairDisplay()),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.gallery);
@@ -123,7 +123,7 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
             ),
             ListTile(
               leading: const Icon(Icons.cancel, color: Colors.grey),
-              title: Text('Cancel', style: GoogleFonts.lora()),
+              title: Text('Cancel', style: GoogleFonts.playfairDisplay()),
               onTap: () => Navigator.pop(context),
             ),
           ],
@@ -162,7 +162,7 @@ class _ProfilePhotoWidgetState extends State<ProfilePhotoWidget> {
               child: _selectedImage == null && widget.initialPhotoUrl == null
                   ? Text(
                       widget.initials,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 36.sp,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.arcticBlue,

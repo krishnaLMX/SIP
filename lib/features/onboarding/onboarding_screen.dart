@@ -118,7 +118,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               SizedBox(height: 16.h),
               Text(
                 'Failed to load content',
-                style: GoogleFonts.lora(color: Colors.white, fontSize: 18.sp),
+                style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 18.sp),
               ),
               TextButton(
                 onPressed: () => ref.refresh(onboardingContentProvider),
@@ -221,7 +221,7 @@ class OnboardingPage extends StatelessWidget {
                   child: Text(
                     data.title.toUpperCase(),
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 40.sp,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
@@ -236,7 +236,7 @@ class OnboardingPage extends StatelessWidget {
                   child: Text(
                     data.description,
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 17.sp,
                       color: Colors.white.withOpacity(0.7),
                       height: 1.5,

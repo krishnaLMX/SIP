@@ -96,7 +96,7 @@ class CustomButton extends StatelessWidget {
                     SizedBox(width: 12.w),
                     Text(
                       displayLoadingText,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 16.sp,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.3,

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/api_client.dart';
 
@@ -21,55 +22,122 @@ class ContentService {
   Future<Map<String, dynamic>> getTermsAndConditions() async {
     try {
       final response = await _apiClient.post('content/terms');
-      return response.data['data'] ?? {};
+      debugPrint('[ContentService] terms raw: ${response.data}');
+      return _extractContentMap(response.data);
     } catch (e) {
-      return {};
+      debugPrint('[ContentService] terms error: $e');
+      rethrow;
     }
   }
 
   Future<Map<String, dynamic>> getPrivacyPolicy() async {
     try {
       final response = await _apiClient.post('content/privacy');
-      return response.data['data'] ?? {};
+      debugPrint('[ContentService] privacy raw: ${response.data}');
+      return _extractContentMap(response.data);
     } catch (e) {
-      return {};
+      debugPrint('[ContentService] privacy error: $e');
+      rethrow;
     }
   }
 
   Future<List<dynamic>> getFAQs() async {
     try {
       final response = await _apiClient.post('content/faqs');
-      return response.data['data']['faqs'] ?? [];
+      debugPrint('[ContentService] faqs raw: ${response.data}');
+      return _extractFaqList(response.data);
     } catch (e) {
-      return [];
+      debugPrint('[ContentService] faqs error: $e');
+      rethrow;
     }
   }
 
   Future<Map<String, dynamic>> getAboutUs() async {
     try {
       final response = await _apiClient.post('content/about-us');
-      return response.data['data'] ?? {};
+      debugPrint('[ContentService] about-us raw: ${response.data}');
+      return _extractContentMap(response.data);
     } catch (e) {
-      return {};
+      debugPrint('[ContentService] about-us error: $e');
+      rethrow;
     }
   }
 
   Future<Map<String, dynamic>> getContactUs() async {
     try {
       final response = await _apiClient.post('content/contact-us');
-      return response.data['data'] ?? {};
+      debugPrint('[ContentService] contact-us raw: ${response.data}');
+      return _extractContentMap(response.data);
     } catch (e) {
-      return {};
+      debugPrint('[ContentService] contact-us error: $e');
+      rethrow;
     }
   }
 
   Future<Map<String, dynamic>> getRefundPolicy() async {
     try {
       final response = await _apiClient.post('content/refund-policy');
-      return response.data['data'] ?? {};
+      debugPrint('[ContentService] refund-policy raw: ${response.data}');
+      return _extractContentMap(response.data);
     } catch (e) {
-      return {};
+      debugPrint('[ContentService] refund-policy error: $e');
+      rethrow;
     }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /// Extracts a content map from any of these API response shapes:
+  ///   { "data": { "content": "..." } }        ← standard
+  ///   { "data": { "body": "..." } }           ← alternative key
+  ///   { "content": "..." }                    ← flat
+  ///   { "data": "..." }                       ← data is the string itself
+  static Map<String, dynamic> _extractContentMap(dynamic raw) {
+    if (raw == null) return {};
+    final body = raw is Map ? raw : {};
+
+    // Shape: { "data": { ... } }
+    final data = body['data'];
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+
+    // Shape: { "data": "<html>..." }  — wrap string into expected map
+    if (data is String) return {'content': data};
+
+    // Shape: flat body already has 'content' key
+    if (body.containsKey('content')) {
+      return {'content': body['content']};
+    }
+
+    return {};
+  }
+
+  /// Extracts FAQ list from any of these shapes:
+  ///   { "data": { "faqs": [ ... ] } }   ← standard nested
+  ///   { "data": [ ... ] }               ← data is the array
+  ///   [ ... ]                           ← root is an array
+  static List<dynamic> _extractFaqList(dynamic raw) {
+    if (raw == null) return [];
+
+    // Root is a list
+    if (raw is List) return raw;
+
+    final body = raw is Map ? raw : {};
+    final data = body['data'];
+
+    // data is a list directly
+    if (data is List) return data;
+
+    // data is a map with a 'faqs' key
+    if (data is Map) {
+      final faqs = data['faqs'];
+      if (faqs is List) return faqs;
+      // Sometimes the key might be 'data' inside data
+      final nested = data['data'];
+      if (nested is List) return nested;
+    }
+
+    return [];
   }
 }
 

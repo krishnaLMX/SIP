@@ -52,7 +52,7 @@ class GradientHeader extends StatelessWidget {
                 child: Text(
                   title,
                   textAlign: TextAlign.left,
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,

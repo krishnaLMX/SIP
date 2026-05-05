@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 import '../../../routes/app_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controller/history_controller.dart';
@@ -66,7 +67,7 @@ class _TransactionDetailsScreenState
                       SizedBox(height: 16.h),
                       Text(
                         'Failed to load details',
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 16.sp,
                           fontWeight: FontWeight.bold,
                           color: isDark ? Colors.white : Colors.black87,
@@ -75,7 +76,7 @@ class _TransactionDetailsScreenState
                       SizedBox(height: 8.h),
                       Text(
                         errorMessage,
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 14.sp,
                           color: isDark ? Colors.white54 : Colors.black54,
                         ),
@@ -175,18 +176,16 @@ class _TransactionDetailsScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                NumericStyledText(
                   details.metalName,
-                  style: GoogleFonts.lora(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
                 ),
                 SizedBox(height: 4.h),
                 Text(
                   typeLabel,
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 13.sp,
                     fontWeight: FontWeight.w500,
                     color: typeColor,
@@ -196,7 +195,7 @@ class _TransactionDetailsScreenState
                   SizedBox(height: 2.h),
                   Text(
                     details.subtitle,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 11.sp,
                       fontWeight: FontWeight.w500,
                       color: mutedTextColor,
@@ -254,7 +253,7 @@ class _TransactionDetailsScreenState
         children: [
           Text(
             'Transaction Status',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 14.sp,
               fontWeight: FontWeight.bold,
               color: textColor,
@@ -274,7 +273,7 @@ class _TransactionDetailsScreenState
           SizedBox(height: 8.h),
           Text(
             details.footerMessage,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 13.sp,
               color: mutedTextColor,
             ),
@@ -433,11 +432,10 @@ class _TransactionDetailsScreenState
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(step.stepName,
-                          style: GoogleFonts.lora(
-                              color: textColor,
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600)),
+                      NumericStyledText(step.stepName,
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w600,
+                          color: textColor),
                       Container(
                         padding: EdgeInsets.symmetric(
                             horizontal: 8.w, vertical: 4.h),
@@ -447,7 +445,7 @@ class _TransactionDetailsScreenState
                         ),
                         child: Text(
                           step.status,
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 11.sp,
                             fontWeight: FontWeight.bold,
                             color: badgeTextColor,
@@ -499,7 +497,7 @@ class _TransactionDetailsScreenState
             children: [
               Text(
                 'SIP Plan Details',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 14.sp,
                   fontWeight: FontWeight.bold,
                   color: textColor,
@@ -514,7 +512,7 @@ class _TransactionDetailsScreenState
                 ),
                 child: Text(
                   scheme.status,
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 11.sp,
                     fontWeight: FontWeight.bold,
                     color: statusColor,
@@ -600,7 +598,7 @@ class _TransactionDetailsScreenState
                 children: [
                   Text(
                     sectionTitle,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                         fontSize: 14.sp,
                         fontWeight: FontWeight.bold,
                         color: textColor),
@@ -635,7 +633,7 @@ class _TransactionDetailsScreenState
             SizedBox(height: 12.h),
             Text(
               subSectionTitle,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 fontWeight: FontWeight.bold,
                 color: textColor,
@@ -678,7 +676,7 @@ class _TransactionDetailsScreenState
         children: [
           Text(
             label,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 13.sp,
               fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
               color: isBold ? textColor : mutedTextColor,
@@ -699,6 +697,10 @@ class _TransactionDetailsScreenState
                 GestureDetector(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: value));
+                    // Auto-clear clipboard after 60s — prevents clipboard sniffing
+                    Future.delayed(const Duration(seconds: 60), () {
+                      Clipboard.setData(const ClipboardData(text: ''));
+                    });
                     AppToast.show(context, '$label copied!',
                         type: ToastType.info);
                   },

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -207,70 +208,103 @@ class _SipTransactionHistoryScreenState
     );
   }
 
-  // ── Frequency Tabs ─────────────────────────────────────────────────
+  // ── Frequency Tabs (pill style — matches SipOverviewScreen) ─────────
   Widget _buildFrequencyTabs(bool isDark) {
-    return Container(
-      margin: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 4.h),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withOpacity(0.06)
-            : const Color(0xFF064E3B).withOpacity(0.06),
-        borderRadius: BorderRadius.circular(14.r),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          gradient: AppTheme.greenGradient,
-          borderRadius: BorderRadius.circular(12.r),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(40.w, 12.h, 40.w, 4.h),
+      child: Container(
+        padding: EdgeInsets.all(4.w),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(50.r),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF064E3B).withOpacity(0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: Colors.white,
-        unselectedLabelColor:
-            isDark ? Colors.white54 : const Color(0xFF475569),
-        labelStyle: GoogleFonts.lora(
-          fontSize: 13.sp,
-          fontWeight: FontWeight.w700,
+        child: Row(
+          children: List.generate(_frequencies.length, (index) {
+            final freq = _frequencies[index];
+            final isSelected = _tabController?.index == index;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  _tabController?.animateTo(index);
+                  setState(() => _selectedCommodity = null);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: EdgeInsets.symmetric(vertical: 10.h),
+                  decoration: BoxDecoration(
+                    gradient: isSelected
+                        ? const LinearGradient(
+                            colors: [Color(0xFF003716), Color(0xFF167525)],
+                          )
+                        : null,
+                    borderRadius: BorderRadius.circular(50.r),
+                  ),
+                  child: Center(
+                    child: Text(
+                      freq,
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 13.sp,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected
+                            ? Colors.white
+                            : isDark
+                                ? Colors.white54
+                                : const Color(0xFF1A1A2E),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
         ),
-        unselectedLabelStyle: GoogleFonts.lora(
-          fontSize: 13.sp,
-          fontWeight: FontWeight.w500,
-        ),
-        labelPadding: EdgeInsets.zero,
-        padding: EdgeInsets.all(3.w),
-        tabs: _frequencies
-            .map((f) => Tab(
-                  height: 38.h,
-                  child: Text(f),
-                ))
-            .toList(),
       ),
     );
   }
 
-  // ── Single frequency badge (when only one segment exists) ──────────
+  // ── Single frequency badge (pill style — when only one segment exists)
   Widget _buildFrequencyBadge(String frequency, bool isDark) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 4.h),
+      padding: EdgeInsets.fromLTRB(40.w, 12.h, 40.w, 4.h),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+        padding: EdgeInsets.all(4.w),
         decoration: BoxDecoration(
-          gradient: AppTheme.greenGradient,
-          borderRadius: BorderRadius.circular(20.r),
+          color: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(50.r),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: Text(
-          '$frequency SIP',
-          style: GoogleFonts.lora(
-            fontSize: 13.sp,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(vertical: 10.h),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF003716), Color(0xFF167525)],
+            ),
+            borderRadius: BorderRadius.circular(50.r),
+          ),
+          child: Center(
+            child: Text(
+              frequency,
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
           ),
         ),
       ),
@@ -334,7 +368,7 @@ class _SipTransactionHistoryScreenState
         ),
         child: Text(
           label,
-          style: GoogleFonts.lora(
+          style: GoogleFonts.playfairDisplay(
             fontSize: 11.sp,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             color: isSelected
@@ -377,7 +411,7 @@ class _SipTransactionHistoryScreenState
       Map<String, List<TransactionItem>> grouped, bool isDark) {
     final dateKeys = grouped.keys.toList();
     return ListView.builder(
-      padding: EdgeInsets.only(top: 4.h, bottom: 120.h),
+      padding: EdgeInsets.only(top: 4.h, bottom: 140.h),
       itemCount: dateKeys.length,
       itemBuilder: (context, index) {
         final dateKey = dateKeys[index];
@@ -406,16 +440,14 @@ class _SipTransactionHistoryScreenState
                 ),
               ),
               SizedBox(width: 8.w),
-              Text(
+              NumericStyledText(
                 date,
-                style: GoogleFonts.lora(
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.7)
-                      : const Color(0xFF475569),
-                  letterSpacing: 0.3,
-                ),
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                color: isDark
+                    ? Colors.white.withOpacity(0.7)
+                    : const Color(0xFF475569),
+                letterSpacing: 0.3,
               ),
               SizedBox(width: 8.w),
               Expanded(
@@ -425,13 +457,11 @@ class _SipTransactionHistoryScreenState
                 ),
               ),
               SizedBox(width: 8.w),
-              Text(
+              NumericStyledText(
                 '${transactions.length} ${transactions.length == 1 ? 'txn' : 'txns'}',
-                style: GoogleFonts.lora(
-                  fontSize: 10.sp,
-                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
-                  fontWeight: FontWeight.w600,
-                ),
+                fontSize: 10.sp,
+                color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                fontWeight: FontWeight.w600,
               ),
             ],
           ),
@@ -488,18 +518,16 @@ class _SipTransactionHistoryScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  NumericStyledText(
                     tx.metalName,
-                    style: GoogleFonts.lora(
-                      fontSize: 15.sp,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
-                    ),
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
                   ),
                   SizedBox(height: 3.h),
                   Text(
                     'SIP Autopay',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 12.sp,
                       fontWeight: FontWeight.w500,
                       color: _teal,
@@ -519,7 +547,7 @@ class _SipTransactionHistoryScreenState
                       SizedBox(width: 4.w),
                       Text(
                         _capitalise(tx.status),
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 10.sp,
                           fontWeight: FontWeight.w600,
                           color: statusColor,
@@ -592,7 +620,7 @@ class _SipTransactionHistoryScreenState
           SizedBox(height: 20.h),
           Text(
             'No SIP Transactions Yet',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 17.sp,
               fontWeight: FontWeight.w700,
               color: isDark ? Colors.white70 : const Color(0xFF334155),
@@ -601,7 +629,7 @@ class _SipTransactionHistoryScreenState
           SizedBox(height: 6.h),
           Text(
             'Your auto savings transactions will appear here',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 13.sp,
               color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
             ),
@@ -622,7 +650,7 @@ class _SipTransactionHistoryScreenState
           SizedBox(height: 16.h),
           Text(
             'Failed to load transactions',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 16.sp,
               fontWeight: FontWeight.bold,
               color: isDark ? Colors.white : Colors.black87,
@@ -631,7 +659,7 @@ class _SipTransactionHistoryScreenState
           SizedBox(height: 8.h),
           Text(
             message,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 14.sp,
               color: isDark ? Colors.white54 : Colors.black54,
             ),
@@ -653,7 +681,7 @@ class _SipTransactionHistoryScreenState
                   SizedBox(width: 8.w),
                   Text(
                     'Retry',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 13.sp,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,

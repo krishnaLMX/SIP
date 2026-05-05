@@ -89,7 +89,7 @@ class _PinScreenState extends ConsumerState<PinScreen> {
                           delay: const Duration(milliseconds: 100),
                           child: Text(
                             ref.tr('welcomeBack'),
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 28.sp,
                               fontWeight: FontWeight.w800,
                               color: isDark ? Colors.white : const Color(0xFF0F172A),
@@ -102,7 +102,7 @@ class _PinScreenState extends ConsumerState<PinScreen> {
                           delay: const Duration(milliseconds: 200),
                           child: Text(
                             ref.tr('pinSubtitle'),
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 17.sp,
                               color: isDark ? Colors.white54 : Colors.black45,
                               fontWeight: FontWeight.w400,

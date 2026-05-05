@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../core/security/session_manager.dart';
 import '../core/security/secure_storage_service.dart';
 import '../features/onboarding/onboarding_screen.dart';
@@ -46,6 +47,7 @@ import '../features/sip/screens/sip_success_screen.dart';
 import '../features/sip/screens/sip_failure_screen.dart';
 import '../features/sip/screens/sip_transaction_history_screen.dart';
 import '../features/sip/screens/sip_transaction_details_screen.dart';
+import '../features/sip/screens/sip_overview_screen.dart';
 import '../features/nominee/screens/nominee_screen.dart';
 
 class AppRouter {
@@ -102,6 +104,7 @@ class AppRouter {
   static const String refundPolicy = '/refund-policy';
   static const String sipTransactions = '/sip-transactions';
   static const String sipTransactionDetails = '/sip-transaction-details';
+  static const String sipOverview = '/sip-overview';
 
   static Map<String, WidgetBuilder> get routes => {
         splash: (context) => const SplashScreen(),
@@ -193,7 +196,7 @@ class AppRouter {
                       size: 80, color: Colors.indigo),
                   const SizedBox(height: 24),
                   Text('Completing Payment for ₹${args['amount'] ?? '0'}',
-                      style: const TextStyle(
+                      style: GoogleFonts.lora(
                           fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Text(
@@ -313,6 +316,7 @@ class AppRouter {
               as Map<String, dynamic>;
           return SipTransactionDetailsScreen(transactionData: tx);
         },
+        sipOverview: (context) => const SipOverviewScreen(),
       };
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -337,10 +341,8 @@ class AppRouter {
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           String fallbackRoute = AppRouter.login;
           try {
-            final loggedIn =
-                await SessionManager.isAuthenticated();
-            final mpinEnabled =
-                await SecureStorageService.isMpinEnabled();
+            final loggedIn = await SessionManager.isAuthenticated();
+            final mpinEnabled = await SecureStorageService.isMpinEnabled();
             if (loggedIn && mpinEnabled) {
               fallbackRoute = AppRouter.mpin;
             }

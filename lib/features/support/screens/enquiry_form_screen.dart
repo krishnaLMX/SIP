@@ -169,7 +169,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
               Center(
                 child: Text(
                   'Our support team typically responds within 24 hours.',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 11.sp,
                     color: const Color(0xFF888888),
                   ),
@@ -225,7 +225,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
               children: [
                 Text(
                   'How can we help?',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     color: Colors.white,
                     fontSize: 17.sp,
                     fontWeight: FontWeight.w800,
@@ -234,7 +234,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
                 SizedBox(height: 4.h),
                 Text(
                   'Submit a ticket and our team will\nget back to you shortly.',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     color: Colors.white70,
                     fontSize: 12.sp,
                     height: 1.5,
@@ -252,7 +252,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
   Widget _buildSectionLabel(String text) {
     return Text(
       text,
-      style: GoogleFonts.lora(
+      style: GoogleFonts.playfairDisplay(
         fontSize: 13.sp,
         fontWeight: FontWeight.w700,
         color: const Color(0xFF444444),
@@ -312,7 +312,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
                 SizedBox(width: 6.w),
                 Text(
                   label,
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 13.sp,
                     fontWeight: FontWeight.w600,
                     color: selected ? Colors.white : const Color(0xFF444444),
@@ -338,7 +338,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
       controller: controller,
       maxLines: maxLines,
       validator: validator,
-      style: GoogleFonts.lora(
+      style: GoogleFonts.playfairDisplay(
         fontSize: 15.sp,
         color: const Color(0xFF1A2332),
         height: 1.5,
@@ -348,7 +348,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
             ? Icon(icon, size: 18.sp, color: const Color(0xFF1B882C))
             : null,
         hintText: hint,
-        hintStyle: GoogleFonts.lora(
+        hintStyle: GoogleFonts.playfairDisplay(
           color: const Color(0xFFBBBBBB),
           fontSize: 16.sp,
         ),
@@ -427,7 +427,7 @@ class _EnquiryFormScreenState extends ConsumerState<EnquiryFormScreen>
                   SizedBox(width: 10.w),
                   Text(
                     'Submit Enquiry',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 16.sp,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
@@ -505,7 +505,7 @@ class _SuccessSheet extends StatelessWidget {
 
           Text(
             'Ticket Submitted!',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 22.sp,
               fontWeight: FontWeight.w800,
               color: const Color(0xFF1A2332),
@@ -514,7 +514,7 @@ class _SuccessSheet extends StatelessWidget {
           SizedBox(height: 6.h),
           Text(
             message,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 13.sp,
               color: const Color(0xFF666666),
             ),
@@ -562,7 +562,7 @@ class _SuccessSheet extends StatelessWidget {
               ),
               child: Text(
                 'Done',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 16.sp,
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
@@ -582,7 +582,7 @@ class _SuccessSheet extends StatelessWidget {
         children: [
           Text(
             '$label:',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 12.sp,
               color: const Color(0xFF888888),
               fontWeight: FontWeight.w600,
@@ -592,7 +592,7 @@ class _SuccessSheet extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF1A2332),
@@ -613,7 +613,7 @@ class _SuccessSheet extends StatelessWidget {
       children: [
         Text(
           'Status:',
-          style: GoogleFonts.lora(
+          style: GoogleFonts.playfairDisplay(
             fontSize: 12.sp,
             color: const Color(0xFF888888),
             fontWeight: FontWeight.w600,
@@ -628,7 +628,7 @@ class _SuccessSheet extends StatelessWidget {
           ),
           child: Text(
             status.toUpperCase(),
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 11.sp,
               fontWeight: FontWeight.w800,
               color: color,

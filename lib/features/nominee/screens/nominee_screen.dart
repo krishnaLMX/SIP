@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/widgets/gradient_header.dart';
@@ -293,10 +294,10 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                       nominee.relationship),
                   _divider(),
                   _buildDetailRow(Icons.cake_rounded, 'Date of Birth',
-                      _formatDisplayDate(nominee.dob)),
+                      _formatDisplayDate(nominee.dob), isNumeric: true),
                   _divider(),
                   _buildDetailRow(
-                      Icons.phone_rounded, 'Mobile', nominee.mobile),
+                      Icons.phone_rounded, 'Mobile', nominee.mobile, isNumeric: true),
                   if (nominee.email != null && nominee.email!.isNotEmpty) ...[
                     _divider(),
                     _buildDetailRow(
@@ -345,7 +346,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
   }
 
   Widget _buildDetailRow(IconData icon, String label, String value,
-      {bool fullWidth = false}) {
+      {bool fullWidth = false, bool isNumeric = false}) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 10.h),
       child: fullWidth
@@ -367,7 +368,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                     SizedBox(width: 12.w),
                     Text(
                       label,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 13.sp,
                         color: const Color(0xFF8D8D8D),
                         fontWeight: FontWeight.w500,
@@ -377,13 +378,11 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                 ),
                 Padding(
                   padding: EdgeInsets.only(left: 48.w, top: 6.h),
-                  child: Text(
+                  child: NumericStyledText(
                     value,
-                    style: GoogleFonts.lora(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF333333),
-                    ),
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF333333),
                   ),
                 ),
               ],
@@ -404,7 +403,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                 Expanded(
                   child: Text(
                     label,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 13.sp,
                       color: const Color(0xFF8D8D8D),
                       fontWeight: FontWeight.w500,
@@ -412,14 +411,12 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                   ),
                 ),
                 Flexible(
-                  child: Text(
+                  child: NumericStyledText(
                     value,
                     textAlign: TextAlign.left,
-                    style: GoogleFonts.lora(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF333333),
-                    ),
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF333333),
                   ),
                 ),
               ],
@@ -481,6 +478,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                 keyboardType: TextInputType.phone,
                 maxLength: 10,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                isNumeric: true,
               ),
 
               _buildTextField(
@@ -515,6 +513,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                 maxLength: 6,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 isOptional: true,
+                isNumeric: true,
                 actionLabel: 'Check',
                 onAction: _handlePincodeCheck,
                 isActionLoading: _isPincodeChecking,
@@ -610,7 +609,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
   Widget _buildSectionLabel(String label) {
     return Text(
       label.toUpperCase(),
-      style: GoogleFonts.lora(
+      style: GoogleFonts.playfairDisplay(
         fontSize: 12.sp,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.5,
@@ -636,6 +635,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
     int maxLines = 1,
     String? errorText,
     ValueChanged<String>? onChanged,
+    bool isNumeric = false,
   }) {
     return Padding(
       padding: EdgeInsets.only(bottom: 16.h),
@@ -646,7 +646,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
             children: [
               Text(
                 label,
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 15.sp,
                   fontWeight: FontWeight.w500,
                   color: const Color(0xFF8D8D8D),
@@ -655,7 +655,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
               if (isOptional)
                 Text(
                   ' (Optional)',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 11.sp,
                     color: Colors.black26,
                     fontWeight: FontWeight.w400,
@@ -690,17 +690,23 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                     inputFormatters: inputFormatters,
                     validator: validator,
                     onChanged: onChanged,
-                    style: GoogleFonts.lora(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFF333333),
-                    ),
+                    style: isNumeric
+                        ? GoogleFonts.lora(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF333333),
+                          )
+                        : GoogleFonts.playfairDisplay(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF333333),
+                          ),
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       counterText: '',
                       contentPadding: EdgeInsets.symmetric(vertical: 12.h),
                       hintText: hint,
-                      hintStyle: GoogleFonts.lora(
+                      hintStyle: GoogleFonts.playfairDisplay(
                         fontSize: 16.sp,
                         color: Colors.grey,
                       ),
@@ -721,7 +727,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                             )
                           : Text(
                               actionLabel,
-                              style: GoogleFonts.lora(
+                              style: GoogleFonts.playfairDisplay(
                                 fontSize: 16.sp,
                                 fontWeight: FontWeight.bold,
                                 color: const Color(0xFF0E5723),
@@ -736,7 +742,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
             SizedBox(height: 6.h),
             Text(
               errorText,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 12.sp,
                 color: Colors.redAccent,
                 fontWeight: FontWeight.w500,
@@ -763,7 +769,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
         children: [
           Text(
             'Relationship *',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 15.sp,
               fontWeight: FontWeight.w500,
               color: const Color(0xFF8D8D8D),
@@ -793,12 +799,12 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(vertical: 12.h),
                 hintText: 'Select relationship',
-                hintStyle: GoogleFonts.lora(
+                hintStyle: GoogleFonts.playfairDisplay(
                   fontSize: 16.sp,
                   color: Colors.grey,
                 ),
               ),
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w500,
                 color: const Color(0xFF333333),
@@ -947,7 +953,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
         children: [
           Text(
             'Date of Birth *',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 15.sp,
               fontWeight: FontWeight.w500,
               color: const Color(0xFF8D8D8D),
@@ -976,15 +982,17 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
                   Expanded(
                     child: Text(
                       dateText.isNotEmpty ? dateText : 'Select date of birth',
-                      style: GoogleFonts.lora(
-                        fontSize: 16.sp,
-                        fontWeight: dateText.isNotEmpty
-                            ? FontWeight.w500
-                            : FontWeight.w400,
-                        color: dateText.isNotEmpty
-                            ? const Color(0xFF333333)
-                            : Colors.grey,
-                      ),
+                      style: dateText.isNotEmpty
+                          ? GoogleFonts.lora(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF333333),
+                            )
+                          : GoogleFonts.playfairDisplay(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.grey,
+                            ),
                     ),
                   ),
                   Icon(Icons.calendar_month_rounded,
@@ -1241,7 +1249,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
         children: [
           Text(
             label,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 15.sp,
               fontWeight: FontWeight.w500,
               color: const Color(0xFF8D8D8D),
@@ -1258,7 +1266,7 @@ class _NomineeScreenState extends ConsumerState<NomineeScreen>
             ),
             child: Text(
               value.isNotEmpty ? value : '—',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w500,
                 color: value.isNotEmpty ? const Color(0xFF333333) : Colors.grey,

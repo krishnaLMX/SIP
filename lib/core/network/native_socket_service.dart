@@ -31,8 +31,13 @@ class NativeSocketService {
   /// Key = commodity ID from the socket frame (e.g. '1' for Gold, '3' for Silver).
   /// Value = true (market open) / false (market closed).
   /// Default: commodity not in map = market open (no signal received yet).
-  Stream<Map<String, bool>> get marketStatusStream =>
-      _marketStatusController.stream;
+  /// Replays the current status to new listeners immediately.
+  Stream<Map<String, bool>> get marketStatusStream async* {
+    if (_commodityOpenStatus.isNotEmpty) {
+      yield Map.from(_commodityOpenStatus);
+    }
+    yield* _marketStatusController.stream;
+  }
 
   /// Current per-commodity open status (used for UI replay on new listeners).
   Map<String, bool> _commodityOpenStatus = {};
@@ -40,6 +45,7 @@ class NativeSocketService {
   bool _isDisposed = false;
   MarketRates? _lastRate;
   Timer? _reconnectTimer;
+  Timer? _gracePeriodTimer;
 
   String goldId = '1';
   String silverId = '3';
@@ -95,6 +101,13 @@ class NativeSocketService {
         },
         cancelOnError: true,
       );
+
+      // Grace period: if no explicit 5| market-status frame arrives within
+      // 1 second after connecting, infer closed from zero rates.
+      _gracePeriodTimer?.cancel();
+      _gracePeriodTimer = Timer(const Duration(seconds: 1), () {
+        _inferClosedAfterGracePeriod();
+      });
     } catch (e) {
       SecureLogger.e('NativeSocket: Connection failed: $e');
       _statusController.add(SocketStatus.error);
@@ -134,6 +147,8 @@ class NativeSocketService {
         if (parts.length >= 4 && parts[0] == '5') {
           final commodityId = parts[1].trim();
           final isOpen = parts[3].trim() == '1';
+          // Explicit status received — cancel grace-period inference.
+          _gracePeriodTimer?.cancel();
 
           if (_commodityOpenStatus[commodityId] != isOpen) {
             _commodityOpenStatus = Map.from(_commodityOpenStatus)
@@ -200,9 +215,43 @@ class NativeSocketService {
 
   void disconnect() {
     _reconnectTimer?.cancel();
+    _gracePeriodTimer?.cancel();
     _channel?.sink.close();
     _channel = null;
     _statusController.add(SocketStatus.disconnected);
+  }
+
+  /// Called after the grace period (4s post-connect). For any commodity that
+  /// has no explicit 5| status AND rates are still 0, infer market closed.
+  void _inferClosedAfterGracePeriod() {
+    bool changed = false;
+
+    // Only infer for commodities that have NO explicit 5| status yet.
+    if (!_commodityOpenStatus.containsKey(goldId)) {
+      final goldZero = _lastRate == null ||
+          (_lastRate!.goldBuy <= 0 && _lastRate!.goldSell <= 0);
+      if (goldZero) {
+        _commodityOpenStatus = Map.from(_commodityOpenStatus)
+          ..[goldId] = false;
+        changed = true;
+        SecureLogger.d('Market fallback: Gold inferred CLOSED (no 5| + zero rates)');
+      }
+    }
+
+    if (!_commodityOpenStatus.containsKey(silverId)) {
+      final silverZero = _lastRate == null ||
+          (_lastRate!.silverBuy <= 0 && _lastRate!.silverSell <= 0);
+      if (silverZero) {
+        _commodityOpenStatus = Map.from(_commodityOpenStatus)
+          ..[silverId] = false;
+        changed = true;
+        SecureLogger.d('Market fallback: Silver inferred CLOSED (no 5| + zero rates)');
+      }
+    }
+
+    if (changed && !_marketStatusController.isClosed) {
+      _marketStatusController.add(Map.from(_commodityOpenStatus));
+    }
   }
 
   void dispose() {

@@ -10,6 +10,8 @@ import '../../../core/providers/home_dashboard_provider.dart';
 import '../../profile/profile_controller.dart';
 import '../../main/main_screen.dart';
 import '../../../shared/widgets/custom_button.dart';
+import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 
 class PurchaseSuccessScreen extends ConsumerWidget {
   final Map<String, dynamic> data;
@@ -101,7 +103,7 @@ class PurchaseSuccessScreen extends ConsumerWidget {
                     // ── Title ────────────────────
                     Text(
                       isSuccess ? 'Purchase Successful!' : 'Payment Failed',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 22.sp,
                         fontWeight: FontWeight.w700,
                         color: isSuccess
@@ -120,7 +122,7 @@ class PurchaseSuccessScreen extends ConsumerWidget {
                           data['message'] ??
                               'Something went wrong. Please try again.',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 12.sp,
                             color: const Color(0xFF991B1B).withOpacity(0.7),
                             height: 1.4,
@@ -209,13 +211,11 @@ class PurchaseSuccessScreen extends ConsumerWidget {
                         size: 14.sp,
                       ),
                       SizedBox(width: 6.w),
-                      Text(
+                      NumericStyledText(
                         commodityName,
-                        style: GoogleFonts.lora(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
                     ],
                   ),
@@ -235,7 +235,7 @@ class PurchaseSuccessScreen extends ConsumerWidget {
                 SizedBox(height: 4.h),
                 Text(
                   'Total Amount',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 13.sp,
                     color: Colors.white.withOpacity(0.6),
                   ),
@@ -338,7 +338,7 @@ class PurchaseSuccessScreen extends ConsumerWidget {
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 fontWeight: FontWeight.w500,
                 color: secondaryText,
@@ -362,18 +362,12 @@ class PurchaseSuccessScreen extends ConsumerWidget {
             GestureDetector(
               onTap: () {
                 Clipboard.setData(ClipboardData(text: fullValue));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Order ID copied!',
-                        style: GoogleFonts.lora(fontSize: 13.sp)),
-                    backgroundColor: const Color(0xFF1B882C),
-                    duration: const Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                  ),
-                );
+                // Auto-clear clipboard after 60s — prevents clipboard sniffing
+                Future.delayed(const Duration(seconds: 60), () {
+                  Clipboard.setData(const ClipboardData(text: ''));
+                });
+                AppToast.show(context, 'Order ID copied!',
+                    type: ToastType.success);
               },
               child: Icon(
                 Icons.copy_rounded,
@@ -411,7 +405,7 @@ class PurchaseSuccessScreen extends ConsumerWidget {
               children: [
                 Text(
                   'Order ID',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 12.sp,
                     color: const Color(0xFF7F1D1D).withOpacity(0.6),
                     fontWeight: FontWeight.w500,
@@ -420,18 +414,12 @@ class PurchaseSuccessScreen extends ConsumerWidget {
                 GestureDetector(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: orderId.toString()));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Order ID copied!',
-                            style: GoogleFonts.lora(fontSize: 12.sp)),
-                        backgroundColor: const Color(0xFF991B1B),
-                        behavior: SnackBarBehavior.floating,
-                        duration: const Duration(seconds: 2),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
-                      ),
-                    );
+                    // Auto-clear clipboard after 60s — prevents clipboard sniffing
+                    Future.delayed(const Duration(seconds: 60), () {
+                      Clipboard.setData(const ClipboardData(text: ''));
+                    });
+                    AppToast.show(context, 'Order ID copied!',
+                        type: ToastType.success);
                   },
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -468,7 +456,7 @@ class PurchaseSuccessScreen extends ConsumerWidget {
               SizedBox(width: 6.w),
               Text(
                 'No amount has been deducted',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 11.sp,
                   color: const Color(0xFF7F1D1D).withOpacity(0.5),
                   fontWeight: FontWeight.w500,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../shared/widgets/gradient_header.dart';
 import '../../../shared/widgets/app_toast.dart';
@@ -271,7 +272,7 @@ class _ManageSavingsScreenState extends ConsumerState<ManageSavingsScreen> {
           ),
           Text(
             value,
-            style: TextStyle(
+            style: GoogleFonts.lora(
               fontSize: 13.sp,
               fontWeight: FontWeight.w700,
               color: const Color(0xFF1A1A2E),

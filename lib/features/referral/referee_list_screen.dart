@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../shared/widgets/numeric_styled_text.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../shared/widgets/gradient_header.dart';
@@ -75,7 +76,7 @@ class _RefereeListScreenState extends ConsumerState<RefereeListScreen> {
           SizedBox(height: 12.h),
           Text(
             'Failed to load referral list.',
-            style: GoogleFonts.lora(fontSize: 14.sp, color: Colors.black45),
+            style: GoogleFonts.playfairDisplay(fontSize: 14.sp, color: Colors.black45),
           ),
           SizedBox(height: 16.h),
           TextButton.icon(
@@ -109,7 +110,7 @@ class _RefereeListScreenState extends ConsumerState<RefereeListScreen> {
             SizedBox(height: 20.h),
             Text(
               'No Referrals Yet',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 18.sp,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF1E293B),
@@ -119,7 +120,7 @@ class _RefereeListScreenState extends ConsumerState<RefereeListScreen> {
             Text(
               'Share your referral code with friends and track their status here.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 color: Colors.black45,
                 height: 1.55,
@@ -160,13 +161,11 @@ class _RefereeListScreenState extends ConsumerState<RefereeListScreen> {
               Icon(Icons.people_rounded,
                   color: Colors.white, size: 16.sp),
               SizedBox(width: 8.w),
-              Text(
+              NumericStyledText(
                 '${data.count} Friend${data.count == 1 ? '' : 's'} Referred',
-                style: GoogleFonts.lora(
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
               ),
             ],
           ),
@@ -270,7 +269,7 @@ class _RefereeCard extends StatelessWidget {
                   item.referee.isNotEmpty
                       ? item.referee[0].toUpperCase()
                       : '?',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
@@ -292,7 +291,7 @@ class _RefereeCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           item.referee,
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 14.sp,
                             fontWeight: FontWeight.w700,
                             color: const Color(0xFF1E293B),
@@ -364,7 +363,7 @@ class _RefereeCard extends StatelessWidget {
                     ),
                     child: Text(
                       item.reward,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 10.sp,
                         fontWeight: FontWeight.w800,
                         color: isGold
@@ -405,7 +404,7 @@ class _RefereeCard extends StatelessWidget {
           SizedBox(width: 3.w),
           Text(
             label,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 10.sp,
               fontWeight: FontWeight.w700,
               color: style.fg,

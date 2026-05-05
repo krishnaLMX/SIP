@@ -153,7 +153,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen>
                       info.title.isNotEmpty
                           ? info.title
                           : 'Under Maintenance',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 26.sp,
                         fontWeight: FontWeight.w800,
                         color: textPrimary,
@@ -169,7 +169,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen>
                       info.subtitle.isNotEmpty
                           ? info.subtitle
                           : "We're upgrading our systems to serve you better.",
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 15.sp,
                         color: textSecondary,
                         height: 1.65,
@@ -202,7 +202,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen>
                             Flexible(
                               child: Text(
                                 info.expectedResume!,
-                                style: GoogleFonts.lora(
+                                style: GoogleFonts.playfairDisplay(
                                   fontSize: 13.sp,
                                   color: const Color(0xFFE27903),
                                   fontWeight: FontWeight.w600,
@@ -232,7 +232,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen>
                         SizedBox(width: 8.w),
                         Text(
                           'Checking status automatically…',
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 12.sp,
                             color: textSecondary,
                           ),

@@ -339,7 +339,7 @@ class _SipPaymentScreenState extends ConsumerState<SipPaymentScreen>
           SizedBox(height: 24.h),
           Text(
             'Opening Payment…',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 18.sp,
               fontWeight: FontWeight.w700,
               color: const Color(0xFF1A1A2E),
@@ -387,7 +387,7 @@ class _SipPaymentScreenState extends ConsumerState<SipPaymentScreen>
             SizedBox(height: 20.h),
             Text(
               'Verifying Authorization…',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF1A1A2E),
@@ -431,7 +431,7 @@ class _SipPaymentScreenState extends ConsumerState<SipPaymentScreen>
             Text(
               _error ?? 'Something went wrong',
               textAlign: TextAlign.center,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 14.sp,
                 fontWeight: FontWeight.w600,
                 color: const Color(0xFF1A1A2E),

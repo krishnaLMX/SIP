@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../shared/widgets/numeric_styled_text.dart';
+
 import '../../core/services/mpin_service.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/animations.dart';
@@ -152,12 +154,12 @@ class _ChangeMpinScreenState extends ConsumerState<ChangeMpinScreen> {
             ),
             SizedBox(height: 20.h),
             Text('PIN Changed!',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                     fontSize: 20.sp, fontWeight: FontWeight.w900)),
             SizedBox(height: 8.h),
             Text('Your MPIN has been updated successfully.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.lora(fontSize: 14.sp, color: Colors.black54)),
+                style: GoogleFonts.playfairDisplay(fontSize: 14.sp, color: Colors.black54)),
             SizedBox(height: 28.h),
             SizedBox(
               width: double.infinity,
@@ -209,7 +211,7 @@ class _ChangeMpinScreenState extends ConsumerState<ChangeMpinScreen> {
                       delay: const Duration(milliseconds: 100),
                       child: Text(
                         _stepTitle,
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 24.sp,
                           fontWeight: FontWeight.w600,
                           color: isDark ? Colors.white : const Color(0xFF1E293B),
@@ -219,12 +221,10 @@ class _ChangeMpinScreenState extends ConsumerState<ChangeMpinScreen> {
                     SizedBox(height: 8.h),
                     FadeInAnimation(
                       delay: const Duration(milliseconds: 150),
-                      child: Text(
+                      child: NumericStyledText(
                         _stepSubtitle,
-                        style: GoogleFonts.lora(
-                          fontSize: 14.sp,
-                          color: isDark ? Colors.white38 : Colors.black45,
-                        ),
+                        fontSize: 14.sp,
+                        color: isDark ? Colors.white38 : Colors.black45,
                         textAlign: TextAlign.center,
                       ),
                     ),

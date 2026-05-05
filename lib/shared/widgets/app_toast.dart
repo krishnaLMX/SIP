@@ -1,22 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'numeric_styled_text.dart';
 
 /// Toast type determines color palette and icon.
 enum ToastType { success, error, warning, info }
 
+/// Where the toast appears on screen.
+enum ToastPosition {
+  /// Bottom of screen (default). Hidden by keyboard when input is active.
+  bottom,
+
+  /// Vertically centred. Always visible even when the keyboard is open.
+  center,
+
+  /// Top of screen, below the status bar.
+  top,
+}
+
 /// AppToast
 ///
 /// Premium floating overlay toast with:
-///   • fade-in + upward slide entry
+///   • fade-in + slide entry animation
 ///   • auto-dismiss after [duration]
 ///   • fade-out exit
 ///   • success / error / warning / info variants
+///   • bottom / center / top positioning
 ///
 /// Usage:
 /// ```dart
-/// AppToast.show(context, 'Withdrawal Successful!', type: ToastType.success);
-/// AppToast.show(context, 'Network error', type: ToastType.error);
+/// // Always visible — use center when keyboard may be open
+/// AppToast.show(context, 'Invalid amount', type: ToastType.error,
+///               position: ToastPosition.center);
+///
+/// // Default bottom
+/// AppToast.show(context, 'Copied!', type: ToastType.success);
 /// ```
 class AppToast {
   AppToast._();
@@ -28,20 +45,32 @@ class AppToast {
     String message, {
     ToastType type = ToastType.info,
     Duration duration = const Duration(milliseconds: 2800),
+    /// Kept for backward-compatibility. Ignored when [position] is set explicitly.
     bool showAtBottom = true,
+    // Default is center — always visible even when keyboard is open.
+    ToastPosition position = ToastPosition.center,
   }) {
     // Dismiss any active toast immediately
     _dismiss();
 
+    // Dismiss keyboard so the toast is never obscured.
+    // This is a no-op when the keyboard is already closed.
+    FocusManager.instance.primaryFocus?.unfocus();
+
     final overlay = Overlay.of(context, rootOverlay: true);
     late OverlayEntry entry;
+
+    // Resolve final position (legacy bool takes lower priority than enum)
+    final resolvedPosition = position != ToastPosition.bottom
+        ? position
+        : (showAtBottom ? ToastPosition.bottom : ToastPosition.top);
 
     entry = OverlayEntry(
       builder: (_) => _ToastWidget(
         message: message,
         type: type,
         duration: duration,
-        showAtBottom: showAtBottom,
+        position: resolvedPosition,
         onDismiss: () {
           entry.remove();
           if (_currentEntry == entry) _currentEntry = null;
@@ -63,14 +92,14 @@ class _ToastWidget extends StatefulWidget {
   final String message;
   final ToastType type;
   final Duration duration;
-  final bool showAtBottom;
+  final ToastPosition position;
   final VoidCallback onDismiss;
 
   const _ToastWidget({
     required this.message,
     required this.type,
     required this.duration,
-    required this.showAtBottom,
+    required this.position,
     required this.onDismiss,
   });
 
@@ -96,11 +125,15 @@ class _ToastWidgetState extends State<_ToastWidget>
 
     _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
 
-    // Slide up from bottom, or slide down from top
+    // Slide direction depends on position
+    final slideBegin = switch (widget.position) {
+      ToastPosition.bottom => const Offset(0, 0.35),
+      ToastPosition.top => const Offset(0, -0.35),
+      ToastPosition.center => const Offset(0, 0.15),
+    };
+
     _slide = Tween<Offset>(
-      begin: widget.showAtBottom
-          ? const Offset(0, 0.35)
-          : const Offset(0, -0.35),
+      begin: slideBegin,
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
@@ -129,25 +162,54 @@ class _ToastWidgetState extends State<_ToastWidget>
     final bottomPad = mediaQuery.padding.bottom;
     final topPad = mediaQuery.padding.top;
 
-    return Positioned(
-      left: 20.w,
-      right: 20.w,
-      bottom: widget.showAtBottom ? bottomPad + 24.h : null,
-      top: !widget.showAtBottom ? topPad + 12.h : null,
-      child: Material(
-        color: Colors.transparent,
-        child: FadeTransition(
-          opacity: _opacity,
-          child: SlideTransition(
-            position: _slide,
-            child: _buildCard(context),
+    Widget positionedToast;
+
+    switch (widget.position) {
+      case ToastPosition.bottom:
+        positionedToast = Positioned(
+          left: 20.w,
+          right: 20.w,
+          bottom: bottomPad + 24.h,
+          child: _buildAnimated(),
+        );
+      case ToastPosition.top:
+        positionedToast = Positioned(
+          left: 20.w,
+          right: 20.w,
+          top: topPad + 12.h,
+          child: _buildAnimated(),
+        );
+      case ToastPosition.center:
+        // Use Align so the toast sits in the true visual centre regardless
+        // of keyboard inset — the overlay ignores the IME inset.
+        positionedToast = Positioned.fill(
+          child: Align(
+            alignment: const Alignment(0, -0.2), // slightly above centre
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20.w),
+              child: _buildAnimated(),
+            ),
           ),
-        ),
+        );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: positionedToast,
+    );
+  }
+
+  Widget _buildAnimated() {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _slide,
+        child: _buildCard(),
       ),
     );
   }
 
-  Widget _buildCard(BuildContext context) {
+  Widget _buildCard() {
     return Container(
       constraints: BoxConstraints(maxWidth: 480.w),
       padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
@@ -163,7 +225,7 @@ class _ToastWidgetState extends State<_ToastWidget>
             offset: const Offset(0, 8),
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -186,14 +248,11 @@ class _ToastWidgetState extends State<_ToastWidget>
           SizedBox(width: 12.w),
           // Message
           Flexible(
-            child: Text(
+            child: NumericStyledText(
               widget.message,
-              style: GoogleFonts.lora(
-                fontSize: 13.5.sp,
-                fontWeight: FontWeight.w500,
-                color: _style.textColor,
-                height: 1.4,
-              ),
+              fontSize: 13.5.sp,
+              fontWeight: FontWeight.w500,
+              color: _style.textColor,
             ),
           ),
         ],
@@ -207,7 +266,7 @@ class _ToastWidgetState extends State<_ToastWidget>
         return _ToastStyle(
           background: const Color(0xFFF0FDF4),
           border: const Color(0xFFBBF7D0),
-          shadow: const Color(0xFF16A34A).withOpacity(0.18),
+          shadow: const Color(0xFF16A34A).withValues(alpha: 0.18),
           iconBackground: const Color(0xFFDCFCE7),
           iconColor: const Color(0xFF16A34A),
           icon: Icons.check_circle_rounded,
@@ -217,7 +276,7 @@ class _ToastWidgetState extends State<_ToastWidget>
         return _ToastStyle(
           background: const Color(0xFFFFF1F2),
           border: const Color(0xFFFECDD3),
-          shadow: const Color(0xFFDC2626).withOpacity(0.18),
+          shadow: const Color(0xFFDC2626).withValues(alpha: 0.18),
           iconBackground: const Color(0xFFFFE4E6),
           iconColor: const Color(0xFFDC2626),
           icon: Icons.error_rounded,
@@ -227,7 +286,7 @@ class _ToastWidgetState extends State<_ToastWidget>
         return _ToastStyle(
           background: const Color(0xFFFFFBEB),
           border: const Color(0xFFFDE68A),
-          shadow: const Color(0xFFD97706).withOpacity(0.18),
+          shadow: const Color(0xFFD97706).withValues(alpha: 0.18),
           iconBackground: const Color(0xFFFEF3C7),
           iconColor: const Color(0xFFD97706),
           icon: Icons.warning_amber_rounded,
@@ -237,7 +296,7 @@ class _ToastWidgetState extends State<_ToastWidget>
         return _ToastStyle(
           background: const Color(0xFFEFF6FF),
           border: const Color(0xFFBFDBFE),
-          shadow: const Color(0xFF2563EB).withOpacity(0.18),
+          shadow: const Color(0xFF2563EB).withValues(alpha: 0.18),
           iconBackground: const Color(0xFFDBEAFE),
           iconColor: const Color(0xFF2563EB),
           icon: Icons.info_rounded,

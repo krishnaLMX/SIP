@@ -134,7 +134,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
             children: [
               Text(
                 'PAN Verification',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 18.sp,
                   fontWeight: FontWeight.w600,
                   color: const Color(0xFF643D41),
@@ -154,7 +154,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
               Text(
                 'PAN Verification\nCompleted Successfully',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 20.sp,
                   fontWeight: FontWeight.w700,
                   color: Colors.black,
@@ -204,7 +204,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Complete your KYC',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                           fontSize: 20.sp,
                           fontWeight: FontWeight.w600,
                           color: isDark ? Colors.white : Colors.black)),
@@ -258,7 +258,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
         ),
         SizedBox(width: 8.w),
         Text('${doc.name} Required',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
                 fontSize: 15.sp,
                 fontWeight: FontWeight.w500,
                 color: isDark ? Colors.white : Colors.black)),
@@ -303,7 +303,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
                     Text('INCOME TAX DEPARTMENT',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                             fontSize: 9.sp,
                             fontWeight: FontWeight.w600,
                             color: isDark ? Colors.white70 : Colors.black54)),
@@ -326,7 +326,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
                     Text('GOVT OF INDIA',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                             fontSize: 9.sp,
                             fontWeight: FontWeight.w600,
                             color: isDark ? Colors.white70 : Colors.black54)),
@@ -402,7 +402,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
             children: [
               if (!stylized)
                 Text(field.label,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                         fontSize: 14.sp,
                         fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white60 : Colors.black54)),
@@ -415,7 +415,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
                     ? TextCapitalization.characters
                     : TextCapitalization.none,
                 inputFormatters: formatters,
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                     color: stylized
                         ? Colors.black87
                         : (isDark ? Colors.white : Colors.black),
@@ -423,7 +423,7 @@ class _KycScreenState extends ConsumerState<KycScreen> {
                         stylized ? FontWeight.w600 : FontWeight.normal),
                 decoration: InputDecoration(
                   hintText: field.label,
-                  hintStyle: GoogleFonts.lora(
+                  hintStyle: GoogleFonts.playfairDisplay(
                       fontSize: 16.sp,
                       color: isDark ? Colors.white38 : Colors.black38),
                   filled: true,

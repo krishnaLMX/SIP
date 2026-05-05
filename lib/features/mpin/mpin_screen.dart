@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../shared/widgets/numeric_styled_text.dart';
 import 'package:screen_protector/screen_protector.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -333,7 +334,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                 Text(
                                   title,
                                   textAlign: TextAlign.center,
-                                  style: GoogleFonts.lora(
+                                  style: GoogleFonts.playfairDisplay(
                                     fontSize: 24.sp,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 2,
@@ -343,16 +344,14 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                   ),
                                 ),
                                 SizedBox(height: 8.h),
-                                Text(
+                                NumericStyledText(
                                   subtitle,
                                   textAlign: TextAlign.center,
-                                  style: GoogleFonts.lora(
-                                    fontSize: 14.sp,
-                                    color: isDark
-                                        ? Colors.white38
-                                        : Colors.black45,
-                                    fontWeight: FontWeight.w400,
-                                  ),
+                                  fontSize: 14.sp,
+                                  color: isDark
+                                      ? Colors.white38
+                                      : Colors.black45,
+                                  fontWeight: FontWeight.w400,
                                 ),
                               ],
                             );
@@ -534,7 +533,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                     onTap: _handleForgotPin,
                                     child: Text(
                                       'Forgot PIN?',
-                                      style: GoogleFonts.lora(
+                                      style: GoogleFonts.playfairDisplay(
                                         color: isDark
                                             ? Colors.white38
                                             : Colors.black38,
@@ -728,7 +727,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
 
       if (result['success'] == true && mounted) {
         final otpRefId = result['data']?['otp_reference_id'] ?? '';
-        Navigator.pushNamed(
+        Navigator.pushReplacementNamed(
           context,
           AppRouter.otp,
           arguments: {
@@ -773,14 +772,14 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
             ),
             SizedBox(height: 24.h),
             Text('Withdrawal Successful',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                     fontSize: 20.sp, fontWeight: FontWeight.w900)),
             SizedBox(height: 12.h),
             Text(
                 'Your funds will be credited to your account within 24-48 hours.',
                 textAlign: TextAlign.center,
                 style:
-                    GoogleFonts.lora(fontSize: 14.sp, color: Colors.black54)),
+                    GoogleFonts.playfairDisplay(fontSize: 14.sp, color: Colors.black54)),
             SizedBox(height: 32.h),
             SizedBox(
               width: double.infinity,

@@ -4,11 +4,11 @@ import 'package:startgold/core/network/api_client.dart';
 
 // ── Type mapping: label → API integer ────────────────────────────────────────
 const Map<String, int> kTicketTypes = {
-  'Enquiry':      1,
-  'Support':      2,
-  'Review':       3,
+  'Enquiry': 1,
+  'Support': 2,
+  'Review': 3,
   'Auto Savings': 5,
-  'Others':       4,
+  'Others': 4,
 };
 
 // ── Response model from create-ticket ────────────────────────────────────────
@@ -61,11 +61,12 @@ class Enquiry {
 
   factory Enquiry.fromJson(Map<String, dynamic> json) => Enquiry(
         // id field can come as int or string
-        enquiryId: json['id']?.toString() ?? json['enquiry_id']?.toString() ?? '',
-        type:      json['type'] ?? '',
-        subject:   json['subject'] ?? '',
-        content:   json['content'] ?? '',
-        status:    json['status'] ?? 'pending',
+        enquiryId:
+            json['id']?.toString() ?? json['enquiry_id']?.toString() ?? '',
+        type: json['type'] ?? '',
+        subject: json['subject'] ?? '',
+        content: json['content'] ?? '',
+        status: json['status'] ?? 'pending',
         // "on" is the date field from create-ticket response
         createdAt: json['on'] ?? json['created_at'] ?? '',
         lastUpdate: json['last_update'] ?? json['on'] ?? '',
@@ -84,7 +85,7 @@ class EnquiryService {
     required String content,
   }) async {
     final response = await _apiClient.post('support/create-ticket', data: {
-      'type':    type,
+      'type': type,
       'subject': subject,
       'content': content,
     });
@@ -97,21 +98,23 @@ class EnquiryService {
       final response = await _apiClient.post('support/list', data: {});
       final body = response.data;
 
-      // ── DEBUG: print full raw response so we can see the real shape ──
-      debugPrint('═══ SUPPORT/LIST STATUS: ${response.statusCode} ═══');
-      debugPrint('═══ SUPPORT/LIST BODY: $body ═══');
-      debugPrint('═══ BODY TYPE: ${body.runtimeType} ═══');
-      if (body is Map) {
-        body.forEach((k, v) {
-          debugPrint('  [$k] (${v.runtimeType}): $v');
-        });
+      if (kDebugMode) {
+        debugPrint('═══ SUPPORT/LIST STATUS: ${response.statusCode} ═══');
+        debugPrint('═══ SUPPORT/LIST BODY: $body ═══');
+        debugPrint('═══ BODY TYPE: ${body.runtimeType} ═══');
+        if (body is Map) {
+          body.forEach((k, v) {
+            debugPrint('  [$k] (${v.runtimeType}): $v');
+          });
+        }
       }
 
       if (body == null) return [];
 
       // ── Try root-level list first ──────────────────────────────────
       if (body is List) {
-        debugPrint('SUPPORT: root is List, length=${body.length}');
+        if (kDebugMode)
+          debugPrint('SUPPORT: root is List, length=${body.length}');
         return body
             .map((e) => Enquiry.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -121,16 +124,19 @@ class EnquiryService {
       if (body is Map<String, dynamic>) {
         // success flag check
         if (body['success'] == false) {
-          debugPrint('SUPPORT: success=false, msg=${body['message']}');
+          if (kDebugMode)
+            debugPrint('SUPPORT: success=false, msg=${body['message']}');
           return [];
         }
 
         final dataField = body['data'];
-        debugPrint('SUPPORT: data field type=${dataField.runtimeType}');
+        if (kDebugMode)
+          debugPrint('SUPPORT: data field type=${dataField.runtimeType}');
 
         // data IS a list
         if (dataField is List) {
-          debugPrint('SUPPORT: data is List, length=${dataField.length}');
+          if (kDebugMode)
+            debugPrint('SUPPORT: data is List, length=${dataField.length}');
           return dataField
               .map((e) => Enquiry.fromJson(e as Map<String, dynamic>))
               .toList();
@@ -138,13 +144,22 @@ class EnquiryService {
 
         // data is a nested map — try every possible key
         if (dataField is Map<String, dynamic>) {
-          debugPrint('SUPPORT: data is Map, keys=${dataField.keys.toList()}');
+          if (kDebugMode)
+            debugPrint(
+                'SUPPORT: data is Map, keys=\${dataField.keys.toList()}');
           for (final key in [
-            'tickets', 'enquiries', 'list', 'items', 'data', 'records'
+            'tickets',
+            'enquiries',
+            'list',
+            'items',
+            'data',
+            'records'
           ]) {
             final inner = dataField[key];
             if (inner is List) {
-              debugPrint('SUPPORT: found list under data[$key], len=${inner.length}');
+              if (kDebugMode)
+                debugPrint(
+                    'SUPPORT: found list under data[$key], len=\${inner.length}');
               return inner
                   .map((e) => Enquiry.fromJson(e as Map<String, dynamic>))
                   .toList();
@@ -153,10 +168,11 @@ class EnquiryService {
         }
       }
 
-      debugPrint('SUPPORT: no list found in response, returning []');
+      if (kDebugMode)
+        debugPrint('SUPPORT: no list found in response, returning []');
       return [];
     } catch (e, st) {
-      debugPrint('SUPPORT/LIST ERROR: $e\n$st');
+      if (kDebugMode) debugPrint('SUPPORT/LIST ERROR: $e\n$st');
       return [];
     }
   }

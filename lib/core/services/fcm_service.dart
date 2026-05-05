@@ -41,7 +41,7 @@ import '../services/notification_service.dart';
 /// Do NOT navigate here — navigation happens only on user tap.
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  debugPrint('[FCM] Background received: ${message.messageId}');
+  if (kDebugMode) debugPrint('[FCM] Background received: ${message.messageId}');
 }
 
 class FcmService {
@@ -102,11 +102,13 @@ class FcmService {
           () => _handleNotificationOpen(initial));
     }
 
-    // 8. Log device token (copy from logcat and paste in Firebase test tool)
-    final token = await getToken();
-    debugPrint('[FCM] ──── Device Token ────');
-    debugPrint('[FCM] $token');
-    debugPrint('[FCM] ─────────────────────');
+    // 8. Log device token (debug only — NEVER log in production)
+    if (kDebugMode) {
+      final token = await getToken();
+      debugPrint('[FCM] ──── Device Token ────');
+      debugPrint('[FCM] ${token?.substring(0, 10)}...'); // partial only
+      debugPrint('[FCM] ─────────────────────');
+    }
 
     // 9. Listen for token refresh — re-register with backend automatically
     _messaging.onTokenRefresh.listen(_onTokenRefreshed);
@@ -126,7 +128,7 @@ class FcmService {
   /// App is FOREGROUND when FCM push arrives.
   /// FCM is silent on Android when foreground — we must display it manually.
   static void _handleForegroundMessage(RemoteMessage message) {
-    debugPrint('[FCM] Foreground: ${message.notification?.title}');
+    if (kDebugMode) debugPrint('[FCM] Foreground: ${message.notification?.title}');
     final notification = message.notification;
     if (notification == null) return;
 
@@ -158,20 +160,20 @@ class FcmService {
   /// Rule: FCM is a TRIGGER only — always navigate to /notifications
   /// and let the screen fetch fresh data from the API.
   static void _handleNotificationOpen(RemoteMessage message) {
-    debugPrint('[FCM] Opened from notification: ${message.data}');
+    if (kDebugMode) debugPrint('[FCM] Opened from notification.');
     _navigateToNotifications();
   }
 
   /// User tapped a LOCAL notification (shown while app was foreground).
   static void _onLocalNotifTap(NotificationResponse response) {
-    debugPrint('[FCM] Local notification tapped: ${response.payload}');
+    if (kDebugMode) debugPrint('[FCM] Local notification tapped.');
     _navigateToNotifications();
   }
 
   /// Called when Firebase rotates the device token.
   /// Re-registers the new token with the backend automatically.
   static void _onTokenRefreshed(String newToken) {
-    debugPrint('[FCM] Token refreshed — re-registering with server.');
+    if (kDebugMode) debugPrint('[FCM] Token refreshed — re-registering.');
     final service = NotificationService();
     service.registerFcmToken(newToken);
   }

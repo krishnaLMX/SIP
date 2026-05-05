@@ -86,6 +86,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedTabProvider);
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
     // Mark current tab as visited
     if (!_visitedTabs.contains(selectedIndex)) {
@@ -123,7 +124,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         }
       },
       child: Scaffold(
-        extendBody: true,
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
             IndexedStack(
@@ -141,15 +142,19 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     : const SizedBox.shrink(),
               ],
             ),
-            _buildBottomNav(ref, selectedIndex, isDark),
+            _buildBottomNav(ref, selectedIndex, isDark, keyboardOpen),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBottomNav(WidgetRef ref, int selectedIndex, bool isDark) {
+  Widget _buildBottomNav(WidgetRef ref, int selectedIndex, bool isDark, bool keyboardOpen) {
     final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
+
+    // Hide navbar completely when the soft keyboard is visible
+    if (keyboardOpen) return const SizedBox.shrink();
+
     return Positioned(
       bottom: bottomPadding + 16.h,
       left: 16.w,

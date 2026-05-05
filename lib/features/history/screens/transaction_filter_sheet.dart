@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_filter.dart';
 
@@ -288,7 +289,7 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
               children: [
                 Text(
                   'Filter Transactions',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 20.sp,
                     fontWeight: FontWeight.w800,
                     color: isDark ? Colors.white : const Color(0xFF1A1A2E),
@@ -296,13 +297,11 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
                 ),
                 if (_activeCount > 0) ...[
                   SizedBox(height: 2.h),
-                  Text(
+                  NumericStyledText(
                     '$_activeCount filter${_activeCount > 1 ? 's' : ''} applied',
-                    style: GoogleFonts.lora(
-                      fontSize: 12.sp,
-                      color: _green,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    fontSize: 12.sp,
+                    color: _green,
+                    fontWeight: FontWeight.w600,
                   ),
                 ],
               ],
@@ -328,7 +327,7 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
                     SizedBox(width: 5.w),
                     Text(
                       'Reset All',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w700,
                         color: const Color(0xFFDC2626),
@@ -369,7 +368,7 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
             SizedBox(width: 8.w),
             Text(
               label,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 fontWeight: FontWeight.w800,
                 color: labelColor,
@@ -414,7 +413,7 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 10.w),
           child: Text('→',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 16.sp,
                 color: _green,
                 fontWeight: FontWeight.w700,
@@ -483,13 +482,17 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
                     date != null
                         ? DateFormat('dd MMM yy').format(date)
                         : 'Select',
-                    style: GoogleFonts.lora(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w600,
-                      color: isSet
-                          ? _darkGreen
-                          : (isDark ? Colors.white38 : Colors.grey),
-                    ),
+                    style: date != null
+                        ? GoogleFonts.lora(
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w600,
+                            color: _darkGreen,
+                          )
+                        : GoogleFonts.playfairDisplay(
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white38 : Colors.grey,
+                          ),
                   ),
                 ],
               ),
@@ -560,15 +563,13 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
                       size: 12.sp, color: Colors.white),
                   SizedBox(width: 4.w),
                 ],
-                Text(
+                NumericStyledText(
                   _capitalise(displayLabel),
-                  style: GoogleFonts.lora(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w600,
-                    color: isSelected
-                        ? Colors.white
-                        : Colors.grey.shade600,
-                  ),
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected
+                      ? Colors.white
+                      : Colors.grey.shade600,
                 ),
               ],
             ),
@@ -609,7 +610,7 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
                   child: Center(
                     child: Text(
                       'Reset',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 14.sp,
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white60 : const Color(0xFF64748B),
@@ -648,15 +649,13 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
                       Icon(Icons.check_circle_outline_rounded,
                           size: 16.sp, color: Colors.white),
                       SizedBox(width: 8.w),
-                      Text(
+                      NumericStyledText(
                         _activeCount > 0
                             ? 'Apply ($_activeCount)'
                             : 'Show All',
-                        style: GoogleFonts.lora(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
                       ),
                     ],
                   ),

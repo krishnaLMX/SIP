@@ -231,7 +231,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
               ),
               label: Text(
                 profileState.isEditing ? 'Cancel' : 'Edit',
-                style: GoogleFonts.lora(fontWeight: FontWeight.w700, color: Colors.white),
+                style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700, color: Colors.white),
               ),
             ),
           ),
@@ -265,10 +265,10 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                         ),
                         SizedBox(height: 32.h),
                         _buildInputField(label: 'Name as per PAN *', controller: _nameController, isEditable: profileState.isEditing, isDark: isDark, textCapitalization: TextCapitalization.words, inputFormatters: [UpperCaseWordsFormatter()]),
-                        _buildInputField(label: 'Phone Number *', hint: MaskingUtils.maskMobile(user.phone), isEditable: false, isDark: isDark),
+                        _buildInputField(label: 'Phone Number *', hint: MaskingUtils.maskMobile(user.phone), isEditable: false, isDark: isDark, isNumeric: true),
                         _buildInputField(label: 'E-Mail *', controller: _emailController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.emailAddress, errorText: _emailError, onChanged: (_) { if (_emailError != null) setState(() => _emailError = null); }),
-                        _buildInputField(label: 'DOB *', hint: user.dob, isEditable: false, isDark: isDark),
-                        _buildInputField(label: 'Pincode *', controller: _pincodeController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)], actionLabel: 'Check', onAction: _handlePincodeCheck, isActionLoading: _isPincodeChecking, onChanged: (_) { if (!_isPincodeValid) setState(() => _isPincodeValid = true); }),
+                        _buildInputField(label: 'DOB *', hint: user.dob, isEditable: false, isDark: isDark, isNumeric: true),
+                        _buildInputField(label: 'Pincode *', controller: _pincodeController, isEditable: profileState.isEditing, isDark: isDark, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)], actionLabel: 'Check', onAction: _handlePincodeCheck, isActionLoading: _isPincodeChecking, onChanged: (_) { if (!_isPincodeValid) setState(() => _isPincodeValid = true); }, isNumeric: true),
                         if (_stateController.text.isNotEmpty)
                           _buildInputField(label: 'State', controller: _stateController, isEditable: false, isDark: isDark),
                         if (_cityController.text.isNotEmpty)
@@ -349,16 +349,24 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
     List<TextInputFormatter>? inputFormatters,
     String? errorText,
     ValueChanged<String>? onChanged,
+    bool isNumeric = false,
   }) {
     String displayValue = controller?.text ?? hint ?? '';
     if (label.contains('DOB')) displayValue = _formatDate(displayValue);
+
+    final valueStyle = isNumeric
+        ? GoogleFonts.lora(fontSize: 16.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white54 : const Color(0xFF333333))
+        : GoogleFonts.playfairDisplay(fontSize: 16.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white54 : const Color(0xFF333333));
+    final inputStyle = isNumeric
+        ? GoogleFonts.lora(fontSize: 16.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white : const Color(0xFF333333))
+        : GoogleFonts.playfairDisplay(fontSize: 16.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white : const Color(0xFF333333));
 
     return Padding(
       padding: EdgeInsets.only(bottom: 16.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: GoogleFonts.lora(fontSize: 15.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white70 : const Color(0xFF8D8D8D))),
+          Text(label, style: GoogleFonts.playfairDisplay(fontSize: 15.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white70 : const Color(0xFF8D8D8D))),
           SizedBox(height: 8.h),
           Container(
             decoration: BoxDecoration(
@@ -379,12 +387,12 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                           textCapitalization: textCapitalization,
                           inputFormatters: inputFormatters,
                           onChanged: onChanged,
-                          style: GoogleFonts.lora(fontSize: 16.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white : const Color(0xFF333333)),
-                          decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 12.h), hintStyle: GoogleFonts.lora(fontSize: 16.sp, color: Colors.grey)),
+                          style: inputStyle,
+                          decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 12.h), hintStyle: GoogleFonts.playfairDisplay(fontSize: 16.sp, color: Colors.grey)),
                         )
                       : Padding(
                           padding: EdgeInsets.symmetric(vertical: 16.h),
-                          child: Text(displayValue, style: GoogleFonts.lora(fontSize: 16.sp, fontWeight: FontWeight.w500, color: isDark ? Colors.white54 : const Color(0xFF333333))),
+                          child: Text(displayValue, style: valueStyle),
                         ),
                 ),
                 if (actionLabel != null && isEditable)
@@ -394,7 +402,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
                       padding: EdgeInsets.only(left: 12.w),
                       child: isActionLoading
                         ? SizedBox(height: 16.h, width: 16.h, child: const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0E5723)))
-                        : Text(actionLabel, style: GoogleFonts.lora(fontSize: 16.sp, fontWeight: FontWeight.bold, color: const Color(0xFF0E5723))),
+                        : Text(actionLabel, style: GoogleFonts.playfairDisplay(fontSize: 16.sp, fontWeight: FontWeight.bold, color: const Color(0xFF0E5723))),
                     ),
                   ),
               ],
@@ -402,7 +410,7 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
           ),
           if (errorText != null) ...[
             SizedBox(height: 6.h),
-            Text(errorText, style: GoogleFonts.lora(fontSize: 12.sp, color: Colors.redAccent, fontWeight: FontWeight.w500)),
+            Text(errorText, style: GoogleFonts.playfairDisplay(fontSize: 12.sp, color: Colors.redAccent, fontWeight: FontWeight.w500)),
           ],
         ],
       ),

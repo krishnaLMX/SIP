@@ -89,7 +89,7 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner>
                   children: [
                     Text(
                       label,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         color: Colors.white,
                         fontSize: 13.sp,
                         fontWeight: FontWeight.w700,
@@ -97,7 +97,7 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner>
                     ),
                     Text(
                       sublabel,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         color: Colors.white70,
                         fontSize: 11.sp,
                       ),
@@ -117,7 +117,7 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner>
                     ),
                     child: Text(
                       'Retry',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         color: Colors.white,
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w700,

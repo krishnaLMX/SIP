@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 import 'package:intl/intl.dart';
 import '../../../routes/app_router.dart';
 import '../../main/main_screen.dart';
@@ -123,13 +124,11 @@ class _TransactionHistoryScreenState
           children: [
             Icon(Icons.tune_rounded, size: 15.sp, color: Colors.white),
             SizedBox(width: 5.w),
-            Text(
+            NumericStyledText(
               count > 0 ? 'Filter ($count)' : 'Filter',
-              style: GoogleFonts.lora(
-                fontSize: 12.sp,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
             ),
           ],
         ),
@@ -223,13 +222,11 @@ class _TransactionHistoryScreenState
               color: _green.withOpacity(0.12),
               borderRadius: BorderRadius.circular(20.r),
             ),
-            child: Text(
+            child: NumericStyledText(
               '${_filter.activeCount} Filter${_filter.activeCount > 1 ? 's' : ''}',
-              style: GoogleFonts.lora(
-                fontSize: 11.sp,
-                fontWeight: FontWeight.w700,
-                color: _green,
-              ),
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w700,
+              color: _green,
             ),
           ),
           SizedBox(width: 8.w),
@@ -256,7 +253,7 @@ class _TransactionHistoryScreenState
                   SizedBox(width: 4.w),
                   Text(
                     'Clear All',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 11.sp,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFFDC2626),
@@ -301,13 +298,11 @@ class _TransactionHistoryScreenState
                   children: [
                     Icon(icon, size: 12.sp, color: color),
                     SizedBox(width: 5.w),
-                    Text(
+                    NumericStyledText(
                       label,
-                      style: GoogleFonts.lora(
-                        fontSize: 11.sp,
-                        fontWeight: FontWeight.w600,
-                        color: color,
-                      ),
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: color,
                     ),
                   ],
                 ),
@@ -378,16 +373,14 @@ class _TransactionHistoryScreenState
                 ),
               ),
               SizedBox(width: 8.w),
-              Text(
+              NumericStyledText(
                 date,
-                style: GoogleFonts.lora(
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.7)
-                      : const Color(0xFF475569),
-                  letterSpacing: 0.3,
-                ),
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                color: isDark
+                    ? Colors.white.withOpacity(0.7)
+                    : const Color(0xFF475569),
+                letterSpacing: 0.3,
               ),
               SizedBox(width: 8.w),
               Expanded(
@@ -399,13 +392,11 @@ class _TransactionHistoryScreenState
                 ),
               ),
               SizedBox(width: 8.w),
-              Text(
+              NumericStyledText(
                 '${transactions.length} ${transactions.length == 1 ? 'txn' : 'txns'}',
-                style: GoogleFonts.lora(
-                  fontSize: 10.sp,
-                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
-                  fontWeight: FontWeight.w600,
-                ),
+                fontSize: 10.sp,
+                color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                fontWeight: FontWeight.w600,
               ),
             ],
           ),
@@ -479,18 +470,16 @@ class _TransactionHistoryScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  NumericStyledText(
                     tx.metalName,
-                    style: GoogleFonts.lora(
-                      fontSize: 15.sp,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
-                    ),
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
                   ),
                   SizedBox(height: 3.h),
                   Text(
                     typeLabel,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 12.sp,
                       fontWeight: FontWeight.w500,
                       color: typeColor,
@@ -511,7 +500,7 @@ class _TransactionHistoryScreenState
                       SizedBox(width: 4.w),
                       Text(
                         _capitalise(tx.status),
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 10.sp,
                           fontWeight: FontWeight.w600,
                           color: statusColor,
@@ -584,7 +573,7 @@ class _TransactionHistoryScreenState
           SizedBox(height: 20.h),
           Text(
             'No Transactions Found',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 17.sp,
               fontWeight: FontWeight.w700,
               color: isDark ? Colors.white70 : const Color(0xFF334155),
@@ -593,7 +582,7 @@ class _TransactionHistoryScreenState
           SizedBox(height: 6.h),
           Text(
             'Try adjusting or clearing your filters',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 13.sp,
               color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
             ),
@@ -624,7 +613,7 @@ class _TransactionHistoryScreenState
                   SizedBox(width: 8.w),
                   Text(
                     'Clear Filters',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 13.sp,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,

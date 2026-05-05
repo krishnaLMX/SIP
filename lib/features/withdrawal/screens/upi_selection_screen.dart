@@ -179,7 +179,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                 children: [
                   Text(
                     method.title.isNotEmpty ? method.title : method.identifier,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontWeight: FontWeight.w700,
                       fontSize: 14.sp,
                       color: isDark ? Colors.white : Colors.black87,
@@ -188,7 +188,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                   SizedBox(height: 2.h),
                   Text(
                     method.identifier,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 12.sp,
                       color: isDark ? Colors.white54 : Colors.black45,
                     ),
@@ -207,7 +207,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                 ),
                 child: Text(
                   'suggested',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 10.sp,
                     fontWeight: FontWeight.w600,
                     color: _accentGreen,
@@ -251,7 +251,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
               SizedBox(width: 12.w),
               Text(
                 'Add Account',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontWeight: FontWeight.w700,
                   fontSize: 14.sp,
                   color: _accentGreen,
@@ -294,7 +294,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
           SizedBox(height: 16.h),
           Text(
             'Add Account',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 16.sp,
               fontWeight: FontWeight.w700,
               color: isDark ? Colors.white : Colors.black87,
@@ -304,7 +304,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
           Text(
             'Add a UPI ID or bank account\nto proceed with withdrawal',
             textAlign: TextAlign.center,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 12.sp,
               color: isDark ? Colors.white38 : Colors.black38,
               height: 1.5,
@@ -327,7 +327,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
           Text(
             'Failed to load accounts.\nPull to refresh.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
                 color: isDark ? Colors.white54 : Colors.black54),
           ),
           SizedBox(height: 24.h),
@@ -427,7 +427,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
               SizedBox(height: 16.h),
               Text(
                 'Add Account',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                     fontSize: 20.sp,
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : Colors.black),
@@ -435,7 +435,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
               SizedBox(height: 4.h),
               Text(
                 'Select your preferred payout method for a quick and secure transfer.',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                     fontSize: 12.sp,
                     color: isDark ? Colors.white54 : Colors.black54,
                     height: 1.5),
@@ -509,13 +509,13 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                           fontWeight: FontWeight.w800,
                           fontSize: 14.sp,
                           color: isDark ? Colors.white : Colors.black87)),
                   SizedBox(height: 3.h),
                   Text(desc,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                           fontSize: 11.sp,
                           color: isDark ? Colors.white38 : Colors.black45,
                           height: 1.4)),
@@ -576,7 +576,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Add UPI Handle',
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.w600,
                             color: isDark ? Colors.white : Colors.black)),
@@ -597,14 +597,14 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                 SizedBox(height: 4.h),
                 Text(
                   'Receive your money instantly using your UPI\nID for a quick and easy transfer.',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                       fontSize: 12.sp,
                       color: isDark ? Colors.white54 : Colors.black54,
                       height: 1.5),
                 ),
                 SizedBox(height: 24.h),
                 Text('Enter UPI ID',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                         fontSize: 13.sp,
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white70 : Colors.black87)),
@@ -613,7 +613,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                   controller: ctrl,
                   enabled: !isVerifying,
                   onChanged: (_) => setModalState(() {}),
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                       color: isDark ? Colors.white : Colors.black),
                   decoration: InputDecoration(
                     hintText: 'example@abc',
@@ -704,7 +704,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                   Text('Add Bank Account',
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                               fontSize: 20.sp,
                               fontWeight: FontWeight.w600,
                               color: isDark ? Colors.white : Colors.black)),
@@ -840,7 +840,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                     SizedBox(width: 12.w),
                     Text(
                       'Verifying...',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 16.sp,
                         fontWeight: FontWeight.w700,
                         color: Colors.white70,
@@ -851,7 +851,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
               : Text(
                   label,
                   key: const ValueKey('label'),
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 16.sp,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -872,7 +872,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 fontWeight: FontWeight.w700,
                 color: isDark ? Colors.white70 : Colors.black87)),
@@ -890,7 +890,7 @@ class _UpiSelectionScreenState extends ConsumerState<UpiSelectionScreen> {
                       newValue.copyWith(text: newValue.text.toUpperCase()))
                 ]
               : null,
-          style: GoogleFonts.lora(
+          style: GoogleFonts.playfairDisplay(
               fontWeight: FontWeight.w600,
               color: isDark ? Colors.white : Colors.black),
           decoration: InputDecoration(

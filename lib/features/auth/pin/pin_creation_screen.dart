@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../controller/auth_controller.dart';
 import '../../../routes/app_router.dart';
@@ -179,7 +180,7 @@ class _PinCreationScreenState extends ConsumerState<PinCreationScreen> {
                         _isConfirming
                             ? 'Confirm\nYour PIN'
                             : 'Set Your\nSecurity PIN',
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 28.sp,
                           fontWeight: FontWeight.w800,
                           color: textColor,
@@ -190,15 +191,13 @@ class _PinCreationScreenState extends ConsumerState<PinCreationScreen> {
                     SizedBox(height: 8.h),
                     FadeInAnimation(
                       delay: const Duration(milliseconds: 150),
-                      child: Text(
+                      child: NumericStyledText(
                         _isConfirming
                             ? 'Re-enter the 4-digit PIN to confirm.'
                             : 'Create a 4-digit PIN for quick & secure access.',
-                        style: GoogleFonts.lora(
-                          fontSize: 14.sp,
-                          color: subtitleColor,
-                          fontWeight: FontWeight.w400,
-                        ),
+                        fontSize: 14.sp,
+                        color: subtitleColor,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
 

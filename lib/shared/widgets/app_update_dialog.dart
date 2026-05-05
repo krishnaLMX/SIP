@@ -93,7 +93,7 @@ class AppUpdateDialog extends StatelessWidget {
               // ── Title ─────────────────────────────────────────────
               Text(
                 msg.title.isNotEmpty ? msg.title : 'Update Available',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 20.sp,
                   fontWeight: FontWeight.w800,
                   color: textPrimary,
@@ -111,7 +111,7 @@ class AppUpdateDialog extends StatelessWidget {
                 ),
                 child: Text(
                   'v${msg.latestVersion}',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 12.sp,
                     color: const Color(0xFF1B882C),
                     fontWeight: FontWeight.w700,
@@ -125,7 +125,7 @@ class AppUpdateDialog extends StatelessWidget {
                 msg.message.isNotEmpty
                     ? msg.message
                     : 'A new version is available. Update now for the latest features and security improvements.',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 14.sp,
                   color: textSecondary,
                   height: 1.6,
@@ -155,7 +155,7 @@ class AppUpdateDialog extends StatelessWidget {
                     ),
                     child: Text(
                       msg.buttonText.isNotEmpty ? msg.buttonText : 'Update Now',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 15.sp,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,

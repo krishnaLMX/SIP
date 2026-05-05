@@ -413,6 +413,68 @@ This document summarizes the complete set of API endpoints required for the Star
     }
     ```
 
+### 2.3.1 Pre-Validate Registration Fields
+*   **Page Name:** `RegistrationScreen`
+*   **Reason:** Validates the registration form data (name, email, DOB, referral code) on the server before navigating to PIN creation. Ensures data is unique, correctly formatted, and the temp_token is still valid — without actually creating the account yet.
+*   **Trigger:** User taps "Confirm" on the Personal Information screen (after agreeing to T&C).
+*   **Endpoint:** `POST users/auth/register-check`
+*   **Authorization:** None (uses temp_token from OTP verification)
+*   **Request Body:**
+    ```json
+    {
+      "mobile": "9876543210",
+      "full_name": "Lord Alexander",
+      "email": "alex@gold.com",
+      "dob": "15/06/1995",
+      "referral_code": "KSU8Y314",
+      "temp_token": "TEMP_REG_TOKEN_507d6305",
+      "device_id": "uuid-123",
+      "device_type": "android"
+    }
+    ```
+*   **Fields:**
+
+    | Field | Type | Required | Description |
+    |-------|------|----------|-------------|
+    | `mobile` | String | Yes | User's mobile number |
+    | `full_name` | String | Yes | Full name as on PAN card |
+    | `email` | String | Yes | Valid email address |
+    | `dob` | String | Yes | Date of birth in `DD/MM/YYYY` format |
+    | `referral_code` | String | No | Optional referral code |
+    | `temp_token` | String | Yes | Temporary token received from OTP verification |
+    | `device_id` | String | Yes | Unique device identifier |
+    | `device_type` | String | Yes | `"android"` or `"ios"` |
+
+*   **Response (Success — fields are valid):**
+    ```json
+    {
+      "success": true,
+      "message": "Validation passed. Proceed to MPIN creation."
+    }
+    ```
+*   **Response (Error — validation failed):**
+    ```json
+    {
+      "success": false,
+      "error": {
+        "message": "Email already registered with another account."
+      }
+    }
+    ```
+*   **App Behaviour:**
+
+    | `success` | Action |
+    |-----------|--------|
+    | `true` | Navigate to MPIN creation screen (`/mpin-creation`) with all registration fields |
+    | `false` | Show error in `AppToast` (error type), stay on same page |
+
+*   **Error Scenarios:**
+    - Invalid or expired `temp_token`
+    - Email already in use
+    - Invalid date of birth format
+    - Invalid referral code
+    - Server-side validation failures
+
 ---
 
 ### 2.4 Refresh Access Token

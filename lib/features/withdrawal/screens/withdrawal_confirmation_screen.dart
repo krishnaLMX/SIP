@@ -217,7 +217,7 @@ class _WithdrawalConfirmationScreenState
                         Expanded(
                           child: Text(
                             '${type == CommodityType.gold ? 'Gold' : 'Silver'} market is closed. Confirmation unavailable.',
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 11.sp,
                               fontWeight: FontWeight.w600,
                               color: const Color(0xFF92400E),
@@ -255,7 +255,7 @@ class _WithdrawalConfirmationScreenState
                           padding: EdgeInsets.only(top: 8.h),
                           child: Text(
                             'Rate updated based on latest market price',
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 12.sp,
                               color: Colors.green[700],
                               fontWeight: FontWeight.w600,
@@ -312,7 +312,7 @@ class _WithdrawalConfirmationScreenState
       child: Column(
         children: [
           Text('You will receive',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                   color: isDark ? Colors.white54 : Colors.black54,
                   fontSize: 14.sp)),
           SizedBox(height: 8.h),
@@ -342,7 +342,7 @@ class _WithdrawalConfirmationScreenState
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
                 color: isDark ? Colors.white54 : Colors.black54)),
         Text(value, style: GoogleFonts.lora(fontWeight: FontWeight.w700)),
       ],
@@ -368,7 +368,7 @@ class _WithdrawalConfirmationScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('CREDIT TO',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                         fontSize: 10.sp,
                         fontWeight: FontWeight.w800,
                         color: isDark ? Colors.white38 : Colors.black38)),
@@ -399,7 +399,7 @@ class _WithdrawalConfirmationScreenState
                     color: Colors.greenAccent[400], size: 16.sp),
                 SizedBox(width: 8.w),
                 Text('Secure Bank Transfer',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                         fontSize: 12.sp,
                         color: Colors.greenAccent[700],
                         fontWeight: FontWeight.w600)),
@@ -445,7 +445,7 @@ class _WithdrawalConfirmationScreenState
         withdrawal.selectedMethod == null ||
         !timerState.isActive) {
       AppToast.show(context, 'Missing required information to proceed',
-          type: ToastType.warning);
+          type: ToastType.warning, position: ToastPosition.center);
       return;
     }
 
@@ -508,7 +508,8 @@ class _WithdrawalConfirmationScreenState
                 ?? response['data']?['message']?.toString()
                 ?? response['message']?.toString()
                 ?? 'Withdrawal failed. Please try again.';
-            AppToast.show(context, errorMsg, type: ToastType.error);
+            AppToast.show(context, errorMsg,
+                type: ToastType.error, position: ToastPosition.center);
           }
         }
       } catch (e) {
@@ -516,7 +517,7 @@ class _WithdrawalConfirmationScreenState
           setState(() => _isSubmitting = false);
           AppToast.show(
               context, 'Failed to process withdrawal. Please try again.',
-              type: ToastType.error);
+              type: ToastType.error, position: ToastPosition.center);
         }
       }
     }

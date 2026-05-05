@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../../shared/widgets/numeric_styled_text.dart';
 
 import '../main/main_screen.dart';
 import '../../routes/app_router.dart';
@@ -120,7 +121,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                 ),
                 Text(
                   'Refer & Earn',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
@@ -148,7 +149,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                                 true
                             ? Text(
                                 asyncData.value!.title,
-                                style: GoogleFonts.lora(
+                                style: GoogleFonts.playfairDisplay(
                                   fontSize: 20.sp,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white,
@@ -157,7 +158,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                               )
                             : RichText(
                                 text: TextSpan(
-                                  style: GoogleFonts.lora(
+                                  style: GoogleFonts.playfairDisplay(
                                     fontSize: 20.sp,
                                     fontWeight: FontWeight.w600,
                                     color: Colors.white,
@@ -168,9 +169,10 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                                         text: 'Invite a friend and earn '),
                                     TextSpan(
                                       text: rewardText,
-                                      style: const TextStyle(
-                                        color: Color(0xFFFDE047),
+                                      style: GoogleFonts.lora(
+                                        color: const Color(0xFFFDE047),
                                         fontWeight: FontWeight.w700,
+                                        fontSize: 20.sp,
                                       ),
                                     ),
                                     const TextSpan(text: ' worth of Gold.'),
@@ -217,7 +219,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
         Expanded(
           child: Text(
             text,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 14.sp,
               fontWeight: FontWeight.w500,
               color: Colors.white.withOpacity(0.9),
@@ -287,7 +289,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
         children: [
           Text(
             'Why Refer?',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 13.sp,
               fontWeight: FontWeight.w800,
               color: const Color(0xFF1B882C),
@@ -314,14 +316,12 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                     ),
                   ),
                   Expanded(
-                    child: Text(
+                    child: NumericStyledText(
                       entry.value,
-                      style: GoogleFonts.lora(
-                        fontSize: 13.sp,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF475569),
-                        height: 1.55,
-                      ),
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF475569),
+                      height: 1.55,
                     ),
                   ),
                 ],
@@ -365,7 +365,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
             // Label
             Text(
               'YOUR REFERRAL CODE',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 11.sp,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFFB8860B),
@@ -387,7 +387,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
               child: Text(
                 code,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 28.sp,
                   fontWeight: FontWeight.w900,
                   color: const Color(0xFF1B3A2D),
@@ -404,6 +404,10 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                   child: OutlinedButton.icon(
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: code));
+                      // Auto-clear clipboard after 60s — prevents clipboard sniffing
+                      Future.delayed(const Duration(seconds: 60), () {
+                        Clipboard.setData(const ClipboardData(text: ''));
+                      });
                       AppToast.show(context, 'Referral code copied!',
                           type: ToastType.success);
                     },
@@ -411,7 +415,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                         size: 16.sp, color: const Color(0xFF1B882C)),
                     label: Text(
                       'Copy Code',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 13.sp,
                         fontWeight: FontWeight.w700,
                         color: const Color(0xFF1B882C),
@@ -452,7 +456,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                           size: 16.sp, color: Colors.white),
                       label: Text(
                         'Share',
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 13.sp,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
@@ -492,7 +496,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
       children: [
         Text(
           'How It Works',
-          style: GoogleFonts.lora(
+          style: GoogleFonts.playfairDisplay(
             fontSize: 16.sp,
             fontWeight: FontWeight.w800,
             color: const Color(0xFF1E293B),
@@ -550,7 +554,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                     Text(
                       step['label'] as String,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 11.sp,
                         fontWeight: FontWeight.w600,
                         color: const Color(0xFF475569),
@@ -628,7 +632,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                     children: [
                       Text(
                         'Friends Referred',
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 12.sp,
                           fontWeight: FontWeight.w600,
                           color: Colors.white.withOpacity(0.75),
@@ -653,7 +657,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                           SizedBox(width: 4.w),
                           Text(
                             'Keep referring & earn more gold!',
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 11.sp,
                               fontWeight: FontWeight.w500,
                               color: Colors.white.withOpacity(0.7),
@@ -666,7 +670,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                         children: [
                           Text(
                             'View list',
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 11.sp,
                               fontWeight: FontWeight.w600,
                               color: const Color(0xFFFDE047),

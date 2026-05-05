@@ -1,10 +1,10 @@
 import 'dart:ui';
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 import '../../../core/providers/commodity_provider.dart';
 import '../../../core/providers/portfolio_provider.dart';
 import '../../../core/providers/user_provider.dart';
@@ -32,9 +32,11 @@ class WithdrawalScreen extends ConsumerStatefulWidget {
 class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
   final TextEditingController _amountController = TextEditingController();
   bool _portfolioLoaded = false;
-  Timer? _policyDebounce;
   // Only show validation error after user starts typing
   bool _hasUserTyped = false;
+  /// Holds the last policy error message. Non-null = button stays disabled
+  /// until the user changes the amount (which clears it).
+  String? _policyError;
 
   @override
   void initState() {
@@ -60,24 +62,11 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
           ref.invalidate(savingConfigProvider);
         }
       }
-
-      // Initial policy fetch with amount = 0
-      _fetchPolicy(amount: 0);
     });
-  }
-
-  /// Fetch withdrawal policy from API. Called on load and on every amount change.
-  void _fetchPolicy({required double amount}) {
-    final commodity = ref.read(commodityProvider);
-    final metalId = commodity == CommodityType.gold ? 1 : 3;
-    ref
-        .read(withdrawalPolicyProvider.notifier)
-        .fetch(metalId: metalId, amount: amount);
   }
 
   @override
   void dispose() {
-    _policyDebounce?.cancel();
     _amountController.dispose();
     super.dispose();
   }
@@ -89,7 +78,6 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
     final withdrawalState = ref.watch(withdrawalProvider);
     final timerState = ref.watch(buyRateTimerProvider);
     final rewardAsync = ref.watch(rewardBalanceProvider);
-    final policyAsync = ref.watch(withdrawalPolicyProvider);
 
     // Watch config to trigger the API fetch
     final configAsync = ref.watch(savingConfigProvider);
@@ -116,15 +104,13 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
       });
     }
 
-    // Reset amount + timer + policy when commodity switches
+    // Reset amount + timer when commodity switches
     ref.listen(commodityProvider, (prev, next) {
       if (prev != next) {
         _amountController.clear();
         ref.read(withdrawalProvider.notifier).updateAmount(0);
-        // Reset typing flag so error banner is hidden until user types again
-        if (mounted) setState(() => _hasUserTyped = false);
-        // Re-fetch policy for newly selected commodity
-        _fetchPolicy(amount: 0);
+        // Reset typing flag and clear policy error
+        if (mounted) setState(() { _hasUserTyped = false; _policyError = null; });
 
         ref.read(buyRateTimerProvider.notifier).clear();
         final config = ref.read(savingConfigProvider).valueOrNull;
@@ -250,7 +236,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                         Expanded(
                           child: Text(
                             '${selectedCommodity == CommodityType.gold ? 'Gold' : 'Silver'} market is closed. Rates resume when market opens.',
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 11.sp,
                               fontWeight: FontWeight.w600,
                               color: const Color(0xFF92400E),
@@ -280,9 +266,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                   SizedBox(height: 24.h),
                   _buildMainInputCard(
                       selectedCommodity, market, withdrawalState,
-                      rewardAsync, policyAsync),
-                  // ── Premium validation error banner (between card & footer) ──
-                  _buildValidationError(policyAsync, rewardAsync, market, selectedCommodity),
+                      rewardAsync),
                   SizedBox(height: 16.h),
                 ],
               ),
@@ -291,7 +275,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
           // ── Pinned Footer ─────────────────────────────────────────
           _buildFooter(
               withdrawalState, market, selectedCommodity,
-              isCurrentMarketClosed, policyAsync, rewardAsync),
+              isCurrentMarketClosed, rewardAsync),
         ],
       ),
     );
@@ -342,15 +326,13 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                             border: Border.all(
                                 color: const Color(0xFF064E3B).withOpacity(0.1)),
                           ),
-                          child: Text(
+                          child: NumericStyledText(
                             type == CommodityType.gold
                                 ? '24K Gold'
                                 : 'Pure Silver',
-                            style: TextStyle(
-                              fontSize: 10.sp,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF064E3B),
-                            ),
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF064E3B),
                           ),
                         ),
                       ],
@@ -407,7 +389,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                             child: Text(
                               timeStr,
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: GoogleFonts.lora(
                                 fontSize: 12.sp,
                                 color: const Color(0xFF064E3B),
                                 fontWeight: FontWeight.w600,
@@ -425,7 +407,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
               SizedBox(height: 8.h),
               Text(
                 '₹${price.toStringAsFixed(2)}/gm',
-                style: TextStyle(
+                style: GoogleFonts.lora(
                   fontSize: 20.sp,
                   fontWeight: FontWeight.w700,
                   color: Colors.black,
@@ -556,7 +538,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
         child: Center(
           child: Text(
             label,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 14.sp,
               fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
               color: isActive
@@ -573,13 +555,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
       CommodityType type,
       AsyncValue<MarketRates> market,
       WithdrawalState state,
-      AsyncValue<Map<String, dynamic>> rewardAsync,
-      AsyncValue<dynamic> policyAsync) {
-    // Only show red border after user has interacted
-    final policy = policyAsync.valueOrNull;
-    final showError =
-        _hasUserTyped && policy != null && !policy.validation.isValid;
-
+      AsyncValue<Map<String, dynamic>> rewardAsync) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 24.w),
       child: Container(
@@ -640,7 +616,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                 return Row(
                   children: [
                     Text('${withdrawable.toStringAsFixed(4)} gm',
-                        style: TextStyle(
+                        style: GoogleFonts.lora(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.w700,
                             color: Colors.black)),
@@ -650,7 +626,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                           width: 1.5, height: 20.h, color: Colors.black12),
                     ),
                     Text('\u20b9 ${inrValue.toStringAsFixed(2)}',
-                        style: TextStyle(
+                        style: GoogleFonts.lora(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.w700,
                             color: Colors.black)),
@@ -692,7 +668,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                       color: const Color(0xFFF9FAFB),
                       borderRadius: BorderRadius.circular(16.r),
                       border: Border.all(
-                        color: showError
+                        color: _policyError != null
                             ? Colors.red.withOpacity(0.45)
                             : Colors.black.withOpacity(0.05),
                       ),
@@ -700,7 +676,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                     child: Row(
                       children: [
                         Text('₹',
-                            style: TextStyle(
+                            style: GoogleFonts.lora(
                                 fontSize: 20.sp,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.black)),
@@ -723,17 +699,13 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                               ref
                                   .read(withdrawalProvider.notifier)
                                   .updateAmount(doubleValue);
-                              // Immediately invalidate stale policy so button
-                              // disables while the debounced fetch is pending.
-                              ref.invalidate(withdrawalPolicyProvider);
-                              // Debounce policy fetch: 600ms after typing stops
-                              _policyDebounce?.cancel();
-                              _policyDebounce = Timer(
-                                const Duration(milliseconds: 600),
-                                () => _fetchPolicy(amount: doubleValue),
-                              );
+                              // Clear any previous policy error so button
+                              // re-enables when user changes the amount.
+                              if (_policyError != null) {
+                                setState(() => _policyError = null);
+                              }
                             },
-                            style: TextStyle(
+                            style: GoogleFonts.lora(
                                 fontSize: 20.sp,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.black),
@@ -750,7 +722,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                               final grams =
                                   price > 0 ? state.amount / price : 0.0;
                               return Text('${grams.toStringAsFixed(4)}gm',
-                                  style: TextStyle(
+                                  style: GoogleFonts.lora(
                                       fontSize: 12.sp,
                                       color: Colors.black45,
                                       fontWeight: FontWeight.w600));
@@ -771,14 +743,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
       AsyncValue<MarketRates> market,
       CommodityType type,
       bool isCurrentMarketClosed,
-      AsyncValue<dynamic> policyAsync,
       AsyncValue<Map<String, dynamic>> rewardAsync) {
-    final policy = policyAsync.valueOrNull;
-    // Disable when: no amount, processing, market closed, policy loading,
-    // or policy says is_valid=false, or amount exceeds withdrawable balance.
-    final policyValid = policy?.validation.isValid ?? false;
-    final isPolicyReady = policyAsync.hasValue && policy != null;
-
     // ── Client-side balance check ──────────────────────────────────────
     final reward = rewardAsync.valueOrNull;
     final withdrawableQty =
@@ -790,12 +755,13 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
     final exceedsBalance =
         withdrawalState.amount > 0 && maxInr > 0 && withdrawalState.amount > maxInr;
 
+    // Button enabled when: amount > 0, not processing, market open,
+    // no balance exceeded, and no pending policy error.
     final isEnabled = withdrawalState.amount > 0 &&
         !withdrawalState.isProcessing &&
         !isCurrentMarketClosed &&
-        isPolicyReady &&
-        policyValid &&
-        !exceedsBalance;
+        !exceedsBalance &&
+        _policyError == null;
     return SafeArea(
       top: false,
       child: Container(
@@ -944,19 +910,17 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      NumericStyledText(
                         commodityName,
-                        style: GoogleFonts.lora(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w800,
-                          color: isGold
-                              ? const Color(0xFF3D2000)
-                              : const Color(0xFF2A2A2A),
-                        ),
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w800,
+                        color: isGold
+                            ? const Color(0xFF3D2000)
+                            : const Color(0xFF2A2A2A),
                       ),
                       Text(
                         'Holdings Breakdown',
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 12.sp,
                           color: isGold
                               ? const Color(0xFF5C3300).withOpacity(0.7)
@@ -1065,7 +1029,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 fontWeight: FontWeight.w500,
                 color: Colors.black54,
@@ -1090,21 +1054,32 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
     final rates = market.valueOrNull;
     if (rates == null) return;
 
-    // ── Step 1: Check policy validation (primary gate) ───────────────────
-    final policy = ref.read(withdrawalPolicyProvider).valueOrNull;
-    if (policy != null && !policy.validation.isValid) {
-      AppToast.show(
-          context,
-          policy.validation.message ??
-              'Invalid withdrawal amount. Please check the limits.',
-          type: ToastType.error);
-      return;
-    }
-
     final notifier = ref.read(withdrawalProvider.notifier);
     notifier.setProcessing(true);
 
     try {
+      // ── Step 1: Call withdrawal/policy to validate the amount ────────
+      final commodity = ref.read(commodityProvider);
+      final metalId = commodity == CommodityType.gold ? 1 : 3;
+      final amount = ref.read(withdrawalProvider).amount;
+
+      final policy = await ref
+          .read(withdrawalServiceProvider)
+          .fetchWithdrawalPolicy(metalId: metalId, amount: amount);
+
+      if (!mounted) return;
+
+      if (!policy.validation.isValid) {
+        notifier.setProcessing(false);
+        final errorMsg = policy.validation.message ??
+            'Invalid withdrawal amount. Please check the limits.';
+        setState(() => _policyError = errorMsg);
+        AppToast.show(context, errorMsg,
+            type: ToastType.error, position: ToastPosition.center);
+        return;
+      }
+
+      // ── Step 2: Policy valid → call check-eligibility ────────────────
       final user = ref.read(userProvider);
       if (user == null) {
         notifier.setProcessing(false);
@@ -1115,7 +1090,7 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
           await ref.read(withdrawalServiceProvider).checkEligibility(
                 customerId: user.id,
                 mobile: user.mobile,
-                amount: ref.read(withdrawalProvider).amount,
+                amount: amount,
                 metalId: ref.read(selectedMetalIdProvider),
               );
 
@@ -1131,114 +1106,10 @@ class _WithdrawalScreenState extends ConsumerState<WithdrawalScreen> {
     } catch (e) {
       if (mounted) {
         notifier.setProcessing(false);
-        AppToast.show(context, 'Something went wrong. Please try again.',
-            type: ToastType.error);
+        final msg = e.toString().replaceFirst('Exception: ', '');
+        AppToast.show(context, msg,
+            type: ToastType.error, position: ToastPosition.center);
       }
     }
-  }
-
-  /// Premium error banner shown between the input card and the footer.
-  /// Only visible AFTER user has started typing AND is_valid = false.
-  Widget _buildValidationError(
-    AsyncValue<dynamic> policyAsync,
-    AsyncValue<Map<String, dynamic>> rewardAsync,
-    AsyncValue<MarketRates> market,
-    CommodityType type,
-  ) {
-    final policy = policyAsync.valueOrNull;
-
-    // ── Client-side balance check (instant, no API needed) ───────────
-    final reward = rewardAsync.valueOrNull;
-    final withdrawableQty =
-        double.tryParse(reward?['withdrawable_qty']?.toString() ?? '0') ?? 0.0;
-    final liveRate = type == CommodityType.gold
-        ? market.valueOrNull?.goldBuy ?? 0.0
-        : market.valueOrNull?.silverBuy ?? 0.0;
-    final maxInr = withdrawableQty * liveRate;
-    final enteredAmount = double.tryParse(_amountController.text) ?? 0.0;
-    final exceedsBalance =
-        _hasUserTyped && enteredAmount > 0 && maxInr > 0 && enteredAmount > maxInr;
-
-    // Show balance-exceeded error first; otherwise show API policy error
-    final showBalanceError = exceedsBalance;
-    final showPolicyError =
-        !exceedsBalance && _hasUserTyped && policy != null && !policy.validation.isValid;
-    final showError = showBalanceError || showPolicyError;
-    final message = showBalanceError
-        ? 'Amount exceeds your withdrawable balance of ₹${maxInr.toStringAsFixed(2)}'
-        : (policy?.validation.message ?? '');
-
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-      child: showError
-          ? Padding(
-              padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 0),
-              child: Container(
-                width: double.infinity,
-                padding:
-                    EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1F2),
-                  borderRadius: BorderRadius.circular(16.r),
-                  border: Border.all(
-                    color: const Color(0xFFFDA4AF).withOpacity(0.6),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.red.withOpacity(0.06),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(6.r),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF4D6D).withOpacity(0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.error_rounded,
-                        size: 16.sp,
-                        color: const Color(0xFFE11D48),
-                      ),
-                    ),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Invalid Amount',
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFFBE123C),
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                          SizedBox(height: 3.h),
-                          Text(
-                            message,
-                            style: TextStyle(
-                              fontSize: 11.sp,
-                              color: const Color(0xFF9F1239),
-                              fontWeight: FontWeight.w500,
-                              height: 1.45,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          : const SizedBox.shrink(),
-    );
   }
 }

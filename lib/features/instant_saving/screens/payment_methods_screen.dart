@@ -18,6 +18,8 @@ import '../models/saving_models.dart';
 import './purchase_success_screen.dart';
 import 'package:startgold/shared/widgets/gradient_header.dart';
 import 'package:startgold/features/market/models/market_rates.dart';
+import 'package:startgold/shared/widgets/app_toast.dart';
+import 'package:startgold/shared/widgets/numeric_styled_text.dart';
 
 class PaymentMethodsScreen extends ConsumerStatefulWidget {
   final double amount;
@@ -257,9 +259,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
         String message = (e is Failure)
             ? e.message
             : 'Payment initiation failed. Please try again.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        AppToast.show(context, message, type: ToastType.error);
       }
     } finally {
       // Only reset _isLoading if Cashfree was NOT launched.
@@ -303,9 +303,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
         String message = (e is Failure)
             ? e.message
             : 'Payment initiation failed. Please try again.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        AppToast.show(context, message, type: ToastType.error);
       }
     }
   }
@@ -501,7 +499,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                               Expanded(
                                 child: Text(
                                   '${widget.metalId == '1' ? 'Gold' : 'Silver'} market is closed. Rates resume when market opens.',
-                                  style: GoogleFonts.lora(
+                                  style: GoogleFonts.playfairDisplay(
                                     fontSize: 11.sp,
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF92400E),
@@ -527,7 +525,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                             horizontal: 24.w, vertical: 8.h),
                         child: Text(
                           'Recommended Payment Gateway',
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 11.sp,
                             fontWeight: FontWeight.w800,
                             color: isDark ? Colors.white38 : Colors.black38,
@@ -555,13 +553,11 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                                         color: const Color(0xFF1B882C),
                                         size: 14.sp),
                                     SizedBox(width: 8.w),
-                                    Text(
+                                    NumericStyledText(
                                       '100% Secure Payments',
-                                      style: GoogleFonts.lora(
-                                        fontSize: 12.sp,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF1B882C),
-                                      ),
+                                      fontSize: 12.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF1B882C),
                                     ),
                                   ],
                                 ),
@@ -600,7 +596,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                         SizedBox(height: 20.h),
                         Text(
                           'Verifying Payment...',
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 16.sp,
                             fontWeight: FontWeight.w700,
                             color: isDark ? Colors.white : Colors.black,
@@ -678,7 +674,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Total Payable',
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                                 fontSize: 10.sp,
                                 color: Colors.white.withOpacity(0.6),
                                 fontWeight: FontWeight.w800,
@@ -708,7 +704,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                                 SizedBox(width: 4.w),
                                 Text(
                                   'Updated at current rate',
-                                  style: GoogleFonts.lora(
+                                  style: GoogleFonts.playfairDisplay(
                                     fontSize: 9.sp,
                                     color: const Color(0xFFFBBF24),
                                     fontWeight: FontWeight.w600,
@@ -733,14 +729,12 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                           Icon(Icons.auto_graph_rounded,
                               color: Colors.white, size: 14.sp),
                           SizedBox(width: 8.w),
-                          Text(
+                          NumericStyledText(
                             widget.metalId == '1' ? '24K GOLD' : 'PURE SILVER',
-                            style: GoogleFonts.lora(
-                              fontSize: 10.sp,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
-                            ),
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
                           ),
                         ],
                       ),
@@ -816,7 +810,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
           Expanded(
             child: Text(
               'Live Price Updated Successfully',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 12.sp,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF064E3B),
@@ -843,7 +837,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                 label,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 9.sp,
                   fontWeight: FontWeight.w800,
                   color: Colors.white.withOpacity(0.5),
@@ -928,7 +922,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(method.name,
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                             fontSize: 14.sp,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
@@ -936,7 +930,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                     SizedBox(height: 4.h),
                     Text(
                       method.description,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w500,
                         color: isDark ? Colors.white38 : Colors.black45,
@@ -1007,7 +1001,7 @@ class _PaymentMethodsScreenState extends ConsumerState<PaymentMethodsScreen> {
                       'Transaction charges may vary based on your chosen '
                       'payment method and may include gateway fees. Please '
                       'verify the final payable amount before proceeding.',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 11.sp,
                         fontWeight: FontWeight.w500,
                         color: const Color(0xFF92400E),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:startgold/shared/widgets/numeric_styled_text.dart';
 import 'package:startgold/features/support/enquiry_service.dart';
 import 'package:startgold/shared/theme/app_theme.dart';
 import 'package:startgold/shared/widgets/animations.dart';
@@ -48,7 +49,7 @@ class EnquiryListScreen extends ConsumerWidget {
             icon: const Icon(Icons.add_rounded, color: Colors.white),
             label: Text(
               'New Enquiry',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 15.sp,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,
@@ -108,7 +109,7 @@ class EnquiryListScreen extends ConsumerWidget {
                     SizedBox(height: 12.h),
                     Text(
                       'Could not load enquiries.\nPlease try again.',
-                      style: GoogleFonts.lora(fontSize: 14.sp, color: Colors.black45),
+                      style: GoogleFonts.playfairDisplay(fontSize: 14.sp, color: Colors.black45),
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 20.h),
@@ -148,7 +149,7 @@ class EnquiryListScreen extends ConsumerWidget {
             SizedBox(height: 20.h),
             Text(
               'No Enquiries Yet',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 18.sp,
                 fontWeight: FontWeight.w800,
                 color: const Color(0xFF1A2332),
@@ -157,7 +158,7 @@ class EnquiryListScreen extends ConsumerWidget {
             SizedBox(height: 8.h),
             Text(
               'Submit a ticket and our support\nteam will get back to you.',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                   fontSize: 13.sp,
                   color: const Color(0xFF888888),
                   height: 1.5),
@@ -232,7 +233,7 @@ class EnquiryListScreen extends ConsumerWidget {
                     SizedBox(width: 4.w),
                     Text(
                       enquiry.status.toUpperCase(),
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 10.sp,
                         fontWeight: FontWeight.w800,
                         color: statusColor,
@@ -256,7 +257,7 @@ class EnquiryListScreen extends ConsumerWidget {
           // ── Subject ────────────────────────────────────────────────
           Text(
             enquiry.subject,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 15.sp,
               fontWeight: FontWeight.w800,
               color: isDark ? Colors.white : const Color(0xFF1A2332),
@@ -274,7 +275,7 @@ class EnquiryListScreen extends ConsumerWidget {
                 SizedBox(width: 4.w),
                 Text(
                   enquiry.type,
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 12.sp,
                     color: isDark ? Colors.white38 : Colors.black45,
                     fontWeight: FontWeight.w600,
@@ -287,13 +288,11 @@ class EnquiryListScreen extends ConsumerWidget {
           // ── Ticket ID ──────────────────────────────────────────────
           if (enquiry.enquiryId.isNotEmpty) ...[
             SizedBox(height: 8.h),
-            Text(
+            NumericStyledText(
               'Ticket #${enquiry.enquiryId}',
-              style: GoogleFonts.lora(
-                fontSize: 11.sp,
-                color: isDark ? Colors.white24 : Colors.black26,
-                fontWeight: FontWeight.w600,
-              ),
+              fontSize: 11.sp,
+              color: isDark ? Colors.white24 : Colors.black26,
+              fontWeight: FontWeight.w600,
             ),
           ],
         ],

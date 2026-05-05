@@ -75,7 +75,7 @@ class _SipSuccessScreenState extends State<SipSuccessScreen>
                   children: [
                     Text(
                       'Auto Save is On!',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 24.sp,
                         fontWeight: FontWeight.w800,
                         color: const Color(0xFF1A1A2E),

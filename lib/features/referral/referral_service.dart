@@ -73,14 +73,16 @@ class ReferralService {
           await _apiClient.post('users/auth/referral/details', data: {});
       final body = response.data;
 
-      debugPrint('═══ REFERRAL/DATA STATUS: ${response.statusCode} ═══');
-      debugPrint('═══ REFERRAL/DATA BODY: $body ═══');
+      if (kDebugMode) {
+        debugPrint('═══ REFERRAL/DATA STATUS: ${response.statusCode} ═══');
+        debugPrint('═══ REFERRAL/DATA BODY: $body ═══');
+      }
 
       if (body == null) return ReferralData.empty;
 
       if (body is Map<String, dynamic>) {
         if (body['success'] == false) {
-          debugPrint('REFERRAL: success=false → ${body['message']}');
+          if (kDebugMode) debugPrint('REFERRAL: success=false → ${body['message']}');
           return ReferralData.empty;
         }
         final data = body['data'];
@@ -90,7 +92,7 @@ class ReferralService {
       }
       return ReferralData.empty;
     } catch (e, st) {
-      debugPrint('REFERRAL/DATA ERROR: $e\n$st');
+      if (kDebugMode) debugPrint('REFERRAL/DATA ERROR: $e\n$st');
       return ReferralData.empty;
     }
   }

@@ -18,6 +18,7 @@ import '../../shared/widgets/loaders.dart';
 import './models/home_dashboard.dart';
 import '../profile/profile_controller.dart';
 import '../main/main_screen.dart';
+import '../../shared/widgets/numeric_styled_text.dart';
 import 'widgets/micro_savings_banner.dart';
 import 'widgets/learn_carousel.dart';
 import '../../core/services/notification_service.dart';
@@ -490,7 +491,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             SizedBox(height: 20.h),
             Text(
               'Unable to Connect',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 17.sp,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF1A1A2E),
@@ -501,7 +502,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Text(
               'Please check your internet\nconnection and try again',
               textAlign: TextAlign.center,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 12.sp,
                 height: 1.5,
                 color: const Color(0xFF8E8E9A),
@@ -531,7 +532,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       size: 18.sp, color: Colors.white),
                   label: Text(
                     'Try Again',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 14.sp,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -724,7 +725,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   if (title != null)
                     Text(
                       title,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 16.sp,
                         fontWeight: FontWeight.w600,
                         color: const Color(
@@ -735,7 +736,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     SizedBox(height: 4.h),
                     Text(
                       subtitle,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w500,
                         color: const Color(0xFF643D41).withValues(alpha: 0.8),
@@ -753,7 +754,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildSectionHeader(String title, bool isDark) {
     return Text(
       title,
-      style: GoogleFonts.lora(
+      style: GoogleFonts.playfairDisplay(
         fontSize: 16.sp,
         fontWeight: FontWeight.w600,
         color: isDark ? Colors.white : Colors.black87,
@@ -816,7 +817,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Text(
                       item['title'] as String,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white70 : Colors.black87,
@@ -839,7 +840,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         Text(
           'Have a question or need help? Our support team is always ready to assist you.',
-          style: GoogleFonts.lora(
+          style: GoogleFonts.playfairDisplay(
             fontSize: 13.sp,
             color: isDark ? Colors.white60 : Colors.black54,
             height: 1.5,
@@ -872,7 +873,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Expanded(
                   child: Text(
                     'Help & Support?',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 14.sp,
                       fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white : Colors.black87,
@@ -888,7 +889,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   child: Text(
                     'Contact Us',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 13.sp,
                       fontWeight: FontWeight.w700,
                       color: isDark ? Colors.white : const Color(0xFF6C4B08),
@@ -920,21 +921,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Title
-          Text(
+          NumericStyledText(
             info.title,
-            style: GoogleFonts.lora(
-              fontSize: 26.sp,
-              fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-              height: 36 / 26,
-              letterSpacing: 0,
-            ),
+            fontSize: 26.sp,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+            height: 36 / 26,
           ),
           SizedBox(height: 16.h),
           // Subtitle
           Text(
             info.subtitle,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 13.sp,
               fontWeight: FontWeight.w500,
               color: isDark ? Colors.white70 : const Color(0xFF4B4B4B),
@@ -959,7 +957,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: [
                 Text(
                   'CIN: ',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 12.sp,
                     fontWeight: FontWeight.w700,
                     color: isDark ? Colors.white70 : const Color(0xFF1A1A1A),
@@ -967,14 +965,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
                 Expanded(
-                  child: Text(
+                  child: NumericStyledText(
                     info.cin,
-                    style: GoogleFonts.lora(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? Colors.white54 : const Color(0xFF4B4B4B),
-                      height: 1.4,
-                    ),
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white54 : const Color(0xFF4B4B4B),
+                    height: 1.4,
                   ),
                 ),
               ],
@@ -983,15 +979,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
           // Copyright
           if (info.copyright.isNotEmpty)
-            Text(
+            NumericStyledText(
               info.copyright,
-              style: GoogleFonts.lora(
-                fontSize: 11.sp,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white38 : const Color(0xFF888888),
-                height: 1.4,
-                letterSpacing: 0,
-              ),
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white38 : const Color(0xFF888888),
+              height: 1.4,
             ),
         ],
       ),
@@ -1077,32 +1070,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   SizedBox(height: 16.h),
                   // Plain label
-                  Text(
+                  NumericStyledText(
                     history.title,
-                    style: GoogleFonts.lora(
-                      fontSize: 12.sp,
-                      color: const Color(0xFF6C4B08),
-                      fontWeight: FontWeight.w600,
-                    ),
+                    fontSize: 12.sp,
+                    color: const Color(0xFF6C4B08),
+                    fontWeight: FontWeight.w600,
                   ),
                   SizedBox(height: 12.h),
 
-                  // Main Title — no highlight colour on any word
-                  Text(
+                  // Main Title — mixed text/numbers
+                  NumericStyledText(
                     history.highlightText,
-                    style: GoogleFonts.lora(
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w700,
-                      color: textGreen,
-                      height: 1.2,
-                    ),
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w700,
+                    color: textGreen,
+                    height: 1.2,
                   ),
                   SizedBox(height: 8.h),
 
                   // Subtitle
                   Text(
                     'Start saving in ${metalString.toLowerCase()} today',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 13.sp,
                       color: textGreen.withValues(alpha: 0.8),
                       fontWeight: FontWeight.w500,
@@ -1129,7 +1118,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                           child: Text(
                             'Invest Now',
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontWeight: FontWeight.bold,
                               fontSize: 13.sp,
                             ),
@@ -1243,14 +1232,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      child: Text(
+      child: NumericStyledText(
         label,
+        fontSize: 8.sp,
+        fontWeight: FontWeight.w700,
+        color: textColor,
         textAlign: TextAlign.center,
-        style: GoogleFonts.lora(
-          fontSize: 8.sp,
-          fontWeight: FontWeight.w700,
-          color: textColor,
-        ),
       ),
     );
   }
@@ -1297,7 +1284,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             selected == CommodityType.gold
                 ? 'Total Gold Savings'
                 : 'Total Silver Savings',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               color: Colors.white.withValues(alpha: 0.9),
               fontSize: 15.sp,
               letterSpacing: 0.5,
@@ -1353,7 +1340,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     SizedBox(width: 3.w),
                     Text(
                       '${returnsPct.toStringAsFixed(1)}%',
-                      style: TextStyle(
+                      style: GoogleFonts.lora(
                         fontSize: 12.sp,
                         fontWeight: FontWeight.bold,
                         color: isPositive
@@ -1434,88 +1421,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ── Gold / Silver toggle ──
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              ref.tr('goldLabel', fallback: 'Gold'),
-              style: GoogleFonts.lora(
-                fontSize: 16.sp,
-                color: Colors.white.withValues(alpha: isGold ? 1.0 : 0.6),
+        // ── Gold / Silver pill toggle (matches Instant Saving page style) ──
+        Container(
+          padding: EdgeInsets.all(4.w),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(100.r),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildCommodityPillTab(
+                label: ref.tr('goldLabel', fallback: 'Gold'),
+                isActive: isGold,
+                isGoldTab: true,
+                onTap: () => ref
+                    .read(commodityProvider.notifier)
+                    .setCommodity(CommodityType.gold),
               ),
-            ),
-            SizedBox(width: 12.w),
-            // Custom gradient toggle
-            GestureDetector(
-              onTap: () {
-                ref.read(commodityProvider.notifier).setCommodity(
-                      isGold ? CommodityType.silver : CommodityType.gold,
-                    );
-              },
-              child: Container(
-                width: 52.w,
-                height: 28.h,
-                decoration: BoxDecoration(
-                  gradient: isGold
-                      ? const LinearGradient(
-                          begin: Alignment(-0.87, -0.5),
-                          end: Alignment(0.87, 0.5),
-                          colors: [Color(0xFFFFB500), Color(0xFFFFCA49)],
-                        )
-                      : const LinearGradient(
-                          begin: Alignment(-0.87, -0.5),
-                          end: Alignment(0.87, 0.5),
-                          colors: [Color(0xFFA3A3A3), Color(0xFFE6E6E6)],
-                        ),
-                  borderRadius: BorderRadius.circular(100.r),
-                  border: Border.all(
-                    color: const Color(0xFF0B7F03).withValues(alpha: 0.4),
-                    width: 0.6,
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    AnimatedAlign(
-                      alignment:
-                          isGold ? Alignment.centerLeft : Alignment.centerRight,
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      child: Container(
-                        width: 24.w,
-                        height: 24.h,
-                        margin: EdgeInsets.symmetric(horizontal: 2.w),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 3.27,
-                              offset: const Offset(0, 1.09),
-                            ),
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 8.73,
-                              offset: const Offset(0, 4.36),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              _buildCommodityPillTab(
+                label: ref.tr('silverLabel', fallback: 'Silver'),
+                isActive: !isGold,
+                isGoldTab: false,
+                onTap: () => ref
+                    .read(commodityProvider.notifier)
+                    .setCommodity(CommodityType.silver),
               ),
-            ),
-            SizedBox(width: 12.w),
-            Text(
-              ref.tr('silverLabel', fallback: 'Silver'),
-              style: GoogleFonts.lora(
-                fontSize: 16.sp,
-                color: Colors.white.withValues(alpha: !isGold ? 1.0 : 0.6),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
 
         // ── Referral message (only when market is CLOSED and message non-empty) ──
@@ -1542,7 +1475,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Flexible(
                   child: Text(
                     referralMsg,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 11.sp,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF92400E),
@@ -1579,7 +1512,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Flexible(
                   child: Text(
                     '${selected == CommodityType.gold ? 'Gold' : 'Silver'} market is currently closed. Rates resume when it reopens.',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 11.sp,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF92400E),
@@ -1592,6 +1525,75 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  /// Individual pill tab for the Gold/Silver commodity toggle.
+  /// Uses the same gradient style as the Instant Saving page tabs.
+  Widget _buildCommodityPillTab({
+    required String label,
+    required bool isActive,
+    required bool isGoldTab,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 10.h),
+        decoration: BoxDecoration(
+          gradient: isActive
+              ? LinearGradient(
+                  begin: const Alignment(-0.87, -0.5),
+                  end: const Alignment(0.87, 0.5),
+                  colors: isGoldTab
+                      ? const [
+                          Color(0xFFEF9B00),
+                          Color(0xFFF5AC03),
+                          Color(0xFFF9D522),
+                          Color(0xFFF8C30D),
+                          Color(0xFFF5A702),
+                          Color(0xFFE78400),
+                        ]
+                      : const [
+                          Color(0xFFABABAB),
+                          Color(0xFFC2C3C5),
+                          Color(0xFFDFDFDF),
+                          Color(0xFFEEEEEE),
+                          Color(0xFFDEDDDD),
+                          Color(0xFFBDBDBD),
+                          Color(0xFFAFB1AE),
+                        ],
+                )
+              : null,
+          borderRadius: BorderRadius.circular(50.r),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: isGoldTab
+                        ? const Color(0xFFEF9B00).withOpacity(0.35)
+                        : const Color(0xFFBDBDBD).withOpacity(0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14.sp,
+              fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+              color: isActive
+                  ? (isGoldTab
+                      ? const Color(0xFF5C3300)
+                      : const Color(0xFF3D3D3D))
+                  : Colors.white.withValues(alpha: 0.7),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1643,18 +1645,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           SizedBox(height: 12.h),
 
-          // ── Commodity toggle placeholder ──
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AppLoaders.headerShimmerBlock(
-                  height: 14.h, width: 36.w, borderRadius: 6),
-              SizedBox(width: 12.w),
-              AppLoaders.headerShimmerPill(height: 28.h, width: 52.w),
-              SizedBox(width: 12.w),
-              AppLoaders.headerShimmerBlock(
-                  height: 14.h, width: 42.w, borderRadius: 6),
-            ],
+          // ── Commodity toggle pill placeholder ──
+          Center(
+            child: AppLoaders.headerShimmerPill(height: 40.h, width: 180.w),
           ),
         ],
       ),
@@ -1688,7 +1681,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   children: [
                     RichText(
                       text: TextSpan(
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 19.sp,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -1837,7 +1830,7 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
                       'Hello, $customerName',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 20.sp,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
@@ -1954,10 +1947,10 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
                   child: Center(
                     child: Text(
                       '₹',
-                      style: TextStyle(
+                      style: GoogleFonts.lora(
                         fontSize: 10.sp,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF92400E),
+                        color: const Color(0xFF92400E),
                       ),
                     ),
                   ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/security/secure_storage_service.dart';
 import '../../../routes/app_router.dart';
@@ -143,7 +144,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                 Text(
                   'Permanently Delete Your Account?',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.w800,
                     color: const Color(0xFF1A1A2E),
@@ -175,7 +176,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                       SizedBox(width: 5.w),
                       Text(
                         'This action is irreversible',
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 11.sp,
                           fontWeight: FontWeight.w600,
                           color: const Color(0xFFDC2626),
@@ -257,14 +258,12 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
           ),
           SizedBox(width: 10.w),
           Expanded(
-            child: Text(
+            child: NumericStyledText(
               content,
-              style: GoogleFonts.lora(
-                fontSize: 12.sp,
-                fontWeight: FontWeight.w400,
-                color: const Color(0xFF4B5563),
-                height: 1.55,
-              ),
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF4B5563),
+              height: 1.55,
             ),
           ),
         ],
@@ -304,7 +303,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         children: [
           Text(
             'What Will Be Deleted',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 13.sp,
               fontWeight: FontWeight.w700,
               color: const Color(0xFFDC2626),
@@ -325,7 +324,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                   SizedBox(width: 10.w),
                   Text(
                     item.$2,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 12.sp,
                       fontWeight: FontWeight.w500,
                       color: const Color(0xFF374151),
@@ -418,7 +417,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
             SizedBox(height: 16.h),
             Text(
               'Could not load information',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w600,
                 color: Colors.black54,
@@ -428,7 +427,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
             Text(
               e.toString().replaceFirst('Exception: ', ''),
               textAlign: TextAlign.center,
-              style: GoogleFonts.lora(fontSize: 13.sp, color: Colors.black38),
+              style: GoogleFonts.playfairDisplay(fontSize: 13.sp, color: Colors.black38),
             ),
             SizedBox(height: 24.h),
             OutlinedButton.icon(
@@ -500,7 +499,7 @@ class _ConfirmDialog extends StatelessWidget {
 
             Text(
               'Delete Account?',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 20.sp,
                 fontWeight: FontWeight.w800,
                 color: const Color(0xFF1A1A2E),
@@ -512,7 +511,7 @@ class _ConfirmDialog extends StatelessWidget {
             Text(
               'Are you sure you want to\ndelete your account?',
               textAlign: TextAlign.center,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 14.sp,
                 color: const Color(0xFF6B7280),
                 height: 1.5,
@@ -530,7 +529,7 @@ class _ConfirmDialog extends StatelessWidget {
               child: Text(
                 'All data will be permanently erased\nand cannot be recovered.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 12.sp,
                   fontWeight: FontWeight.w500,
                   color: const Color(0xFFDC2626),
@@ -559,7 +558,7 @@ class _ConfirmDialog extends StatelessWidget {
                     ),
                     child: Text(
                       'Cancel',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 14.sp,
                         fontWeight: FontWeight.w600,
                       ),
@@ -599,7 +598,7 @@ class _ConfirmDialog extends StatelessWidget {
                       ),
                       child: Text(
                         'Yes, Delete',
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 14.sp,
                           fontWeight: FontWeight.w700,
                         ),

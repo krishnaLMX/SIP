@@ -49,7 +49,7 @@ class _SipFailureScreenState extends State<SipFailureScreen> {
                   children: [
                     Text(
                       'Payment Failed',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 24.sp,
                         fontWeight: FontWeight.w800,
                         color: const Color(0xFF1A1A2E),

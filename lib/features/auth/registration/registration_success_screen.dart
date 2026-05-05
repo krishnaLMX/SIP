@@ -66,7 +66,7 @@ class RegistrationSuccessScreen extends ConsumerWidget {
                       //       children: [
                       //         TextSpan(
                       //           text: 'start',
-                      //           style: GoogleFonts.lora(
+                      //           style: GoogleFonts.playfairDisplay(
                       //             fontSize: 20.sp,
                       //             fontWeight: FontWeight.w600,
                       //             foreground: Paint()
@@ -84,7 +84,7 @@ class RegistrationSuccessScreen extends ConsumerWidget {
                       //         ),
                       //         TextSpan(
                       //           text: 'GOLD',
-                      //           style: GoogleFonts.lora(
+                      //           style: GoogleFonts.playfairDisplay(
                       //             fontSize: 20.sp,
                       //             fontWeight: FontWeight.w800,
                       //             foreground: Paint()
@@ -112,7 +112,7 @@ class RegistrationSuccessScreen extends ConsumerWidget {
                         delay: const Duration(milliseconds: 350),
                         child: Text(
                           'Hi $firstName!',
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 26.sp,
                             fontWeight: FontWeight.bold,
                             color: primaryTextColor,
@@ -129,7 +129,7 @@ class RegistrationSuccessScreen extends ConsumerWidget {
                         child: RichText(
                           textAlign: TextAlign.center,
                           text: TextSpan(
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 16.sp,
                               color: secondaryTextColor,
                               height: 1.6,
@@ -140,7 +140,7 @@ class RegistrationSuccessScreen extends ConsumerWidget {
                                       'Your golden future starts smart \nwith '),
                               TextSpan(
                                 text: 'startGOLD',
-                                style: GoogleFonts.lora(
+                                style: GoogleFonts.playfairDisplay(
                                   color: accentGreen,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 22.sp,
@@ -197,7 +197,7 @@ class RegistrationSuccessScreen extends ConsumerWidget {
                       children: [
                         TextSpan(
                           text: 'Powered by: ',
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 12.sp,
                             color: isDark
                                 ? Colors.white38
@@ -206,7 +206,7 @@ class RegistrationSuccessScreen extends ConsumerWidget {
                         ),
                         TextSpan(
                           text: 'start',
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 12.sp,
                             fontWeight: FontWeight.w600,
                             foreground: Paint()
@@ -224,7 +224,7 @@ class RegistrationSuccessScreen extends ConsumerWidget {
                         ),
                         TextSpan(
                           text: 'GOLD',
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 12.sp,
                             fontWeight: FontWeight.w800,
                             foreground: Paint()

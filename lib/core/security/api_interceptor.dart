@@ -1,10 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart';
 import '../../core/config/app_config.dart';
 import '../security/encryption_service.dart';
 import '../security/secure_storage_service.dart';
 import '../security/session_manager.dart';
 import '../security/secure_logger.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../shared/widgets/session_invalidated_dialog.dart';
 
 class ApiSecurityInterceptor extends Interceptor {
   // ── Public Key Bootstrap ─────────────────────────────────────────────────
@@ -201,6 +203,24 @@ class ApiSecurityInterceptor extends Interceptor {
       } else {
         SecureLogger.e('TOKEN REFRESH: No refresh token found. Logging out.');
         await SessionManager.logout();
+      }
+    }
+
+    // 5. Session Invalidated on 409 Conflict (logged in from another device)
+    if (err.response?.statusCode == 409) {
+      final data = err.response?.data;
+      if (data is Map && data['error']?['code'] == 'session_invalidated') {
+        final serverMsg =
+            data['error']?['message'] as String? ?? '';
+        SecureLogger.e(
+            'SESSION INVALIDATED: 409 Conflict — $serverMsg');
+
+        // Show the premium dialog on the UI thread.
+        // Use addPostFrameCallback so we never call into the widget
+        // tree from inside a Dio async handler.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          SessionInvalidatedDialog.show(message: serverMsg);
+        });
       }
     }
 

@@ -226,6 +226,42 @@ Fetches all SIP plans for the user.
 
 ---
 
+### App Behaviour — Auto Savings Overview Screen (`SipOverviewScreen`)
+
+> **Page Name:** `SipOverviewScreen`
+> **Menu Location:** Profile → Auto Savings
+> **Route:** `/sip-overview`
+> **API Used:** `POST /sip/details` (same endpoint as above — no new API needed)
+
+This screen provides a consolidated view of the user's Auto Savings (SIP) plans.
+
+#### Screen Behaviour:
+
+| Element | Behaviour |
+|---|---|
+| **Frequency Tabs** | Three pill tabs: Daily, Weekly, Monthly. Always shown regardless of active plans. |
+| **Invest Type Radio** | Gold 24K / Silver radio buttons — filters plans by commodity. |
+| **Plan Card** | Displayed when an ACTIVE or PAUSED plan exists for the selected frequency + commodity combination. Shows: Started On, Savings Amount, Frequency, Reference ID, Status badge. |
+| **No Plan State** | Shown when no plan exists for the selected combination. Includes "Setup Auto Savings" CTA → navigates to `/auto-savings`. |
+| **Quick Actions** | Two cards: "SIP Transactions" → `/sip-transactions`, "New Auto Save" → `/auto-savings`. |
+| **Tap on Plan Card** | Navigates to Manage Savings screen (`/sip-manage`) with `subscription_id`. |
+
+#### Data Flow:
+1. Screen calls `POST /sip/details` on entry (always invalidated for fresh data).
+2. Response is a flat list of all plans.
+3. Client filters by `frequency` + `commodity_name` based on selected tab/radio.
+4. Plan card fields are mapped as follows:
+
+| Card Field | API Field | Format |
+|---|---|---|
+| Started On | `start_date` | Parsed from `YYYY-MM-DD` → `DD Mon YYYY` |
+| Savings Amount | `amount` | `₹{amount}` (integer display) |
+| Frequency | `frequency` | Direct string (`Daily`, `Weekly`, `Monthly`) |
+| Reference ID | `subscription_id` | Direct string |
+| Status | `status` | Uppercase badge — green for `ACTIVE`, amber for `PAUSED` |
+
+---
+
 ## 5. Manage Details
 
 ### `POST /sip/manage-details`

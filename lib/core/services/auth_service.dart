@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -134,6 +134,32 @@ class AuthService {
         await SecureStorageService.saveMobile(mobile);
       }
     }
+    return response.data ?? {};
+  }
+
+  /// Pre-validates registration fields before navigating to PIN creation.
+  /// Returns the raw API response for the caller to check success/error.
+  Future<Map<String, dynamic>> registerCheck({
+    required String mobile,
+    required String fullName,
+    required String email,
+    required String tempToken,
+    String? dob,
+    String? referralCode,
+  }) async {
+    final response = await _apiClient.post(
+      'users/auth/register-check',
+      data: {
+        'mobile': mobile,
+        'full_name': fullName,
+        'email': email,
+        'dob': dob,
+        'referral_code': referralCode,
+        'temp_token': tempToken,
+        'device_id': await DeviceIdService.getDeviceId(),
+        'device_type': await DeviceIdService.getDeviceType(),
+      },
+    );
     return response.data ?? {};
   }
 

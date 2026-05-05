@@ -75,7 +75,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(ref.tr('languageSelector', fallback: 'Change Language'),
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 20.sp,
                     fontWeight: FontWeight.bold,
                     color: isDark ? Colors.white : Colors.black,
@@ -84,7 +84,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               Text(
                 ref.tr('chooseLanguagePref',
                     fallback: 'Choose your preferred language'),
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 14.sp,
                   color: Colors.grey,
                 ),
@@ -108,7 +108,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(title,
-          style: GoogleFonts.lora(
+          style: GoogleFonts.playfairDisplay(
             fontSize: 16.sp,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
             color: isSelected
@@ -142,7 +142,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Settings',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
                 fontSize: 20.sp,
                 fontWeight: FontWeight.w700,
                 color: isDark ? Colors.white : Colors.black)),
@@ -210,7 +210,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildSectionTitle(String title, bool isDark) {
     return Text(
       title.toUpperCase(),
-      style: GoogleFonts.lora(
+      style: GoogleFonts.playfairDisplay(
           fontSize: 12.sp,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.5,
@@ -250,12 +250,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                         fontSize: 16.sp,
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white : Colors.black87)),
                 Text(subtitle,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                         fontSize: 12.sp, color: Colors.grey, height: 1.2)),
               ],
             ),

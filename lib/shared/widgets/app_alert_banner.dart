@@ -103,7 +103,7 @@ class AppAlertBanner extends StatelessWidget {
                           if (alert.title.isNotEmpty)
                             Text(
                               alert.title,
-                              style: GoogleFonts.lora(
+                              style: GoogleFonts.playfairDisplay(
                                 fontSize: 12.sp,
                                 fontWeight: FontWeight.w700,
                                 color: scheme.textPrimary,
@@ -115,7 +115,7 @@ class AppAlertBanner extends StatelessWidget {
                           if (alert.title.isNotEmpty) SizedBox(height: 2.h),
                           Text(
                             alert.message,
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 11.sp,
                               color: scheme.textSecondary,
                               height: 1.35,

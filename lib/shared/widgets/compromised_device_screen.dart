@@ -19,7 +19,7 @@ class CompromisedDeviceScreen extends StatelessWidget {
             Text(
               'Security Protocol Triggered',
               textAlign: TextAlign.center,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 24.sp,
                 fontWeight: FontWeight.w900,
                 color: Colors.white,
@@ -29,7 +29,7 @@ class CompromisedDeviceScreen extends StatelessWidget {
             Text(
               'This application cannot run on a rooted or jailbroken device to ensure the safety of your assets and personal data.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 16.sp,
                 color: Colors.white54,
               ),

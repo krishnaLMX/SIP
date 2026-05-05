@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -256,7 +257,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2)),
                                   error: (_, __) => Text(_countryCode,
-                                      style: TextStyle(
+                                      style: GoogleFonts.lora(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16.sp,
                                           color: primaryTextColor)),
@@ -276,7 +277,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       FilteringTextInputFormatter.digitsOnly
                                     ],
                                     maxLength: 10,
-                                    style: TextStyle(
+                                    style: GoogleFonts.lora(
                                       fontSize: 18.sp,
                                       fontWeight: FontWeight.w500,
                                       color: primaryTextColor,
@@ -354,7 +355,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           textAlign: TextAlign.center,
                           text: TextSpan(
                             style: TextStyle(
-                              fontFamily: 'Lora',
+                              fontFamily: 'PlayfairDisplay',
                               fontSize: 12.sp,
                               color: secondaryTextColor,
                               height: 1.6,
@@ -365,7 +366,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               TextSpan(
                                 text: 'Terms and Conditions.',
                                 style: const TextStyle(
-                                  fontFamily: 'Lora',
+                                  fontFamily: 'PlayfairDisplay',
                                   color: Colors.orangeAccent,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -375,7 +376,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               TextSpan(
                                 text: 'Privacy Policy.',
                                 style: const TextStyle(
-                                  fontFamily: 'Lora',
+                                  fontFamily: 'PlayfairDisplay',
                                   color: Colors.orangeAccent,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -426,7 +427,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   SizedBox(width: 10.w),
                   Text(
                     c.prefix,
-                    style: TextStyle(
+                    style: GoogleFonts.lora(
                       fontSize: 14.sp,
                       fontWeight: FontWeight.w700,
                       color: textColor,
@@ -455,7 +456,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           SizedBox(width: 6.w),
           Text(
             _countryCode,
-            style: TextStyle(
+            style: GoogleFonts.lora(
               fontWeight: FontWeight.w700,
               fontSize: 16.sp,
               color: textColor,

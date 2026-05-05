@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:dio/dio.dart';
 import '../controller/auth_controller.dart';
 import '../../../routes/app_router.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -29,9 +31,17 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _dobController = TextEditingController();
   final _referralController = TextEditingController();
 
+  bool _agreedToTerms = false;
+  bool _isSubmitting = false;
+
+  late final TapGestureRecognizer _termsRecognizer;
+
   @override
   void initState() {
     super.initState();
+    _termsRecognizer = TapGestureRecognizer()
+      ..onTap = () => Navigator.pushNamed(context, AppRouter.terms);
+
     Future.microtask(() {
       if (mounted) ref.read(authControllerProvider.notifier).clearError();
     });
@@ -43,6 +53,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     _emailController.dispose();
     _dobController.dispose();
     _referralController.dispose();
+    _termsRecognizer.dispose();
     super.dispose();
   }
 
@@ -92,6 +103,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final primaryTextColor = isDark ? Colors.white : const Color(0xFF333333);
     final inputBgColor = isDark ? Colors.white.withOpacity(0.05) : Colors.white;
 
+    final bool canSubmit = _agreedToTerms && !_isSubmitting && !authState.isLoading;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -130,7 +143,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                           delay: const Duration(milliseconds: 100),
                           child: Text(
                             'Personal Information',
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 30.sp,
                               fontWeight: FontWeight.bold,
                               color: primaryTextColor,
@@ -179,7 +192,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                             Expanded(
                               child: Text(
                                 'Note: Enter full name exactly as on your PAN Card.',
-                                style: GoogleFonts.lora(
+                                style: GoogleFonts.playfairDisplay(
                                   fontSize: 11.sp,
                                   color: isDark ? Colors.white54 : const Color(0xFF92400E),
                                   fontWeight: FontWeight.w500,
@@ -201,6 +214,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                           textColor: primaryTextColor,
                           readOnly: true,
                           onTap: () => _selectDate(context),
+                          isNumeric: true,
                           suffixIcon: Icon(Icons.calendar_today_rounded,
                               size: 20.sp,
                               color: primaryTextColor.withOpacity(0.5)),
@@ -248,6 +262,61 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                           textCapitalization: TextCapitalization.characters,
                         ),
 
+                        SizedBox(height: 20.h),
+
+                        // ── Terms & Conditions Checkbox ───────────────────────
+                        FadeInAnimation(
+                          delay: const Duration(milliseconds: 300),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 24.w,
+                                height: 24.w,
+                                child: Checkbox(
+                                  value: _agreedToTerms,
+                                  onChanged: (v) =>
+                                      setState(() => _agreedToTerms = v ?? false),
+                                  activeColor: const Color(0xFF1B882C),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(4.r),
+                                  ),
+                                  side: BorderSide(
+                                    color: primaryTextColor.withOpacity(0.4),
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 10.w),
+                              Expanded(
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: GoogleFonts.playfairDisplay(
+                                      fontSize: 13.sp,
+                                      color: primaryTextColor.withOpacity(0.7),
+                                      height: 1.5,
+                                    ),
+                                    children: [
+                                      const TextSpan(text: 'I Agree to the '),
+                                      TextSpan(
+                                        text: 'Terms and Conditions',
+                                        style: GoogleFonts.playfairDisplay(
+                                          fontSize: 13.sp,
+                                          color: Colors.orangeAccent,
+                                          fontWeight: FontWeight.w600,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: Colors.orangeAccent,
+                                        ),
+                                        recognizer: _termsRecognizer,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
                         SizedBox(height: 24.h),
                       ],
                     ),
@@ -264,8 +333,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 child: CustomButton(
                   text: 'Confirm',
                   svgIconPath: 'assets/buttons/tick.svg',
-                  isLoading: authState.isLoading,
-                  onPressed: _handleRegistration,
+                  isLoading: _isSubmitting || authState.isLoading,
+                  onPressed: canSubmit ? _handleRegistration : null,
                   gradient: const LinearGradient(
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
@@ -291,7 +360,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   Widget _buildInputLabel(String label, Color color) {
     return Text(
       label,
-      style: GoogleFonts.lora(
+      style: GoogleFonts.playfairDisplay(
         fontSize: 15.sp,
         fontWeight: FontWeight.w500,
         color: color,
@@ -313,6 +382,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     Widget? suffixIcon,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    bool isNumeric = false,
   }) {
     return TextFormField(
       controller: controller,
@@ -324,15 +394,21 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       onTap: onTap,
       validator: validator,
       inputFormatters: inputFormatters,
-      style: GoogleFonts.lora(
-        fontSize: 16.sp,
-        fontWeight: FontWeight.w500,
-        color: textColor,
-      ),
+      style: isNumeric
+          ? GoogleFonts.lora(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+            )
+          : GoogleFonts.playfairDisplay(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+            ),
       decoration: InputDecoration(
         counterText: '',
         hintText: hint,
-        hintStyle: GoogleFonts.lora(
+        hintStyle: GoogleFonts.playfairDisplay(
             fontSize: 16.sp, color: textColor.withOpacity(0.6)),
         suffixIcon: suffixIcon,
         filled: true,
@@ -359,21 +435,85 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Future<void> _handleRegistration() async {
-    if (_formKey.currentState!.validate()) {
-      if (mounted) {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // ── Step 1: Call /register-check to validate fields ──────────
+      final authService = ref.read(authServiceProvider);
+      final result = await authService.registerCheck(
+        mobile: widget.mobile,
+        fullName: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        tempToken: widget.tempToken,
+        dob: _dobController.text,
+        referralCode: _referralController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        // ── Step 2: Validation passed → navigate to PIN creation ───
         Navigator.pushReplacementNamed(
           context,
           AppRouter.mpinCreation,
           arguments: {
-            'fullName': _nameController.text,
+            'fullName': _nameController.text.trim(),
             'mobile': widget.mobile,
-            'email': _emailController.text,
+            'email': _emailController.text.trim(),
             'dob': _dobController.text,
-            'referralCode': _referralController.text,
+            'referralCode': _referralController.text.trim(),
             'tempToken': widget.tempToken,
           },
         );
+      } else {
+        // ── Error from API ──────────────────────────────────────────
+        String errorMsg = 'Registration check failed. Please try again.';
+        if (result['error'] != null && result['error']['message'] != null) {
+          final msg = result['error']['message'];
+          if (msg is Map) {
+            errorMsg = msg.values.first
+                .toString()
+                .replaceAll('[', '')
+                .replaceAll(']', '');
+          } else {
+            errorMsg = msg.toString();
+          }
+        } else if (result['message'] != null) {
+          errorMsg = result['message'];
+        }
+        AppToast.show(context, errorMsg, type: ToastType.error);
       }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      String errorMsg = 'Registration check failed. Please try again.';
+      if (e.response?.data != null) {
+        final respData = e.response?.data;
+        if (respData is Map) {
+          if (respData['error'] != null &&
+              respData['error']['message'] != null) {
+            final msg = respData['error']['message'];
+            if (msg is Map) {
+              errorMsg = msg.values.first
+                  .toString()
+                  .replaceAll('[', '')
+                  .replaceAll(']', '');
+            } else {
+              errorMsg = msg.toString();
+            }
+          } else if (respData['message'] != null) {
+            errorMsg = respData['message'];
+          }
+        }
+      }
+      AppToast.show(context, errorMsg, type: ToastType.error);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      AppToast.show(context, msg, type: ToastType.error);
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 }

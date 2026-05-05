@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../shared/widgets/numeric_styled_text.dart';
 import '../../shared/theme/app_theme.dart';
 
 class SupportScreen extends StatelessWidget {
@@ -23,7 +24,7 @@ class SupportScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Support Center',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
                 fontSize: 20.sp,
                 fontWeight: FontWeight.w700,
                 color: isDark ? Colors.white : Colors.black)),
@@ -38,7 +39,7 @@ class SupportScreen extends StatelessWidget {
             _buildSearchBox(isDark),
             SizedBox(height: 32.h),
             Text('Quick Assistance',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.bold,
                     color: isDark ? Colors.white : Colors.black87)),
@@ -54,7 +55,7 @@ class SupportScreen extends StatelessWidget {
             ),
             SizedBox(height: 32.h),
             Text('Frequently Asked Questions',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.bold,
                     color: isDark ? Colors.white : Colors.black87)),
@@ -90,7 +91,7 @@ class SupportScreen extends StatelessWidget {
           Icon(Icons.search, color: Colors.grey, size: 22.sp),
           SizedBox(width: 12.w),
           Text('Search for help...',
-              style: GoogleFonts.lora(color: Colors.grey, fontSize: 16.sp)),
+              style: GoogleFonts.playfairDisplay(color: Colors.grey, fontSize: 16.sp)),
         ],
       ),
     );
@@ -111,7 +112,7 @@ class SupportScreen extends StatelessWidget {
             Icon(icon, color: AppTheme.arcticBlue, size: 30.sp),
             SizedBox(height: 12.h),
             Text(title,
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                     fontSize: 15.sp,
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : Colors.black87)),
@@ -135,18 +136,16 @@ class SupportScreen extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                  child: Text(ques,
-                      style: GoogleFonts.lora(
-                          fontSize: 15.sp,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87))),
+                  child: NumericStyledText(ques,
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87)),
               Icon(Icons.add, size: 20.sp, color: AppTheme.arcticBlue),
             ],
           ),
           SizedBox(height: 8.h),
-          Text(ans,
-              style: GoogleFonts.lora(
-                  fontSize: 13.sp, color: Colors.grey, height: 1.4)),
+          NumericStyledText(ans,
+              fontSize: 13.sp, color: Colors.grey, height: 1.4),
         ],
       ),
     );

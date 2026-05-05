@@ -148,7 +148,7 @@ class _MicroSavingsBannerState extends State<MicroSavingsBanner>
               right: 160.w,
               child: Text(
                 'Micro Savings,\nMega Rewards',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 19.sp,
                   fontWeight: FontWeight.w700,
                   color: const Color(0xFF8B5E00),
@@ -194,7 +194,7 @@ class _MicroSavingsBannerState extends State<MicroSavingsBanner>
                 children: [
                   Text(
                     'Swipe',
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 13.sp,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF8B5E00).withValues(alpha: 0.6),

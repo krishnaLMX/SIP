@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:startgold/core/services/content_service.dart';
 import 'package:startgold/shared/theme/app_theme.dart';
 import 'package:startgold/shared/widgets/gradient_header.dart';
+import 'package:startgold/shared/widgets/numeric_styled_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ContactUsScreen extends ConsumerWidget {
@@ -53,7 +54,7 @@ class ContactUsScreen extends ConsumerWidget {
                     SizedBox(height: 12.h),
                     Text(
                       'Failed to load contact info.',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                           fontSize: 14.sp,
                           color: isDark ? Colors.white54 : Colors.black54),
                     ),
@@ -193,7 +194,7 @@ class ContactUsScreen extends ConsumerWidget {
             SizedBox(height: 6.h),
             Text(
               'Stay connected with us on social media',
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 color: isDark ? Colors.white38 : Colors.black38,
                 fontWeight: FontWeight.w400,
@@ -255,7 +256,7 @@ class _SectionLabel extends StatelessWidget {
         SizedBox(width: 10.w),
         Text(
           label,
-          style: GoogleFonts.lora(
+          style: GoogleFonts.playfairDisplay(
             fontSize: 18.sp,
             fontWeight: FontWeight.w700,
             color: isDark ? Colors.white : Colors.black87,
@@ -367,7 +368,7 @@ class _ContactCardState extends State<_ContactCard>
                   children: [
                     Text(
                       widget.title,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 12.sp,
                         color: widget.isDark ? Colors.white38 : Colors.black38,
                         fontWeight: FontWeight.w500,
@@ -375,14 +376,12 @@ class _ContactCardState extends State<_ContactCard>
                       ),
                     ),
                     SizedBox(height: 3.h),
-                    Text(
+                    NumericStyledText(
                       widget.value,
-                      style: GoogleFonts.lora(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w700,
-                        color: widget.isDark ? Colors.white : Colors.black87,
-                        height: 1.4,
-                      ),
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w700,
+                      color: widget.isDark ? Colors.white : Colors.black87,
+                      height: 1.4,
                     ),
                   ],
                 ),
@@ -481,7 +480,7 @@ class _SocialIconTileState extends State<_SocialIconTile>
               SizedBox(height: 8.h),
               Text(
                 widget.link.label,
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                   fontSize: 11.sp,
                   fontWeight: FontWeight.w600,
                   color: widget.isDark ? Colors.white60 : Colors.black54,

@@ -158,7 +158,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           children: [
                             Text(
                               'Verify now.',
-                              style: GoogleFonts.lora(
+                              style: GoogleFonts.playfairDisplay(
                                 fontSize: 30.sp,
                                 fontWeight: FontWeight.bold,
                                 color: primaryTextColor,
@@ -166,7 +166,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             ),
                             Text(
                               'Secure your Gold.',
-                              style: GoogleFonts.lora(
+                              style: GoogleFonts.playfairDisplay(
                                 fontSize: 30.sp,
                                 fontWeight: FontWeight.bold,
                                 color: primaryTextColor,
@@ -175,7 +175,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             SizedBox(height: 24.h),
                             Text(
                               'We sent an OTP to',
-                              style: GoogleFonts.lora(
+                              style: GoogleFonts.playfairDisplay(
                                 fontSize: 16.sp,
                                 color: secondaryTextColor,
                               ),
@@ -195,7 +195,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   onTap: () => NavigationUtils.safePop(context),
                                   child: Text(
                                     'Edit',
-                                    style: GoogleFonts.lora(
+                                    style: GoogleFonts.playfairDisplay(
                                       fontSize: 16.sp,
                                       fontWeight: FontWeight.bold,
                                       color: accentOrange,
@@ -243,7 +243,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   MainAxisAlignment.spaceEvenly,
                               preFilledWidget: Text(
                                 '•',
-                                style: GoogleFonts.lora(
+                                style: GoogleFonts.playfairDisplay(
                                   fontSize: 22.sp,
                                   color:
                                       primaryTextColor.withOpacity(0.25),
@@ -288,7 +288,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           children: [
                             Text(
                               "Didn't receive the OTP? ",
-                              style: GoogleFonts.lora(
+                              style: GoogleFonts.playfairDisplay(
                                   fontSize: 14.sp, color: secondaryTextColor),
                             ),
                             _timerSeconds > 0
@@ -304,7 +304,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                     onTap: _resendOtp,
                                     child: Text(
                                       'Resend Code',
-                                      style: GoogleFonts.lora(
+                                      style: GoogleFonts.playfairDisplay(
                                         fontSize: 14.sp,
                                         fontWeight: FontWeight.bold,
                                         color: accentGreen,

@@ -210,12 +210,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 Navigator.pushNamed(context, AppRouter.nominee),
                           ),
 
+                          // Auto Savings — commented: accessible via other nav paths
                           _buildMenuItem(
-                            'SIP Transactions',
+                            'Auto Savings',
                             'assets/sidemenu/autosaving.svg',
                             onTap: () => Navigator.pushNamed(
-                                context, AppRouter.sipTransactions),
+                                context, AppRouter.sipOverview),
                           ),
+                          // SIP Transactions — commented: accessible from Auto Savings Quick Actions
+                          // _buildMenuItem(
+                          //   'SIP Transactions',
+                          //   'assets/sidemenu/autosaving.svg',
+                          //   onTap: () => Navigator.pushNamed(
+                          //       context, AppRouter.sipTransactions),
+                          // ),
                         ],
                         isDark),
                     SizedBox(height: 16.h),
@@ -554,7 +562,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     child: Text(
                       'Profile',
                       textAlign: TextAlign.left,
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontWeight: FontWeight.w800,
                         fontSize: 18.sp,
                         color: Colors.white,
@@ -620,7 +628,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                                   : 2)
                                           .toUpperCase()
                                       : 'AS',
-                                  style: GoogleFonts.lora(
+                                  style: GoogleFonts.playfairDisplay(
                                     fontSize: 20.sp,
                                     fontWeight: FontWeight.w900,
                                     color: Colors.white,
@@ -639,7 +647,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             ),
                             child: Text(
                               '$pct%',
-                              style: TextStyle(
+                              style: GoogleFonts.lora(
                                 fontSize: 8.sp,
                                 fontWeight: FontWeight.bold,
                                 color: const Color(0xFF0E5723),
@@ -657,7 +665,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       children: [
                         Text(
                           user.name.isNotEmpty ? user.name : '',
-                          style: GoogleFonts.lora(
+                          style: GoogleFonts.playfairDisplay(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
@@ -692,7 +700,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           padding: EdgeInsets.only(left: 4.w, bottom: 16.h),
           child: Text(
             title,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 18.sp,
               fontWeight: FontWeight.w600,
               color: isDark ? Colors.white : Colors.black,
@@ -746,7 +754,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 Expanded(
                   child: Text(
                     title,
-                    style: GoogleFonts.lora(
+                    style: GoogleFonts.playfairDisplay(
                       fontSize: 14.sp,
                       fontWeight: FontWeight.w500,
                       color:

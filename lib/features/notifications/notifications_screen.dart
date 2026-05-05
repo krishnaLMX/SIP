@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../shared/widgets/numeric_styled_text.dart';
+
 import '../../core/services/notification_service.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/gradient_header.dart';
@@ -97,7 +99,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
         title: Text(
           'Mark All as Read',
-          style: GoogleFonts.lora(
+          style: GoogleFonts.playfairDisplay(
             fontSize: 16.sp,
             fontWeight: FontWeight.w700,
             color: const Color(0xFF1E293B),
@@ -105,7 +107,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         ),
         content: Text(
           'Are you sure you want to mark all notifications as read?',
-          style: GoogleFonts.lora(
+          style: GoogleFonts.playfairDisplay(
             fontSize: 13.sp,
             color: Colors.black54,
             height: 1.4,
@@ -115,7 +117,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text('Cancel',
-                style: GoogleFonts.lora(color: Colors.black45)),
+                style: GoogleFonts.playfairDisplay(color: Colors.black45)),
           ),
           TextButton(
             onPressed: () {
@@ -123,7 +125,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               ref.read(notificationProvider.notifier).markAllAsRead();
             },
             child: Text('Confirm',
-                style: GoogleFonts.lora(
+                style: GoogleFonts.playfairDisplay(
                     color: AppTheme.primaryGreen,
                     fontWeight: FontWeight.w700)),
           ),
@@ -247,7 +249,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         Expanded(
                           child: Text(
                             notif.title,
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 13.sp,
                               fontWeight: isUnread
                                   ? FontWeight.w700
@@ -270,13 +272,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       ],
                     ),
                     SizedBox(height: 4.h),
-                    Text(
+                    NumericStyledText(
                       notif.message,
-                      style: GoogleFonts.lora(
-                        fontSize: 12.sp,
-                        color: isDark ? Colors.white60 : Colors.black54,
-                        height: 1.4,
-                      ),
+                      fontSize: 12.sp,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      height: 1.4,
                     ),
                     SizedBox(height: 6.h),
                     Row(
@@ -405,7 +405,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           SizedBox(height: 20.h),
           Text(
             'No Notifications Yet',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 18.sp,
               fontWeight: FontWeight.w600,
               color: isDark ? Colors.white : const Color(0xFF1E293B),
@@ -415,7 +415,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           Text(
             'You\'re all caught up! Alerts and\nupdates will appear here.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
               fontSize: 13.sp,
               color: isDark ? Colors.white38 : Colors.black45,
               height: 1.5,
@@ -436,7 +436,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           SizedBox(height: 16.h),
           Text(
             'Failed to load notifications',
-            style: GoogleFonts.lora(
+            style: GoogleFonts.playfairDisplay(
                 fontSize: 15.sp, fontWeight: FontWeight.w600),
           ),
           SizedBox(height: 8.h),
@@ -444,7 +444,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             onPressed: () =>
                 ref.read(notificationProvider.notifier).load(),
             child: Text('Retry',
-                style: GoogleFonts.lora(color: AppTheme.primaryGreen)),
+                style: GoogleFonts.playfairDisplay(color: AppTheme.primaryGreen)),
           ),
         ],
       ),

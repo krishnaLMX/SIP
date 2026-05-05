@@ -123,7 +123,7 @@ class _MaintenanceBlockedDialog extends StatelessWidget {
             Text(
               title.isNotEmpty ? title : 'Action Unavailable',
               textAlign: TextAlign.center,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 18.sp,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF1A1A2E),
@@ -138,7 +138,7 @@ class _MaintenanceBlockedDialog extends StatelessWidget {
                   ? message
                   : 'This action is temporarily unavailable. Please try again later.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 color: const Color(0xFF64748B),
                 height: 1.5,
@@ -163,7 +163,7 @@ class _MaintenanceBlockedDialog extends StatelessWidget {
                 ),
                 child: Text(
                   'Got it',
-                  style: GoogleFonts.lora(
+                  style: GoogleFonts.playfairDisplay(
                     fontSize: 15.sp,
                     fontWeight: FontWeight.w700,
                   ),

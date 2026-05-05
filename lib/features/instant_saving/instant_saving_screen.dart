@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../shared/widgets/numeric_styled_text.dart';
 import 'package:startgold/core/providers/market_provider.dart';
 import 'package:startgold/core/providers/commodity_provider.dart';
 import 'package:startgold/core/services/shared_service.dart';
@@ -310,7 +311,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                         Expanded(
                           child: Text(
                             '${type == CommodityType.gold ? 'Gold' : 'Silver'} market is closed. Rates resume when market opens.',
-                            style: GoogleFonts.lora(
+                            style: GoogleFonts.playfairDisplay(
                               fontSize: 11.sp,
                               fontWeight: FontWeight.w600,
                               color: const Color(0xFF92400E),
@@ -399,13 +400,11 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                       border: Border.all(
                           color: const Color(0xFF064E3B).withOpacity(0.1)),
                     ),
-                    child: Text(
+                    child: NumericStyledText(
                       type == CommodityType.gold ? '24K Gold' : 'Pure Silver',
-                      style: TextStyle(
-                        fontSize: 10.sp,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF064E3B),
-                      ),
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF064E3B),
                     ),
                   ),
                 ],
@@ -460,7 +459,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                         child: Text(
                           '${timerState.remainingSeconds ~/ 60}:${(timerState.remainingSeconds % 60).toString().padLeft(2, '0')}',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: GoogleFonts.lora(
                             fontSize: 12.sp,
                             color: const Color(0xFF064E3B),
                             fontWeight: FontWeight.w600,
@@ -485,7 +484,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
               else
                 Text(
                   '\u20b9${price.toStringAsFixed(2)}/gm',
-                  style: TextStyle(
+                  style: GoogleFonts.lora(
                     fontSize: 20.sp,
                     fontWeight: FontWeight.w700,
                     color: Colors.black,
@@ -496,7 +495,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                 SizedBox(width: 8.w),
                 Text(
                   '+3% GST',
-                  style: TextStyle(
+                  style: GoogleFonts.lora(
                     fontSize: 12.sp,
                     fontWeight: FontWeight.w500,
                     color: Colors.black38,
@@ -784,13 +783,13 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                   // Left prefix: '₹' for amount mode, 'gms' for grams mode
                   if (_isAmountMode)
                     Text('₹',
-                        style: TextStyle(
+                        style: GoogleFonts.lora(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.w700,
                             color: Colors.black)),
                   if (!_isAmountMode)
                     Text('Gm',
-                        style: TextStyle(
+                        style: GoogleFonts.lora(
                             fontSize: 14.sp,
                             fontWeight: FontWeight.w700,
                             color: Colors.black54)),
@@ -806,7 +805,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                             RegExp(r'^\d*\.?\d*')),
                         const NoLeadingZerosFormatter(),
                       ],
-                      style: TextStyle(
+                      style: GoogleFonts.lora(
                           fontSize: 20.sp,
                           fontWeight: FontWeight.w700,
                           color: Colors.black),
@@ -820,7 +819,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                       _isAmountMode
                           ? '${conversion.toStringAsFixed(4)}gm'
                           : '\u20b9${conversion.toStringAsFixed(2)}',
-                      style: TextStyle(
+                      style: GoogleFonts.lora(
                           fontSize: 12.sp,
                           color: Colors.black45,
                           fontWeight: FontWeight.w600),
@@ -943,7 +942,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.visible,
-                      style: TextStyle(
+                      style: GoogleFonts.lora(
                         fontSize: 14.sp,
                         fontWeight:
                             isSelected ? FontWeight.w800 : FontWeight.w600,
@@ -1052,7 +1051,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                     Row(
                       children: [
                         Text('₹${totalPayable.toStringAsFixed(2)}',
-                            style: TextStyle(
+                            style: GoogleFonts.lora(
                                 fontSize: 16.sp,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.black)),
@@ -1099,17 +1098,15 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
+          NumericStyledText(
             label,
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
           ),
           Text(
             value,
-            style: TextStyle(
+            style: GoogleFonts.lora(
               fontSize: 14.sp,
               fontWeight: FontWeight.w800,
               color: Colors.black,
@@ -1170,7 +1167,14 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     return SafeArea(
       top: false,
       child: Container(
-        padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 100.h),
+        padding: EdgeInsets.fromLTRB(
+          24.w,
+          12.h,
+          24.w,
+          // When keyboard is open the floating navbar is hidden,
+          // so no need to reserve 100.h for it.
+          MediaQuery.of(context).viewInsets.bottom > 0 ? 24.h : 100.h,
+        ),
         decoration: const BoxDecoration(color: Colors.transparent),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1266,7 +1270,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
           setState(() => _isProcessing = false);
           AppToast.show(
               context, 'Market rates not ready. Please wait a moment.',
-              type: ToastType.warning);
+              type: ToastType.warning, position: ToastPosition.center);
         }
         return;
       }
@@ -1325,8 +1329,9 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        AppToast.show(context, 'Something went wrong. Please try again later.',
-            type: ToastType.error);
+        AppToast.show(
+            context, 'Something went wrong. Please try again later.',
+            type: ToastType.error, position: ToastPosition.center);
       }
     }
   }

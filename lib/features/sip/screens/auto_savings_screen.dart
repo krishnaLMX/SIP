@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 
 import '../../../core/providers/market_provider.dart';
 
@@ -324,14 +326,12 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
                     ),
                     SizedBox(width: 12.w),
                     Expanded(
-                      child: Text(
+                      child: NumericStyledText(
                         'You\'ve already subscribed to a\n$freqName ${plan.commodityName} Auto-Savings plan',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1A1A2E),
-                          height: 1.4,
-                        ),
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1A1A2E),
+                        height: 1.4,
                       ),
                     ),
                   ],
@@ -419,7 +419,7 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
           Flexible(
             child: Text(
               value,
-              style: TextStyle(
+              style: GoogleFonts.lora(
                 fontSize: 13.sp,
                 fontWeight: FontWeight.w700,
                 color: valueColor ?? const Color(0xFF1A1A2E),
@@ -796,14 +796,12 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
                       : null,
                 ),
                 SizedBox(width: 8.w),
-                Text(
+                NumericStyledText(
                   commodity.name,
-                  style: TextStyle(
-                    fontSize: 15.sp,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color:
-                        isSelected ? const Color(0xFF1A1A2E) : Colors.black45,
-                  ),
+                  fontSize: 15.sp,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color:
+                      isSelected ? const Color(0xFF1A1A2E) : Colors.black45,
                 ),
               ],
             ),
@@ -837,7 +835,7 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
         children: [
           Text(
             '\u20b9',
-            style: TextStyle(
+            style: GoogleFonts.lora(
               fontSize: 22.sp,
               fontWeight: FontWeight.w700,
               color: Colors.black,
@@ -858,7 +856,7 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
                 FilteringTextInputFormatter.digitsOnly,
                 NoLeadingZerosFormatter(),
               ],
-              style: TextStyle(
+              style: GoogleFonts.lora(
                 fontSize: 22.sp,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF1A1A2E),
@@ -954,7 +952,7 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.visible,
-                      style: TextStyle(
+                      style: GoogleFonts.lora(
                         fontSize: 14.sp,
                         fontWeight:
                             isSelected ? FontWeight.w800 : FontWeight.w600,
@@ -1060,7 +1058,7 @@ class _AutoSavingsScreenState extends ConsumerState<AutoSavingsScreen>
                 SizedBox(height: 2.h),
                 Text(
                   '${yearlyGrams.toStringAsFixed(4)} gm worth \u20b9${yearlyAmount.toStringAsFixed(0)}',
-                  style: TextStyle(
+                  style: GoogleFonts.lora(
                     fontSize: 14.sp,
                     fontWeight: FontWeight.w700,
                     color: const Color(0xFF064E3B),

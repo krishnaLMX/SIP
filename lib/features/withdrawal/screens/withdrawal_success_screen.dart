@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/numeric_styled_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../routes/app_router.dart';
@@ -9,6 +10,7 @@ import '../../../core/providers/portfolio_provider.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
 import '../../profile/profile_controller.dart';
 import '../../../shared/widgets/custom_button.dart';
+import '../../../shared/widgets/app_toast.dart';
 
 class WithdrawalSuccessScreen extends ConsumerWidget {
   final Map<String, dynamic> data;
@@ -50,7 +52,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
                     // â”€â”€ Title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Text(
                       'Withdrawal Successful!',
-                      style: GoogleFonts.lora(
+                      style: GoogleFonts.playfairDisplay(
                         fontSize: 22.sp,
                         fontWeight: FontWeight.w700,
                         color: const Color(0xFF003716),
@@ -65,7 +67,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
                       child: Text(
                         'Your withdrawal request has been successfully processed. The amount will be credited to your account.',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.lora(
+                        style: GoogleFonts.playfairDisplay(
                           fontSize: 12.sp,
                           color: secondaryText,
                           height: 1.4,
@@ -120,13 +122,11 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
                                         size: 13.sp,
                                       ),
                                       SizedBox(width: 6.w),
-                                      Text(
+                                      NumericStyledText(
                                         _getCommodityLabel(),
-                                        style: GoogleFonts.lora(
-                                          fontSize: 12.sp,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
                                       ),
                                     ],
                                   ),
@@ -146,7 +146,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
                                 SizedBox(height: 2.h),
                                 Text(
                                   'Total Amount',
-                                  style: GoogleFonts.lora(
+                                  style: GoogleFonts.playfairDisplay(
                                     fontSize: 12.sp,
                                     color: Colors.white.withOpacity(0.6),
                                   ),
@@ -282,7 +282,7 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.lora(
+              style: GoogleFonts.playfairDisplay(
                 fontSize: 13.sp,
                 fontWeight: FontWeight.w500,
                 color: secondaryText,
@@ -302,14 +302,12 @@ class WithdrawalSuccessScreen extends ConsumerWidget {
             GestureDetector(
               onTap: () {
                 Clipboard.setData(ClipboardData(text: fullValue));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Transaction ID copied',
-                        style: GoogleFonts.lora(fontSize: 13.sp)),
-                    duration: const Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                // Auto-clear clipboard after 60s — prevents clipboard sniffing
+                Future.delayed(const Duration(seconds: 60), () {
+                  Clipboard.setData(const ClipboardData(text: ''));
+                });
+                AppToast.show(context, 'Transaction ID copied',
+                    type: ToastType.success);
               },
               child: Icon(
                 Icons.copy_rounded,
