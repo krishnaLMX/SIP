@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/api_client.dart';
 import '../security/secure_storage_service.dart';
+import '../security/session_manager.dart';
 import 'device_id_service.dart';
 
 // --- SERVICE LAYER ---
@@ -67,6 +68,11 @@ class AuthService {
       if (refreshToken != null) {
         await SecureStorageService.saveRefreshToken(refreshToken);
       }
+      // ── Reset force-logout flag on fresh login ───────────────────────
+      // If the user was force-logged-out (409), the interceptor blocks
+      // all API calls. Now that we have fresh tokens, clear the flag
+      // so the new session is fully operational.
+      SessionManager.resetForceLogout();
       if (data['mpin_enabled'] != null) {
         await SecureStorageService.setMpinEnabled(data['mpin_enabled'] == true);
       }

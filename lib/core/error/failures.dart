@@ -23,6 +23,15 @@ class AuthenticationFailure extends Failure {
   AuthenticationFailure([String? message]) : super(message ?? 'Session expired');
 }
 
+/// Thrown when the server returns **409 Conflict** with SESSION_INVALIDATED.
+/// The interceptor handles the dialog + forced logout automatically;
+/// this failure type allows callers to silently swallow the error in
+/// their catch blocks instead of showing duplicate error UI.
+class SessionInvalidatedFailure extends Failure {
+  SessionInvalidatedFailure([String? message])
+      : super(message ?? 'Session invalidated. Please log in again.');
+}
+
 class InvalidResponseFailure extends Failure {
   InvalidResponseFailure([String? message]) : super(message ?? 'Invalid response from server');
 }
@@ -35,9 +44,21 @@ class ApiFailureMapper {
       case DioExceptionType.receiveTimeout:
       case DioExceptionType.connectionError:
         return NetworkFailure();
+
+      // 409 session-invalidated errors are rejected as `cancel` by the
+      // interceptor. Map them to SessionInvalidatedFailure so callers
+      // can silently ignore (the interceptor already shows the dialog).
+      case DioExceptionType.cancel:
+        if (err.error?.toString().contains('Session invalidated') == true) {
+          return SessionInvalidatedFailure();
+        }
+        return InvalidResponseFailure('Request cancelled');
       
       case DioExceptionType.badResponse:
         final status = err.response?.statusCode;
+        if (status == 409) {
+          return SessionInvalidatedFailure();
+        }
         if (status == 401 || status == 403) {
           return AuthenticationFailure();
         }
@@ -59,9 +80,6 @@ class ApiFailureMapper {
           message: serverMessage ?? 'Server error code: $status',
           statusCode: status,
         );
-
-      case DioExceptionType.cancel:
-        return InvalidResponseFailure('Request cancelled');
       
       default:
         return ServerFailure(message: 'Something went wrong. Please try again later.');

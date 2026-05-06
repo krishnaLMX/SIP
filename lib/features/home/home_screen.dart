@@ -671,7 +671,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-
   /// Static fallback invest cards when API blocks list is empty.
   Widget _buildStaticInvestBlocks() {
     return Column(
@@ -777,9 +776,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'route': AppRouter.referral,
       },
       {
-        'title': "FAQ's",
-        'svg': 'assets/home/faq.svg',
-        'route': AppRouter.faq,
+        'title': "Auto Saving",
+        'svg': 'assets/home/sip.svg',
+        'route': AppRouter.autoSavings,
       },
     ];
 
@@ -990,7 +989,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
   }
-
 
   Widget _buildPremiumHeader(
       BuildContext context,
@@ -1710,8 +1708,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         child: SizedBox(
                           height: 40.h,
                           child: ElevatedButton(
-                            onPressed: () =>
-                                ref.read(selectedTabProvider.notifier).state = 1,
+                            onPressed: () => ref
+                                .read(selectedTabProvider.notifier)
+                                .state = 1,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: const Color(0xFF033214),
@@ -1843,24 +1842,31 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        _buildActionIcon(
-                            isDark, Icons.notifications_none_rounded, Colors.white),
+                        _buildActionIcon(isDark,
+                            Icons.notifications_none_rounded, Colors.white),
                         if (unreadCount > 0)
                           Positioned(
                             right: -2,
                             top: -2,
                             child: Container(
-                              padding: EdgeInsets.all(unreadCount > 9 ? 3.r : 4.r),
-                              constraints: BoxConstraints(minWidth: 18.r, minHeight: 18.r),
+                              padding:
+                                  EdgeInsets.all(unreadCount > 9 ? 3.r : 4.r),
+                              constraints: BoxConstraints(
+                                  minWidth: 18.r, minHeight: 18.r),
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [Color(0xFFFF1A1A), Color(0xFFCC0000)],
+                                  colors: [
+                                    Color(0xFFFF1A1A),
+                                    Color(0xFFCC0000)
+                                  ],
                                 ),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: const Color(0xFF003716), width: 1.5),
+                                border: Border.all(
+                                    color: const Color(0xFF003716), width: 1.5),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFFFF1A1A).withOpacity(0.5),
+                                    color: const Color(0xFFFF1A1A)
+                                        .withOpacity(0.5),
                                     blurRadius: 6,
                                     spreadRadius: 1,
                                   ),
@@ -1913,9 +1919,7 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Animated LIVE or CLOSED badge
-          isMarketClosed
-              ? const _ClosedBadge()
-              : const _LiveBadge(),
+          isMarketClosed ? const _ClosedBadge() : const _LiveBadge(),
           SizedBox(width: 14.w),
           // Full rate — tabular figures so digit changes don't shift width
           Text(
@@ -1991,6 +1995,7 @@ class PremiumHomeHeader extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(SliverPersistentHeaderDelegate oldDelegate) => true;
 }
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANIMATED LIVE BADGE — Signal wave bars + pulsing glow
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2182,4 +2187,3 @@ class _ClosedBadgeState extends State<_ClosedBadge>
     );
   }
 }
-

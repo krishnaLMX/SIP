@@ -255,6 +255,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 context, AppRouter.refundPolicy),
                           ),
                           _buildMenuItem(
+                            'FAQ',
+                            'assets/sidemenu/faq.svg',
+                            onTap: () => Navigator.pushNamed(
+                                context, AppRouter.faq),
+                          ),
+                          _buildMenuItem(
                             'Enquiry',
                             'assets/sidemenu/enquiry.svg',
                             onTap: () => Navigator.pushNamed(

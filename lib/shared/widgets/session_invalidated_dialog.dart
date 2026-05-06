@@ -10,11 +10,17 @@ import '../../main.dart' show navigatorKey;
 /// Premium full-screen session invalidated dialog.
 ///
 /// Shown when the server returns **409 Conflict** with
-/// `code: "session_invalidated"`.
+/// `code: "session_invalidated"` or `"SESSION_INVALIDATED"`.
 ///
 /// The dialog is non-dismissible — the user MUST tap
 /// "Log In Again" which clears all session data and
 /// navigates to the login screen.
+///
+/// **Deduplication:**
+/// - `SessionManager.forceLogout()` returns `false` if already triggered,
+///   so concurrent 409s never stack multiple dialogs.
+/// - An additional `_isShowing` guard prevents re-entry from edge cases
+///   (e.g. lifecycle resume + 409 arriving simultaneously).
 class SessionInvalidatedDialog {
   SessionInvalidatedDialog._();
 
@@ -30,9 +36,11 @@ class SessionInvalidatedDialog {
     if (_isShowing) return; // already displayed
     _isShowing = true;
 
-    // Clear session first so no further API calls succeed
+    // Session clearing is now handled by SessionManager.forceLogout()
+    // in the interceptor BEFORE this dialog is shown.
+    // Double-ensure storage is cleared (idempotent).
     await SessionManager.logout();
-    SecureLogger.d('SESSION: Invalidated — storage cleared.');
+    SecureLogger.d('SESSION: Invalidated — storage cleared, dialog showing.');
 
     final nav = navigatorKey.currentState;
     final ctx = navigatorKey.currentContext;
@@ -59,7 +67,7 @@ class SessionInvalidatedDialog {
   }
 }
 
-class _SessionInvalidatedOverlay extends StatelessWidget {
+class _SessionInvalidatedOverlay extends StatefulWidget {
   final String? message;
   final Animation<double> animation;
 
@@ -69,16 +77,47 @@ class _SessionInvalidatedOverlay extends StatelessWidget {
   });
 
   @override
+  State<_SessionInvalidatedOverlay> createState() =>
+      _SessionInvalidatedOverlayState();
+}
+
+class _SessionInvalidatedOverlayState
+    extends State<_SessionInvalidatedOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pulsing glow animation for the shield icon ring
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.10, end: 0.30).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final displayMsg = (message != null && message!.trim().isNotEmpty)
-        ? message!
+    final displayMsg = (widget.message != null &&
+            widget.message!.trim().isNotEmpty)
+        ? widget.message!
         : 'You have been logged out because your account was logged in from another device. Please log in again to continue.';
 
     return PopScope(
       // Block back button — user must tap the button
       canPop: false,
       child: AnimatedBuilder(
-        animation: animation,
+        animation: widget.animation,
         builder: (context, child) {
           return Stack(
             children: [
@@ -86,12 +125,12 @@ class _SessionInvalidatedOverlay extends StatelessWidget {
               Positioned.fill(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(
-                    sigmaX: 12 * animation.value,
-                    sigmaY: 12 * animation.value,
+                    sigmaX: 12 * widget.animation.value,
+                    sigmaY: 12 * widget.animation.value,
                   ),
                   child: Container(
                     color: const Color(0xFF0A1628)
-                        .withValues(alpha: 0.75 * animation.value),
+                        .withValues(alpha: 0.75 * widget.animation.value),
                   ),
                 ),
               ),
@@ -99,13 +138,13 @@ class _SessionInvalidatedOverlay extends StatelessWidget {
               // ── Centered dialog card ──
               Center(
                 child: FadeTransition(
-                  opacity: animation,
+                  opacity: widget.animation,
                   child: SlideTransition(
                     position: Tween<Offset>(
                       begin: const Offset(0, 0.15),
                       end: Offset.zero,
                     ).animate(CurvedAnimation(
-                      parent: animation,
+                      parent: widget.animation,
                       curve: Curves.easeOutCubic,
                     )),
                     child: _buildDialogCard(context, displayMsg),
@@ -142,64 +181,71 @@ class _SessionInvalidatedOverlay extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Shield icon with gradient ring ──
-          Container(
-            width: 80.r,
-            height: 80.r,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFFF1F0),
-                  Color(0xFFFFE0DE),
-                  Color(0xFFFFF5F5),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFE53935).withValues(alpha: 0.18),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Outer pulse ring
-                Container(
-                  width: 68.r,
-                  height: 68.r,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFFE53935).withValues(alpha: 0.12),
-                      width: 2,
+          // ── Shield icon with animated gradient ring ──
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Container(
+                width: 80.r,
+                height: 80.r,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFFFFF1F0),
+                      Color(0xFFFFE0DE),
+                      Color(0xFFFFF5F5),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFE53935)
+                          .withValues(alpha: _pulseAnimation.value),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
                     ),
-                  ),
+                  ],
                 ),
-                // Inner icon circle
-                Container(
-                  width: 52.r,
-                  height: 52.r,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFFFF6B6B), Color(0xFFE53935)],
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Outer pulse ring
+                    Container(
+                      width: 68.r,
+                      height: 68.r,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFE53935)
+                              .withValues(alpha: _pulseAnimation.value),
+                          width: 2,
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Icon(
-                    Icons.shield_outlined,
-                    color: Colors.white,
-                    size: 26.sp,
-                  ),
+                    // Inner icon circle
+                    Container(
+                      width: 52.r,
+                      height: 52.r,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFFF6B6B), Color(0xFFE53935)],
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.shield_outlined,
+                        color: Colors.white,
+                        size: 26.sp,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
 
           SizedBox(height: 24.h),
@@ -303,6 +349,10 @@ class _SessionInvalidatedOverlay extends StatelessWidget {
               ),
               child: ElevatedButton.icon(
                 onPressed: () {
+                  // Reset the force-logout flag so the login flow can
+                  // make API calls (generate-otp, verify-otp, etc.)
+                  SessionManager.resetForceLogout();
+
                   // Navigate to login and clear entire navigation stack
                   navigatorKey.currentState?.pushNamedAndRemoveUntil(
                     AppRouter.login,

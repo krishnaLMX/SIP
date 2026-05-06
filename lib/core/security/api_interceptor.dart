@@ -71,6 +71,21 @@ class ApiSecurityInterceptor extends Interceptor {
     final path = options.path;
     SecureLogger.logRequest(options);
 
+    // ── Force Logout Gate ─────────────────────────────────────────────────
+    // If the session was invalidated (409), block ALL further API calls
+    // immediately. No network I/O, no retries.
+    if (SessionManager.isForceLoggedOut) {
+      SecureLogger.e(
+          'SESSION BLOCKED: Request to $path rejected — session invalidated.');
+      return handler.reject(
+        DioException(
+          requestOptions: options,
+          error: 'Session invalidated. Please log in again.',
+          type: DioExceptionType.cancel,
+        ),
+      );
+    }
+
     // Rule 8: Offline Handling
     try {
       var connectivityResult = await Connectivity().checkConnectivity();
@@ -152,8 +167,63 @@ class ApiSecurityInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     SecureLogger.logError(err);
 
+    // ── 5. Session Invalidated on 409 Conflict ─────────────────────────────
+    // MUST be checked BEFORE 401 to prevent token-refresh logic from running
+    // on an invalidated session.
+    if (err.response?.statusCode == 409) {
+      final data = err.response?.data;
+
+      // Accept both explicit code AND bare 409 (server may omit code)
+      final isSessionInvalidated = data is Map &&
+          (data['error']?['code'] == 'session_invalidated' ||
+           data['error']?['code'] == 'SESSION_INVALIDATED' ||
+           data['code'] == 'session_invalidated' ||
+           data['code'] == 'SESSION_INVALIDATED');
+
+      // Also handle bare 409 without structured error body
+      if (isSessionInvalidated || (data is! Map)) {
+        final serverMsg = data is Map
+            ? (data['error']?['message'] as String? ??
+               data['message'] as String? ??
+               '')
+            : '';
+
+        SecureLogger.e('SESSION INVALIDATED: 409 Conflict — $serverMsg');
+
+        // forceLogout() returns false if already triggered (deduplication).
+        // This ensures only ONE dialog is shown even if 5 concurrent API
+        // calls all return 409 at the same time.
+        final isFirstTrigger = await SessionManager.forceLogout();
+
+        if (isFirstTrigger) {
+          // Show the premium dialog on the UI thread.
+          // Use addPostFrameCallback so we never call into the widget
+          // tree from inside a Dio async handler.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            SessionInvalidatedDialog.show(message: serverMsg);
+          });
+        }
+
+        // Do NOT call handler.next() — reject immediately so the caller
+        // gets a clean error and does NOT attempt retries.
+        return handler.reject(
+          DioException(
+            requestOptions: err.requestOptions,
+            response: err.response,
+            error: 'Session invalidated. Please log in again.',
+            type: DioExceptionType.cancel,
+          ),
+        );
+      }
+    }
+
     // 4. Silent Token Refresh on 401
     if (err.response?.statusCode == 401) {
+      // Skip token refresh if session is already force-invalidated
+      if (SessionManager.isForceLoggedOut) {
+        return handler.next(err);
+      }
+
       final refreshToken = await SecureStorageService.getRefreshToken();
 
       if (refreshToken != null && refreshToken.isNotEmpty) {
@@ -203,24 +273,6 @@ class ApiSecurityInterceptor extends Interceptor {
       } else {
         SecureLogger.e('TOKEN REFRESH: No refresh token found. Logging out.');
         await SessionManager.logout();
-      }
-    }
-
-    // 5. Session Invalidated on 409 Conflict (logged in from another device)
-    if (err.response?.statusCode == 409) {
-      final data = err.response?.data;
-      if (data is Map && data['error']?['code'] == 'session_invalidated') {
-        final serverMsg =
-            data['error']?['message'] as String? ?? '';
-        SecureLogger.e(
-            'SESSION INVALIDATED: 409 Conflict — $serverMsg');
-
-        // Show the premium dialog on the UI thread.
-        // Use addPostFrameCallback so we never call into the widget
-        // tree from inside a Dio async handler.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          SessionInvalidatedDialog.show(message: serverMsg);
-        });
       }
     }
 
