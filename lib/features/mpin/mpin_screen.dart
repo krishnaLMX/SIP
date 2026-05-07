@@ -87,6 +87,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       });
 
       // Auto-trigger biometric on app open — skip for withdrawal/verify_only
+      // Also skip for app_lock since AppLifecycleObserver already attempted
+      // biometric before pushing this screen.
       final args =
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ??
               {};
@@ -95,7 +97,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       if (_isBiometricEnabled &&
           _isMpinEnabledCount &&
           type != 'withdrawal_pin' &&
-          type != 'verify_only') {
+          type != 'verify_only' &&
+          type != 'app_lock') {
         _authenticateBiometric();
       }
     }
@@ -116,6 +119,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
         if (type == 'authorize_withdrawal') {
           _showSuccessDialog();
         } else if (type == 'verify_only') {
+          Navigator.pop(context, true);
+        } else if (type == 'app_lock') {
+          // App lock: pop back to the previous screen (preserve nav stack)
           Navigator.pop(context, true);
         } else {
           Navigator.pushNamedAndRemoveUntil(
@@ -195,7 +201,26 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
 
     ref.listen<MpinState>(mpinProvider, (prev, next) {
       if (next.error != null && next.error != prev?.error && mounted) {
-        AppToast.show(context, next.error!, type: ToastType.error);
+        // Session expired (401/403/409) — redirect to login
+        if (next.error == 'SESSION_EXPIRED') {
+          AppToast.show(
+            context,
+            'Session expired. Please login again.',
+            type: ToastType.error,
+          );
+          // Clear storage & navigate to login
+          SecureStorageService.logout().then((_) {
+            if (mounted) {
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                AppRouter.login,
+                (route) => false,
+              );
+            }
+          });
+        } else {
+          AppToast.show(context, next.error!, type: ToastType.error);
+        }
       }
     });
 
@@ -208,8 +233,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                 as Map<String, dynamic>? ??
             {};
         final String? type = args['type'];
-        // Auto-submit for: app unlock (null), reset_pin, and withdrawal_pin
-        if (type == null || type == 'reset_pin' || type == 'withdrawal_pin') {
+        // Auto-submit for all verify modes when 4 digits are entered
+        if (type == null || type == 'reset_pin' || type == 'withdrawal_pin' || type == 'app_lock' || type == 'verify_only') {
           _handleAction();
         }
       }
@@ -649,7 +674,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       }
     } else {
       // ── VERIFY MODE → POST /mpin/validate ──
-      // App unlock, withdrawal authorization, biometric verification
+      // App unlock, withdrawal authorization, biometric verification, app lock
       final success = await ref.read(mpinProvider.notifier).verifyMpin();
       if (success && mounted) {
         await SecureStorageService.setMpinEnabled(true);
@@ -659,6 +684,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
           final pin = ref.read(mpinProvider).mpin;
           Navigator.pop(context, pin);
         } else if (type == 'verify_only') {
+          Navigator.pop(context, true);
+        } else if (type == 'app_lock') {
+          // App lock: pop back — user resumes where they left off
           Navigator.pop(context, true);
         } else {
           // ── Register FCM token with server on successful login ──────────

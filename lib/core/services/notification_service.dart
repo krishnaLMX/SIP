@@ -82,10 +82,27 @@ class NotificationService {
   Future<int> fetchUnreadCount() async {
     final response = await _api.post('users/notifications/unread-count');
     final data = response.data;
-    if (data != null && data['data'] != null) {
-      return (data['data']['count'] ?? 0) as int;
+    debugPrint('[Notification] unread-count raw response: $data');
+    if (data == null) return 0;
+
+    // Handle multiple possible response structures:
+    // 1. {"data": {"count": N}}        — nested count key
+    // 2. {"data": {"unread_count": N}} — nested unread_count key
+    // 3. {"data": N}                   — data is the count directly
+    // 4. {"count": N}                  — top-level count key
+    // 5. {"unread_count": N}           — top-level unread_count key
+    final dynamic inner = data['data'];
+    int count = 0;
+    if (inner is int) {
+      count = inner;
+    } else if (inner is Map) {
+      count = (inner['count'] ?? inner['unread_count'] ?? 0) as int;
+    } else {
+      // Fallback: check top-level keys
+      count = (data['count'] ?? data['unread_count'] ?? 0) as int;
     }
-    return 0;
+    debugPrint('[Notification] parsed unread count: $count');
+    return count;
   }
 
   // ── FCM Token Registration ──────────────────────────────────────────────
@@ -224,8 +241,11 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
   Future<void> refreshUnreadCount() async {
     try {
       final count = await _service.fetchUnreadCount();
+      debugPrint('[Notification] badge count updated: $count');
       state = state.copyWith(unreadCount: count);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Notification] refreshUnreadCount failed: $e');
+    }
   }
 }
 

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import '../network/api_client.dart';
 
 // --- SERVICE LAYER ---
@@ -195,6 +196,26 @@ class MpinNotifier extends StateNotifier<MpinState> {
         );
         return false;
       }
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      // 401 = token expired (e.g. logged in on another device)
+      // 409 = session invalidated by server
+      if (statusCode == 401 || statusCode == 403 || statusCode == 409) {
+        state = state.copyWith(
+          isLoading: false,
+          mpin: '',
+          isComplete: false,
+          error: 'SESSION_EXPIRED',
+        );
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          mpin: '',
+          isComplete: false,
+          error: 'Validation failed. Check your connection.',
+        );
+      }
+      return false;
     } catch (e) {
       state = state.copyWith(
         isLoading: false,

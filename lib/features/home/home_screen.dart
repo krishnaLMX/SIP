@@ -137,7 +137,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.invalidate(homeDashboardProvider);
             // 3. Profile — name, photo (in case updated)
             ref.invalidate(profileProvider);
-            // 4. Sell-rate timer — lock freshest live rate for header display
+            // 4. Notification badge — refresh unread count
+            ref.read(notificationProvider.notifier).refreshUnreadCount();
+            // 5. Sell-rate timer — lock freshest live rate for header display
             final homeStatusMap =
                 ref.read(marketStatusProvider).valueOrNull ?? const {};
             final homeCommodityId =

@@ -16,6 +16,7 @@ import '../../features/history/controller/history_controller.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/app_toast.dart';
 import '../../features/auth/controller/auth_controller.dart';
+import '../../core/services/notification_service.dart';
 
 /// Shared provider so any child screen can switch tabs
 final selectedTabProvider = StateProvider<int>((ref) => 0);
@@ -55,6 +56,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       ref.invalidate(homeDashboardProvider);
       ref.invalidate(portfolioProvider);
       ref.invalidate(profileProvider);
+
+      // Fetch notification badge count AFTER auth is ready so the API
+      // has a valid token. HomeScreen.initState fires in parallel and
+      // may race ahead of rehydration, so this is the authoritative call.
+      ref.read(notificationProvider.notifier).refreshUnreadCount();
     });
   }
 
@@ -69,6 +75,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       case 0:
         ref.invalidate(homeDashboardProvider);
         ref.invalidate(profileProvider);
+        ref.read(notificationProvider.notifier).refreshUnreadCount();
         break;
       case 1:
         // InstantSavingScreen auto-refreshes its own providers
