@@ -77,4 +77,3 @@ class SecureLogger {
     return data;
   }
 }
-

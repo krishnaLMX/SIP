@@ -6,7 +6,7 @@ import '../security/secure_logger.dart';
 enum SocketStatus { connecting, connected, disconnected, error }
 
 class NativeSocketService {
-  // final String _wsUrl = 'wss://sgbackoffice.startgold.com/ws/'; //  Live
+//  final String _wsUrl = 'wss://sgbackoffice.startgold.com/ws/'; //  Live
   final String _wsUrl = 'ws://13.202.62.253:57200'; //  Staging
   final List<String> _protocols = [
     '0b286a8b1100f097e7c8e879dbd4174e468a9e92f888e6e289595efdd4747b89'
@@ -16,7 +16,8 @@ class NativeSocketService {
 
   final _ratesController = StreamController<MarketRates>.broadcast();
   final _statusController = StreamController<SocketStatus>.broadcast();
-  final _marketStatusController = StreamController<Map<String, bool>>.broadcast();
+  final _marketStatusController =
+      StreamController<Map<String, bool>>.broadcast();
 
   Stream<MarketRates> get ratesStream async* {
     if (_lastRate != null) {
@@ -165,17 +166,13 @@ class NativeSocketService {
               final silverClosed = commodityId == silverId;
               final zeroRates = MarketRates(
                 goldName: _lastRate?.goldName ?? goldName,
-                goldBuy:
-                    goldClosed ? 0.0 : (_lastRate?.goldBuy ?? 0.0),
-                goldSell:
-                    goldClosed ? 0.0 : (_lastRate?.goldSell ?? 0.0),
+                goldBuy: goldClosed ? 0.0 : (_lastRate?.goldBuy ?? 0.0),
+                goldSell: goldClosed ? 0.0 : (_lastRate?.goldSell ?? 0.0),
                 goldChange: 0.0,
                 goldPercentage: 0.0,
                 silverName: _lastRate?.silverName ?? silverName,
-                silverBuy:
-                    silverClosed ? 0.0 : (_lastRate?.silverBuy ?? 0.0),
-                silverSell:
-                    silverClosed ? 0.0 : (_lastRate?.silverSell ?? 0.0),
+                silverBuy: silverClosed ? 0.0 : (_lastRate?.silverBuy ?? 0.0),
+                silverSell: silverClosed ? 0.0 : (_lastRate?.silverSell ?? 0.0),
                 silverChange: 0.0,
                 silverPercentage: 0.0,
                 timestamp: DateTime.now(),
@@ -231,10 +228,10 @@ class NativeSocketService {
       final goldZero = _lastRate == null ||
           (_lastRate!.goldBuy <= 0 && _lastRate!.goldSell <= 0);
       if (goldZero) {
-        _commodityOpenStatus = Map.from(_commodityOpenStatus)
-          ..[goldId] = false;
+        _commodityOpenStatus = Map.from(_commodityOpenStatus)..[goldId] = false;
         changed = true;
-        SecureLogger.d('Market fallback: Gold inferred CLOSED (no 5| + zero rates)');
+        SecureLogger.d(
+            'Market fallback: Gold inferred CLOSED (no 5| + zero rates)');
       }
     }
 
@@ -245,7 +242,8 @@ class NativeSocketService {
         _commodityOpenStatus = Map.from(_commodityOpenStatus)
           ..[silverId] = false;
         changed = true;
-        SecureLogger.d('Market fallback: Silver inferred CLOSED (no 5| + zero rates)');
+        SecureLogger.d(
+            'Market fallback: Silver inferred CLOSED (no 5| + zero rates)');
       }
     }
 
