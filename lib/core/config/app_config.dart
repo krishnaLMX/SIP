@@ -39,7 +39,7 @@ class AppConfig {
     'XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX', // Placeholder
   ];
 
-  // List of sensitive endpoints that REQUIRE encryption
+  /// List of sensitive endpoints that REQUIRE encryption
   static const List<String> encryptedEndpoints = [
     'auth/generate-otp',
     'auth/verify-otp',
