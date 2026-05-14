@@ -98,7 +98,8 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
           _isMpinEnabledCount &&
           type != 'withdrawal_pin' &&
           type != 'verify_only' &&
-          type != 'app_lock') {
+          type != 'app_lock' &&
+          type != 'verify_after_reset') {
         _authenticateBiometric();
       }
     }
@@ -234,7 +235,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
             {};
         final String? type = args['type'];
         // Auto-submit for all verify modes when 4 digits are entered
-        if (type == null || type == 'reset_pin' || type == 'withdrawal_pin' || type == 'app_lock' || type == 'verify_only') {
+        if (type == null || type == 'reset_pin' || type == 'withdrawal_pin' || type == 'app_lock' || type == 'verify_only' || type == 'verify_after_reset') {
           _handleAction();
         }
       }
@@ -247,15 +248,34 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ??
             {};
     final String? screenType = args['type'];
+    final bool isFromAppLock = args['from_app_lock'] == true;
     final bool isRootFlow =
-        screenType == null || screenType == 'setup';
+        screenType == null || screenType == 'setup' || screenType == 'app_lock'
+        || (screenType == 'reset_pin' && isFromAppLock)
+        || screenType == 'verify_after_reset';
 
     return PopScope(
       // Sub-flows: allow normal pop. Root flows: we handle it.
       canPop: !isRootFlow,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop || !isRootFlow) return; // sub-flow handled by Flutter
-        // Root flow: double-tap to exit
+
+        // App lock / reset_pin from app_lock / verify_after_reset:
+        // block ALL back navigation — user must authenticate
+        if (screenType == 'app_lock' ||
+            (screenType == 'reset_pin' && isFromAppLock) ||
+            screenType == 'verify_after_reset') {
+          if (mounted) {
+            AppToast.show(
+              context,
+              'Please verify your PIN to continue',
+              type: ToastType.info,
+            );
+          }
+          return;
+        }
+
+        // Login/setup root flow: double-tap to exit app
         final now = DateTime.now();
         final isSecondPress = _lastBackPressTime != null &&
             now.difference(_lastBackPressTime!) < const Duration(seconds: 2);
@@ -333,6 +353,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                             final isBiometric = routeType == 'verify_only';
                             final isSetup = routeType == 'setup';
                             final isReset = routeType == 'reset_pin';
+                            final isVerifyAfterReset = routeType == 'verify_after_reset';
 
                             final String title = isWithdrawal
                                 ? AppConstants.mpinWithdrawalTitle
@@ -342,7 +363,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                         ? 'Set Your PIN'
                                         : isReset
                                             ? 'Reset Your PIN'
-                                            : AppConstants.mpinTitle;
+                                            : isVerifyAfterReset
+                                                ? 'Verify New PIN'
+                                                : AppConstants.mpinTitle;
 
                             final String subtitle = isWithdrawal
                                 ? AppConstants.mpinWithdrawalSubtitle
@@ -352,7 +375,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                         ? 'Create a 4-digit PIN for quick & secure access.'
                                         : isReset
                                             ? 'Enter your new 4-digit security PIN.'
-                                            : AppConstants.mpinSubtitle;
+                                            : isVerifyAfterReset
+                                                ? 'Enter your new PIN to confirm & unlock.'
+                                                : AppConstants.mpinSubtitle;
 
                             return Column(
                               children: [
@@ -489,7 +514,7 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                         // Hide it when opened from Profile (verify_only) or
                         // from Withdrawal (authorize_withdrawal).
                         // "Forgot PIN?" only in unlock mode (no route type)
-                        final bool showForgotPin = routeType == null;
+                        final bool showForgotPin = routeType == null || routeType == 'app_lock';
 
                         return Column(
                           mainAxisSize: MainAxisSize.min,
@@ -504,7 +529,9 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
                                           ? 'ACTIVATE SECURE PIN'
                                           : routeType == 'reset_pin'
                                               ? 'RESET PIN'
-                                              : 'UNLOCK APP',
+                                              : routeType == 'verify_after_reset'
+                                                  ? 'VERIFY PIN'
+                                                  : 'UNLOCK APP',
                               svgIconPath: 'assets/buttons/security-user.svg',
                               isLoading: mpinState.isLoading,
                               onPressed:
@@ -615,11 +642,12 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
             {};
     final String? type = args['type'];
 
-    // Hide biometric icon for withdrawal (must use MPIN) and verify_only
+    // Hide biometric icon for withdrawal (must use MPIN), verify_only, and verify_after_reset
     if (!_isBiometricEnabled ||
         !_isMpinEnabledCount ||
         type == 'withdrawal_pin' ||
-        type == 'verify_only') {
+        type == 'verify_only' ||
+        type == 'verify_after_reset') {
       return SizedBox(height: 60.w, width: 60.w);
     }
 
@@ -657,18 +685,31 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       // User verified identity via OTP, now setting a new PIN
       final tempToken = args['temp_token'] ?? '';
       final mobile = args['mobile'] as String?;
+      final bool fromAppLock = args['from_app_lock'] == true;
       final success = await ref
           .read(mpinProvider.notifier)
           .resetMpin(tempToken, mobile: mobile);
       if (success && mounted) {
         await SecureStorageService.setMpinEnabled(true);
-        // Navigate to MPIN verify — user must validate new PIN
-        // before reaching Home (where dashboard/summary APIs fire)
-        Navigator.pushReplacementNamed(
-          context,
-          AppRouter.mpin,
-          arguments: {'mobile': mobile},
-        );
+        if (fromAppLock) {
+          // App lock flow: use verify_after_reset (no Forgot PIN, back blocked)
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRouter.mpin,
+            (route) => false,
+            arguments: {
+              'type': 'verify_after_reset',
+              'mobile': mobile,
+            },
+          );
+        } else {
+          // Normal flow: navigate to MPIN verify
+          Navigator.pushReplacementNamed(
+            context,
+            AppRouter.mpin,
+            arguments: {'mobile': mobile},
+          );
+        }
       } else {
         _shuffleKeypad();
       }
@@ -688,6 +729,11 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
         } else if (type == 'app_lock') {
           // App lock: pop back — user resumes where they left off
           Navigator.pop(context, true);
+        } else if (type == 'verify_after_reset') {
+          // After forgot-PIN reset from app_lock: go to home
+          _registerFcmTokenAfterLogin();
+          Navigator.pushNamedAndRemoveUntil(
+              context, AppRouter.main, (route) => false);
         } else {
           // ── Register FCM token with server on successful login ──────────
           // Fire-and-forget: never blocks navigation.
@@ -733,6 +779,12 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
       return;
     }
 
+    // Determine if we're in app_lock mode
+    final currentArgs =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ??
+            {};
+    final bool isAppLock = currentArgs['type'] == 'app_lock';
+
     // Show loading
     if (mounted) {
       showDialog(
@@ -755,17 +807,35 @@ class _MpinScreenState extends ConsumerState<MpinScreen>
 
       if (result['success'] == true && mounted) {
         final otpRefId = result['data']?['otp_reference_id'] ?? '';
-        Navigator.pushReplacementNamed(
-          context,
-          AppRouter.otp,
-          arguments: {
-            'mobile': mobile,
-            'countryCode': '+91',
-            'idCountry': '101',
-            'otpReferenceId': otpRefId,
-            'actionType': 'forgot_pin',
-          },
-        );
+
+        if (isAppLock) {
+          // App lock: use pushNamedAndRemoveUntil to prevent swiping back to home
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRouter.otp,
+            (route) => false,
+            arguments: {
+              'mobile': mobile,
+              'countryCode': '+91',
+              'idCountry': '101',
+              'otpReferenceId': otpRefId,
+              'actionType': 'forgot_pin',
+              'from_app_lock': true,
+            },
+          );
+        } else {
+          Navigator.pushReplacementNamed(
+            context,
+            AppRouter.otp,
+            arguments: {
+              'mobile': mobile,
+              'countryCode': '+91',
+              'idCountry': '101',
+              'otpReferenceId': otpRefId,
+              'actionType': 'forgot_pin',
+            },
+          );
+        }
       } else if (mounted) {
         AppToast.show(context, result['message'] ?? 'Failed to send OTP.',
             type: ToastType.error);

@@ -1102,8 +1102,11 @@ This document summarizes the complete set of API endpoints required for the Star
       "message": "Contact us fetched successfully",
       "data": {
         "email": "support@startgold.com",
-        "phone": "+91-9876453210",
-        "address": "477-482, Anna Salai, 1st Floor, Khivraj Complex-1, Chennai 600 035, Tamil Nadu, India",
+        "toll_free": "1800-XXX-XXXX",
+        "phone": "+91-89390 89393",
+        "whatsapp": "+91-89390 89393",
+        "office_address": "477-482, Anna Salai, 1st Floor (Right Wing), Khivraj Complex - 2, Chennai 600 035, Tamil Nadu, India",
+        "registered_address": "No.158, Gulecha Tower, Inspire OfficeSpace, 2nd Floor, Arcot Road, Vadapalani, Chennai - 600 026, Tamil Nadu, India",
         "working_hours": "10 AM - 7 PM",
         "facebook": "https://www.facebook.com/StartGoldIndia",
         "twitter": "https://x.com/Startgoldapp",
@@ -1116,16 +1119,19 @@ This document summarizes the complete set of API endpoints required for the Star
 
     | Field | Type | Description |
     |-------|------|-------------|
-    | `email` | String | Support email address |
-    | `phone` | String | Support phone number |
-    | `address` | String | Office / registered address |
-    | `working_hours` | String | Business hours display string |
+    | `email` | String? | Support email address *(row hidden if absent)* |
+    | `toll_free` | String? | Toll-free helpline number *(row hidden if absent)* |
+    | `phone` | String? | Support phone number — "Call Us" *(row hidden if absent)* |
+    | `whatsapp` | String? | WhatsApp support number — opens `wa.me` link *(row hidden if absent)* |
+    | `office_address` | String? | Corporate / branch office address *(row hidden if absent)* |
+    | `registered_address` | String? | Registered office address *(row hidden if absent)* |
+    | `working_hours` | String? | Business hours display string *(row hidden if absent)* |
     | `facebook` | String? | Facebook page URL *(optional — icon hidden if absent)* |
     | `twitter` | String? | X (Twitter) profile URL *(optional — icon hidden if absent)* |
     | `instagram` | String? | Instagram profile URL *(optional — icon hidden if absent)* |
     | `website` | String? | Official website URL *(optional — icon hidden if absent)* |
 
-*   **Note:** All social/link fields are **optional**. The app renders a social icon tile **only** when the field is present and non-empty in the API response. If the field is missing or empty, the icon is **not shown** — no hardcoded fallback URL is used for social/website icons.
+*   **Note:** **All fields are optional.** The app renders each contact card row and social icon tile **only** when the corresponding field is present and non-empty in the API response. If a field is `null`, missing, or an empty string, that row/icon is **not shown** — no fallback or placeholder is displayed.
 
 ---
 

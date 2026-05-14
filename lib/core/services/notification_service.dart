@@ -225,17 +225,22 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
     } catch (_) {}
   }
 
-  Future<void> deleteNotification(int id) async {
+  Future<bool> deleteNotification(int id) async {
     try {
       await _service.deleteNotification(id);
-      // Optimistic: remove from list
+      // Success: remove from list
       final updated =
           state.notifications.where((n) => n.id != id).toList();
       state = state.copyWith(
         notifications: updated,
         unreadCount: updated.where((n) => !n.isRead).length,
       );
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      // 409 session invalidation is handled by the interceptor (dialog).
+      // Any other error: the card stays in place.
+      return false;
+    }
   }
 
   Future<void> refreshUnreadCount() async {

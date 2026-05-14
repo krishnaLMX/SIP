@@ -144,48 +144,79 @@ class ContactUsScreen extends ConsumerWidget {
           _SectionLabel(label: 'Help & Support', isDark: isDark),
           SizedBox(height: 14.h),
 
-          // ── Contact cards ──────────────────────────────
-          _ContactCard(
-            icon: Icons.email_rounded,
-            title: 'E-Mail Us',
-            value: _resolve(data, 'email') ?? '—',
-            isDark: isDark,
-            onTap: _resolve(data, 'email') != null
-                ? () => _launchUrl('mailto:${_resolve(data, 'email')}')
-                : null,
-          ),
-          SizedBox(height: 12.h),
-          _ContactCard(
-            icon: Icons.phone_rounded,
-            title: 'Call Us',
-            value: _resolve(data, 'phone') ?? '—',
-            isDark: isDark,
-            onTap: _resolve(data, 'phone') != null
-                ? () => _launchUrl(
-                    'tel:${_resolve(data, 'phone')!.replaceAll(RegExp(r'[^0-9+]'), '')}')
-                : null,
-          ),
-          SizedBox(height: 12.h),
-          _ContactCard(
-            icon: Icons.location_on_rounded,
-            title: 'Office Address',
-            value: _resolve(data, 'office_address') ?? '—',
-            isDark: isDark,
-          ),
-          SizedBox(height: 12.h),
-          _ContactCard(
-            icon: Icons.business_rounded,
-            title: 'Registered Address',
-            value: _resolve(data, 'registered_address') ?? '—',
-            isDark: isDark,
-          ),
-          SizedBox(height: 12.h),
-          _ContactCard(
-            icon: Icons.access_time_rounded,
-            title: 'Working Hours',
-            value: _resolve(data, 'working_hours') ?? '—',
-            isDark: isDark,
-          ),
+          // ── Contact cards (conditionally rendered) ────────────
+          if (_resolve(data, 'email') != null) ...[
+            _ContactCard(
+              icon: Icons.email_rounded,
+              title: 'E-Mail Us',
+              value: _resolve(data, 'email')!,
+              isDark: isDark,
+              onTap: () => _launchUrl('mailto:${_resolve(data, 'email')}'),
+            ),
+            SizedBox(height: 12.h),
+          ],
+          if (_resolve(data, 'toll_free') != null) ...[
+            _ContactCard(
+              icon: Icons.headset_mic_rounded,
+              title: 'Toll Free',
+              value: _resolve(data, 'toll_free')!,
+              isDark: isDark,
+              onTap: () => _launchUrl(
+                  'tel:${_resolve(data, 'toll_free')!.replaceAll(RegExp(r'[^0-9+]'), '')}'),
+            ),
+            SizedBox(height: 12.h),
+          ],
+          if (_resolve(data, 'phone') != null) ...[
+            _ContactCard(
+              icon: Icons.phone_rounded,
+              title: 'Call Us',
+              value: _resolve(data, 'phone')!,
+              isDark: isDark,
+              onTap: () => _launchUrl(
+                  'tel:${_resolve(data, 'phone')!.replaceAll(RegExp(r'[^0-9+]'), '')}'),
+            ),
+            SizedBox(height: 12.h),
+          ],
+          if (_resolve(data, 'whatsapp') != null) ...[
+            _ContactCard(
+              icon: Icons.phone_rounded,
+              customIconWidget: const _WhatsAppIconBubble(),
+              title: 'WhatsApp',
+              value: _resolve(data, 'whatsapp')!,
+              isDark: isDark,
+              onTap: () {
+                final number = _resolve(data, 'whatsapp')!.replaceAll(RegExp(r'[^0-9+]'), '');
+                _launchUrl('https://wa.me/$number');
+              },
+            ),
+            SizedBox(height: 12.h),
+          ],
+          if (_resolve(data, 'office_address') != null) ...[
+            _ContactCard(
+              icon: Icons.location_on_rounded,
+              title: 'Office Address',
+              value: _resolve(data, 'office_address')!,
+              isDark: isDark,
+            ),
+            SizedBox(height: 12.h),
+          ],
+          if (_resolve(data, 'registered_address') != null) ...[
+            _ContactCard(
+              icon: Icons.business_rounded,
+              title: 'Registered Address',
+              value: _resolve(data, 'registered_address')!,
+              isDark: isDark,
+            ),
+            SizedBox(height: 12.h),
+          ],
+          if (_resolve(data, 'working_hours') != null) ...[
+            _ContactCard(
+              icon: Icons.access_time_rounded,
+              title: 'Working Hours',
+              value: _resolve(data, 'working_hours')!,
+              isDark: isDark,
+            ),
+          ],
 
           // ── Social section (only if at least 1 link exists) ──────────────
           if (socialLinks.isNotEmpty) ...[
@@ -271,6 +302,7 @@ class _SectionLabel extends StatelessWidget {
 
 class _ContactCard extends StatefulWidget {
   final IconData icon;
+  final Widget? customIconWidget;
   final String title;
   final String value;
   final bool isDark;
@@ -278,6 +310,7 @@ class _ContactCard extends StatefulWidget {
 
   const _ContactCard({
     required this.icon,
+    this.customIconWidget,
     required this.title,
     required this.value,
     required this.isDark,
@@ -343,6 +376,7 @@ class _ContactCardState extends State<_ContactCard>
           child: Row(
             children: [
               // Icon bubble
+              widget.customIconWidget ??
               Container(
                 width: 48.w,
                 height: 48.w,
@@ -649,4 +683,100 @@ class _WebsiteIcon extends StatelessWidget {
       size: 26.sp,
     );
   }
+}
+
+// ── WhatsApp icon bubble (contact card) ──────────────────────────────────────
+
+class _WhatsAppIconBubble extends StatelessWidget {
+  const _WhatsAppIconBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 48.w,
+      height: 48.w,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF25D366), Color(0xFF128C7E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: CustomPaint(
+          size: Size(24.sp, 24.sp),
+          painter: _WhatsAppPainter(),
+        ),
+      ),
+    );
+  }
+}
+
+class _WhatsAppPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    final w = size.width;
+    final h = size.height;
+
+    // Phone handset inside chat bubble
+    final phonePath = Path();
+
+    // Chat bubble outline (rounded)
+    final bubblePath = Path();
+    final cx = w * 0.48;
+    final cy = h * 0.46;
+    final rx = w * 0.40;
+    final ry = h * 0.40;
+
+    // Draw a rounded-rect-ish bubble with a tail
+    bubblePath.addOval(Rect.fromCenter(
+        center: Offset(cx, cy), width: rx * 2, height: ry * 2));
+
+    // Tail
+    final tailPath = Path();
+    tailPath.moveTo(w * 0.14, h * 0.72);
+    tailPath.lineTo(w * 0.06, h * 0.94);
+    tailPath.lineTo(w * 0.34, h * 0.74);
+    tailPath.close();
+    canvas.drawPath(tailPath, paint);
+
+    // Draw outer bubble stroke
+    final strokePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.07;
+    canvas.drawOval(
+        Rect.fromCenter(
+            center: Offset(cx, cy), width: rx * 2, height: ry * 2),
+        strokePaint);
+
+    // Phone icon inside — simplified handset
+    final handset = Path();
+    handset.moveTo(w * 0.30, h * 0.34);
+    handset.cubicTo(
+        w * 0.28, h * 0.28, w * 0.34, h * 0.24, w * 0.38, h * 0.28);
+    handset.lineTo(w * 0.42, h * 0.34);
+    handset.cubicTo(
+        w * 0.44, h * 0.37, w * 0.40, h * 0.40, w * 0.37, h * 0.42);
+    handset.cubicTo(
+        w * 0.40, h * 0.48, w * 0.46, h * 0.54, w * 0.52, h * 0.58);
+    handset.cubicTo(
+        w * 0.54, h * 0.55, w * 0.58, h * 0.51, w * 0.61, h * 0.53);
+    handset.lineTo(w * 0.67, h * 0.57);
+    handset.cubicTo(
+        w * 0.71, h * 0.60, w * 0.67, h * 0.67, w * 0.62, h * 0.67);
+    handset.cubicTo(
+        w * 0.48, h * 0.68, w * 0.28, h * 0.50, w * 0.30, h * 0.34);
+    handset.close();
+
+    canvas.drawPath(handset, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

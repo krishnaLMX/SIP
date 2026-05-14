@@ -115,7 +115,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final secondaryTextColor =
         isDark ? Colors.white70 : const Color(0xFF666666);
 
-    return Scaffold(
+    // Check if we're in the app_lock forgot pin flow
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ??
+            {};
+    final bool isFromAppLock = args['from_app_lock'] == true;
+
+    final scaffoldBody = Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
@@ -133,13 +139,16 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          IconButton(
-                            icon: Icon(Icons.arrow_back,
-                                size: 24.sp, color: primaryTextColor),
-                            onPressed: () => NavigationUtils.safePop(context),
-                            padding: EdgeInsets.zero,
-                            alignment: Alignment.centerLeft,
-                          ),
+                          if (!isFromAppLock)
+                            IconButton(
+                              icon: Icon(Icons.arrow_back,
+                                  size: 24.sp, color: primaryTextColor),
+                              onPressed: () => NavigationUtils.safePop(context),
+                              padding: EdgeInsets.zero,
+                              alignment: Alignment.centerLeft,
+                            )
+                          else
+                            SizedBox(width: 48.w),
                           SvgPicture.asset(
                             'assets/images/startGold.svg',
                             height: 85.h,
@@ -191,17 +200,18 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                     color: primaryTextColor,
                                   ),
                                 ),
-                                GestureDetector(
-                                  onTap: () => NavigationUtils.safePop(context),
-                                  child: Text(
-                                    'Edit',
-                                    style: GoogleFonts.playfairDisplay(
-                                      fontSize: 16.sp,
-                                      fontWeight: FontWeight.bold,
-                                      color: accentOrange,
+                                if (!isFromAppLock)
+                                  GestureDetector(
+                                    onTap: () => NavigationUtils.safePop(context),
+                                    child: Text(
+                                      'Edit',
+                                      style: GoogleFonts.playfairDisplay(
+                                        fontSize: 16.sp,
+                                        fontWeight: FontWeight.bold,
+                                        color: accentOrange,
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ],
@@ -359,6 +369,19 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         ),
       ),
     );
+
+    // Wrap with PopScope to block back navigation in app_lock flow
+    if (isFromAppLock) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          // Block all back navigation in app_lock forgot pin flow
+        },
+        child: scaffoldBody,
+      );
+    }
+
+    return scaffoldBody;
   }
 
   Future<void> _verifyOtp(String otp) async {
@@ -388,15 +411,32 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         final authState = ref.read(authControllerProvider);
         final tempToken = authState.data?['temp_token'] ??
             authState.data?['access_token'] ?? '';
-        Navigator.pushReplacementNamed(
-          context,
-          AppRouter.mpin,
-          arguments: {
-            'type': 'reset_pin',
-            'temp_token': tempToken,
-            'mobile': widget.mobile,
-          },
-        );
+        final bool fromAppLock = args['from_app_lock'] == true;
+
+        if (fromAppLock) {
+          // App lock flow: remove all routes so user can't swipe back to home
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRouter.mpin,
+            (route) => false,
+            arguments: {
+              'type': 'reset_pin',
+              'temp_token': tempToken,
+              'mobile': widget.mobile,
+              'from_app_lock': true,
+            },
+          );
+        } else {
+          Navigator.pushReplacementNamed(
+            context,
+            AppRouter.mpin,
+            arguments: {
+              'type': 'reset_pin',
+              'temp_token': tempToken,
+              'mobile': widget.mobile,
+            },
+          );
+        }
         return;
       }
 

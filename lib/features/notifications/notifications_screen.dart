@@ -164,11 +164,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         direction: DismissDirection.endToStart,
         dismissThresholds: const {DismissDirection.endToStart: 0.35},
         movementDuration: const Duration(milliseconds: 200),
-        onDismissed: (_) {
+        confirmDismiss: (_) async {
           HapticFeedback.mediumImpact();
-          ref.read(notificationProvider.notifier).deleteNotification(notif.id);
-          AppToast.show(context, 'Notification removed',
-              type: ToastType.info);
+          final success = await ref
+              .read(notificationProvider.notifier)
+              .deleteNotification(notif.id);
+          if (success && mounted) {
+            AppToast.show(context, 'Notification removed',
+                type: ToastType.info);
+          }
+          return success;
         },
         background: Container(
           color: const Color(0xFFDC2626),
