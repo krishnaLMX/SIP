@@ -72,7 +72,7 @@ class AppToast {
         duration: duration,
         position: resolvedPosition,
         onDismiss: () {
-          entry.remove();
+          _safeRemoveEntry(entry);
           if (_currentEntry == entry) _currentEntry = null;
         },
       ),
@@ -82,9 +82,27 @@ class AppToast {
     overlay.insert(entry);
   }
 
+  /// Safely removes an OverlayEntry, guarding against double-removal.
+  /// OverlayEntry.remove() throws an assertion if called on an entry that
+  /// is not currently mounted in the overlay. This happens when:
+  ///   - Auto-dismiss timer fires after _dismiss() already removed it
+  ///   - Navigation popped the route that owned the overlay context
+  static void _safeRemoveEntry(OverlayEntry entry) {
+    try {
+      if (entry.mounted) {
+        entry.remove();
+      }
+    } catch (_) {
+      // Swallow — entry was already removed by another path.
+    }
+  }
+
   static void _dismiss() {
-    _currentEntry?.remove();
+    final entry = _currentEntry;
     _currentEntry = null;
+    if (entry != null) {
+      _safeRemoveEntry(entry);
+    }
   }
 }
 
@@ -164,20 +182,28 @@ class _ToastWidgetState extends State<_ToastWidget>
 
     Widget positionedToast;
 
+    // Material must be INSIDE Positioned, not wrapping it.
+    // Positioned only works as a direct child of a Stack ancestor
+    // (the Overlay uses a Stack-like layout internally).
+    Widget materialAnimated() => Material(
+          color: Colors.transparent,
+          child: _buildAnimated(),
+        );
+
     switch (widget.position) {
       case ToastPosition.bottom:
         positionedToast = Positioned(
           left: 20.w,
           right: 20.w,
           bottom: bottomPad + 24.h,
-          child: _buildAnimated(),
+          child: materialAnimated(),
         );
       case ToastPosition.top:
         positionedToast = Positioned(
           left: 20.w,
           right: 20.w,
           top: topPad + 12.h,
-          child: _buildAnimated(),
+          child: materialAnimated(),
         );
       case ToastPosition.center:
         // Use Align so the toast sits in the true visual centre regardless
@@ -187,16 +213,13 @@ class _ToastWidgetState extends State<_ToastWidget>
             alignment: const Alignment(0, -0.2), // slightly above centre
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 20.w),
-              child: _buildAnimated(),
+              child: materialAnimated(),
             ),
           ),
         );
     }
 
-    return Material(
-      color: Colors.transparent,
-      child: positionedToast,
-    );
+    return positionedToast;
   }
 
   Widget _buildAnimated() {
@@ -216,18 +239,19 @@ class _ToastWidgetState extends State<_ToastWidget>
       decoration: BoxDecoration(
         color: _style.background,
         borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: _style.border, width: 1),
+        border: Border.all(color: _style.border, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: _style.shadow,
-            blurRadius: 24,
-            spreadRadius: 0,
+            blurRadius: 28,
+            spreadRadius: 2,
             offset: const Offset(0, 8),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 12,
+            spreadRadius: 1,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
