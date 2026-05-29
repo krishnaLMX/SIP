@@ -10,8 +10,7 @@ class AppConfig {
   static const String baseUrl = String.fromEnvironment(
     'BASE_URL',
     // defaultValue: 'https://api.startgold.com/api/api/v1/', //  Live
-    defaultValue:
-        'https://startgoldapi.logimaxindia.com/api/api/v1/', // Staging
+    defaultValue: 'http://startgoldapi.logimaxindia.com/api/api/v1/', // Staging
   );
 
   // Storage Keys
