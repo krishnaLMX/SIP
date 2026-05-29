@@ -23,7 +23,8 @@ class ProfileService {
     }
   }
 
-  Future<bool> updateProfile({
+  /// Returns `{'success': true}` or `{'success': false, 'message': '...'}`.
+  Future<Map<String, dynamic>> updateProfile({
     required String customerId,
     required String name,
     required String email,
@@ -53,9 +54,18 @@ class ProfileService {
           'id_city': idCity,
         },
       );
-      return response.data['success'] == true;
+      if (response.data['success'] == true) {
+        return {'success': true};
+      }
+      // API returned success: false — extract the error message
+      final data = response.data;
+      final msg = data['message']?.toString()
+          ?? (data['error'] as Map<String, dynamic>?)?['message']?.toString()
+          ?? 'Failed to update profile.';
+      return {'success': false, 'message': msg};
     } catch (e) {
-      return false;
+      // e is a Failure from ApiFailureMapper — use its message
+      return {'success': false, 'message': e.toString()};
     }
   }
 

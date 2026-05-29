@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../network/api_client.dart';
+import '../error/failures.dart';
 
 // --- SERVICE LAYER ---
 
@@ -198,9 +199,27 @@ class MpinNotifier extends StateNotifier<MpinState> {
       }
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode;
-      // 401 = token expired (e.g. logged in on another device)
-      // 409 = session invalidated by server
-      if (statusCode == 401 || statusCode == 403 || statusCode == 409) {
+
+      // ── Session invalidated (409) ──
+      // The interceptor already shows the force-logout dialog and rejects
+      // with DioExceptionType.cancel. Do NOT set any error here — it would
+      // cause a duplicate toast on top of the dialog.
+      final isSessionInvalidated = statusCode == 409 ||
+          (e.type == DioExceptionType.cancel &&
+              e.error?.toString().contains('Session invalidated') == true);
+
+      if (isSessionInvalidated) {
+        state = state.copyWith(
+          isLoading: false,
+          mpin: '',
+          isComplete: false,
+          // No error — the interceptor dialog handles everything.
+        );
+        return false;
+      }
+
+      // ── Token expired (401/403) ──
+      if (statusCode == 401 || statusCode == 403) {
         state = state.copyWith(
           isLoading: false,
           mpin: '',
@@ -208,20 +227,23 @@ class MpinNotifier extends StateNotifier<MpinState> {
           error: 'SESSION_EXPIRED',
         );
       } else {
+        // Extract real server message instead of hardcoded fallback
+        final failure = ApiFailureMapper.map(e);
         state = state.copyWith(
           isLoading: false,
           mpin: '',
           isComplete: false,
-          error: 'Validation failed. Check your connection.',
+          error: failure.message,
         );
       }
       return false;
     } catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '');
       state = state.copyWith(
         isLoading: false,
         mpin: '',
         isComplete: false,
-        error: 'Validation failed. Check your connection.',
+        error: msg.isNotEmpty ? msg : 'Something went wrong. Please try again.',
       );
       return false;
     }

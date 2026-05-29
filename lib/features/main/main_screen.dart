@@ -160,7 +160,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
 
     // Hide navbar completely when the soft keyboard is visible
-    if (keyboardOpen) return const SizedBox.shrink();
+    // or when the user is on the Invest tab (Wise-style footer replaces it)
+    if (keyboardOpen || selectedIndex == 1) return const SizedBox.shrink();
 
     return Positioned(
       bottom: bottomPadding + 16.h,

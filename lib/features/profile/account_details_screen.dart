@@ -168,6 +168,9 @@ class _AccountDetailsScreenState extends ConsumerState<AccountDetailsScreen> {
         );
     if (success && mounted) {
       AppToast.show(context, 'Profile updated successfully', type: ToastType.success);
+    } else if (mounted) {
+      final errorMsg = ref.read(profileProvider).error ?? 'Failed to update profile. Please try again.';
+      AppToast.show(context, errorMsg, type: ToastType.error);
     }
   }
 

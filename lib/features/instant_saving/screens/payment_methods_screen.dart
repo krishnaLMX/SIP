@@ -21,6 +21,18 @@ import 'package:startgold/features/market/models/market_rates.dart';
 import 'package:startgold/shared/widgets/app_toast.dart';
 import 'package:startgold/shared/widgets/numeric_styled_text.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// [LEGACY] PaymentMethodsScreen
+//
+// This screen is superseded by PaymentHandler (payment_handler.dart).
+// New payment flows (InvestScreen PAYMENT path and post-KYC path) now call
+// PaymentHandler.startPayment() directly and bypass this screen entirely.
+//
+// This file is kept intact for:
+//   • Backwards compatibility with any remaining route references
+//   • Reference implementation of the Cashfree integration pattern
+//   • Gradual migration — do NOT delete until PaymentHandler is fully validated
+// ─────────────────────────────────────────────────────────────────────────────
 class PaymentMethodsScreen extends ConsumerStatefulWidget {
   final double amount;
   final String metalId;

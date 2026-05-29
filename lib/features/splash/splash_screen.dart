@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/security/session_manager.dart';
 import '../../core/security/secure_storage_service.dart';
 import '../../core/services/app_control_service.dart';
@@ -74,6 +76,7 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       final controlService = AppControlService();
       final raw = await controlService.fetchAppControl();
+      debugPrint('[Splash] app/control raw response: $raw');
       if (raw != null) {
         final controlData = AppControlData.fromJson(raw);
 
@@ -86,18 +89,30 @@ class _SplashScreenState extends State<SplashScreen>
         // Version update gate — stay on splash so the update dialog
         // appears on top of the splash background (not login/mpin)
         final versionInfo = controlData.versionInfo;
+        debugPrint('[Splash] versionInfo parsed: ${versionInfo != null}');
         if (versionInfo != null && !controlData.maintenance.isEnabled) {
           final packageInfo = await PackageInfo.fromPlatform();
           final currentVersion = packageInfo.version;
           final platform = versionInfo.current;
+          debugPrint('[Splash] currentVersion=$currentVersion, latestVersion=${platform.latestVersion}');
           if (_isLower(currentVersion, platform.latestVersion)) {
             updateNeeded = true;
             _versionInfo = versionInfo;
+            // Cache version info so subsequent launches show dialog
+            // even if the API fails (network issues, Android doze, etc.)
+            await _cacheVersionInfo(raw);
+          } else {
+            // User has updated — clear the cache
+            await _clearVersionCache();
           }
         }
+      } else {
+        debugPrint('[Splash] app/control returned NULL — trying cache');
+        updateNeeded = await _tryLoadCachedVersionInfo();
       }
-    } catch (_) {
-      // Silent fail — continue normally
+    } catch (e) {
+      debugPrint('[Splash] App control fetch failed: $e — trying cache');
+      updateNeeded = await _tryLoadCachedVersionInfo();
     }
 
     await minSplashDuration;
@@ -131,6 +146,60 @@ class _SplashScreenState extends State<SplashScreen>
       }
       return false;
     } catch (_) {
+      return false;
+    }
+  }
+
+  // ── Version Cache (survives app restarts) ──────────────────────────────
+  static const _kVersionCacheKey = 'cached_version_control';
+
+  /// Saves the raw app/control response so we can show the update
+  /// dialog even if the API fails on next launch.
+  Future<void> _cacheVersionInfo(Map<String, dynamic> raw) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kVersionCacheKey, jsonEncode(raw));
+      debugPrint('[Splash] Version info cached for offline use.');
+    } catch (_) {}
+  }
+
+  Future<void> _clearVersionCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kVersionCacheKey);
+    } catch (_) {}
+  }
+
+  /// Loads cached version info and runs the same version check.
+  /// Returns true if an update is still needed.
+  Future<bool> _tryLoadCachedVersionInfo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_kVersionCacheKey);
+      if (cached == null) return false;
+
+      final raw = jsonDecode(cached) as Map<String, dynamic>;
+      final controlData = AppControlData.fromJson(raw);
+      final versionInfo = controlData.versionInfo;
+      if (versionInfo == null) return false;
+
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+      final platform = versionInfo.current;
+
+      debugPrint('[Splash] CACHE: currentVersion=$currentVersion, latestVersion=${platform.latestVersion}');
+
+      if (_isLower(currentVersion, platform.latestVersion)) {
+        _versionInfo = versionInfo;
+        debugPrint('[Splash] CACHE: Update still needed — showing dialog.');
+        return true;
+      } else {
+        // User updated — clear stale cache
+        await _clearVersionCache();
+        return false;
+      }
+    } catch (e) {
+      debugPrint('[Splash] CACHE: Failed to load: $e');
       return false;
     }
   }

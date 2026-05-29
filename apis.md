@@ -1981,3 +1981,206 @@ Fetches the refund policy content for the application.
     }
     ```
 *   **Client Action:** On success, invalidates `nomineeDetailsProvider` to refetch and switches back to view mode.
+
+---
+
+## 14. Notifications
+
+### 14.1 Fetch Notifications List
+*   **Page Name:** `NotificationsScreen`
+*   **Endpoint:** `POST users/notifications`
+*   **Authorization:** `Bearer Token`
+*   **Purpose:** Retrieves the full list of notifications for the logged-in user.
+*   **Request Body:** `{}`
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "data": [
+        {
+          "id": 1,
+          "title": "Gold Purchase Successful",
+          "message": "Your purchase of 0.5g Gold has been confirmed.",
+          "type": "transaction",
+          "is_read": false,
+          "created_at": "2026-05-20T10:30:00Z"
+        },
+        {
+          "id": 2,
+          "title": "KYC Approved",
+          "message": "Your KYC verification is now complete.",
+          "type": "kyc",
+          "is_read": true,
+          "created_at": "2026-05-19T14:00:00Z"
+        }
+      ]
+    }
+    ```
+*   **Fields:**
+
+    | Field | Type | Description |
+    |-------|------|-------------|
+    | `id` | Int | Unique notification identifier |
+    | `title` | String | Notification heading |
+    | `message` | String | Notification body text |
+    | `type` | String | Category (e.g. `transaction`, `kyc`, `promo`, `system`) |
+    | `is_read` | Bool/Int | `true` / `1` = read, `false` / `0` = unread |
+    | `created_at` | String | ISO 8601 timestamp |
+
+*   **Client Provider:** `notificationProvider` — `StateNotifier` that holds the full list + unread count.
+
+---
+
+### 14.2 Mark Notification as Read
+*   **Page Name:** `NotificationsScreen`
+*   **Endpoint:** `POST users/notifications/read`
+*   **Authorization:** `Bearer Token`
+*   **Purpose:** Marks a single notification as read.
+*   **Request Body:**
+    ```json
+    {
+      "notification_id": 1
+    }
+    ```
+
+    | Field | Type | Required | Description |
+    |-------|------|----------|-------------|
+    | `notification_id` | Int | Yes | ID of the notification to mark as read |
+
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Notification marked as read"
+    }
+    ```
+*   **Client Action:** Optimistic update — the notification is marked as read locally immediately; unread count is recomputed.
+
+---
+
+### 14.3 Mark All Notifications as Read
+*   **Page Name:** `NotificationsScreen`
+*   **Endpoint:** `POST users/notifications/read-all`
+*   **Authorization:** `Bearer Token`
+*   **Purpose:** Marks every notification as read in a single call.
+*   **Request Body:** `{}`
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "All notifications marked as read"
+    }
+    ```
+*   **Client Action:** Optimistic update — all local notifications set to `isRead: true`, unread count reset to `0`.
+
+---
+
+### 14.4 Delete Notification
+*   **Page Name:** `NotificationsScreen`
+*   **Endpoint:** `POST users/notifications/delete`
+*   **Authorization:** `Bearer Token`
+*   **Purpose:** Permanently deletes a single notification.
+*   **Request Body:**
+    ```json
+    {
+      "notification_id": 1
+    }
+    ```
+
+    | Field | Type | Required | Description |
+    |-------|------|----------|-------------|
+    | `notification_id` | Int | Yes | ID of the notification to delete |
+
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Notification deleted"
+    }
+    ```
+*   **Client Action:** On success, the notification is removed from the local list and the unread count is recomputed. On failure (including `409` session conflict), the card stays in place.
+
+---
+
+### 14.5 Fetch Unread Count
+*   **Page Name:** `HomeScreen` (nav bar badge), `NotificationsScreen`
+*   **Endpoint:** `POST users/notifications/unread-count`
+*   **Authorization:** `Bearer Token`
+*   **Purpose:** Returns the number of unread notifications for the badge indicator on the nav bar / home screen.
+*   **Request Body:** `{}`
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "data": {
+        "count": 5
+      }
+    }
+    ```
+
+    > [!NOTE]
+    > The client handles multiple response shapes for backwards compatibility:
+    > `{ "data": { "count": N } }`, `{ "data": { "unread_count": N } }`, `{ "data": N }`, or top-level `{ "count": N }` / `{ "unread_count": N }`.
+
+*   **Client Provider:** `unreadCountProvider` — lightweight provider derived from `notificationProvider`, used by the nav bar badge.
+
+---
+
+### 14.6 Register FCM Device Token
+*   **Endpoint:** `POST users/notifications/register-token`
+*   **Authorization:** `Bearer Token`
+*   **Purpose:** Registers (or updates) the device's FCM push-notification token on the server so the backend can target this specific device for push delivery. The device metadata is also used to populate the **"New device attempting login"** security notification card.
+*   **Trigger:** Called automatically after Firebase returns a new or refreshed token. The client deduplicates: if the stored token matches the new token, the call is skipped.
+*   **Request Body:**
+    ```json
+    {
+      "fcm_token": "dGhpcyBpcyBhIHNhbXBsZSBGQ00gdG9rZW4...",
+      "device_id": "uuid-abc-123",
+      "device_type": "android",
+      "device_model": "Galaxy S24 Ultra",
+      "device_name": "e3q",
+      "os": "Android",
+      "os_version": "14",
+      "manufacturer": "Samsung Electronics",
+      "brand": "samsung",
+      "hardware_id": "SM-S928B"
+    }
+    ```
+
+    | Field | Type | Required | Description |
+    |-------|------|----------|-------------|
+    | `fcm_token` | String | Yes | Firebase Cloud Messaging device token |
+    | `device_id` | String | Yes | Unique device identifier (from `DeviceIdService`) |
+    | `device_type` | String | Yes | `"android"` or `"ios"` |
+    | `device_model` | String | Yes | Device model name (e.g. `"Galaxy S24 Ultra"`, `"iPhone"`) |
+    | `device_name` | String | Yes | Internal device codename / user-facing name (e.g. `"e3q"`, `"John's iPhone"`) |
+    | `os` | String | Yes | Operating system name (`"Android"` / `"iOS"`) |
+    | `os_version` | String | Yes | OS version string (e.g. `"14"`, `"17.4"`) |
+    | `manufacturer` | String | Yes | Device manufacturer (e.g. `"Samsung Electronics"`, `"Apple"`) |
+    | `brand` | String | Yes | Device brand (e.g. `"samsung"`, `"Apple"`) |
+    | `hardware_id` | String | Yes | Hardware product ID — Android: `product` (e.g. `"SM-S928B"`), iOS: `utsname.machine` (e.g. `"iPhone15,2"`) |
+
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Device token registered successfully"
+    }
+    ```
+*   **Deduplication:** The FCM token is persisted in `SecureStorage`. On each Firebase token refresh, the client compares old vs new — if unchanged, the API call is skipped entirely.
+*   **Failure Handling:** Registration failures are logged via `debugPrint` but silently swallowed — push notifications are non-critical and must not block the user experience.
+
+> [!NOTE]
+> **Security card mapping:** The server uses these fields to build the "New device attempting login" notification:
+>
+> | Card field | API field(s) |
+> |---|---|
+> | Device title | `device_model` |
+> | Manufacturer | `manufacturer` |
+> | Model | `device_model` + `hardware_id` (e.g. "Galaxy S24 Ultra (SM-S928B)") |
+> | Operating System | `os` + `os_version` |
+> | IP Address | Extracted server-side from the request |
+> | Location | Derived server-side from IP geolocation |
+
+> [!IMPORTANT]
+> This endpoint does **not** require field-level encryption. The FCM token and device metadata are non-sensitive public identifiers.

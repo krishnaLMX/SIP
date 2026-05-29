@@ -150,9 +150,7 @@ class ApiSecurityInterceptor extends Interceptor {
     final shouldDecrypt =
         AppConfig.encryptedEndpoints.any((e) => path.contains(e));
 
-    if (shouldDecrypt &&
-        response.data != null &&
-        response.data is Map) {
+    if (shouldDecrypt && response.data != null && response.data is Map) {
       // Safe cast
       final mapData = Map<String, dynamic>.from(response.data);
       response.data = EncryptionService.decryptJson(mapData);
@@ -176,16 +174,16 @@ class ApiSecurityInterceptor extends Interceptor {
       // Accept both explicit code AND bare 409 (server may omit code)
       final isSessionInvalidated = data is Map &&
           (data['error']?['code'] == 'session_invalidated' ||
-           data['error']?['code'] == 'SESSION_INVALIDATED' ||
-           data['code'] == 'session_invalidated' ||
-           data['code'] == 'SESSION_INVALIDATED');
+              data['error']?['code'] == 'SESSION_INVALIDATED' ||
+              data['code'] == 'session_invalidated' ||
+              data['code'] == 'SESSION_INVALIDATED');
 
       // Also handle bare 409 without structured error body
       if (isSessionInvalidated || (data is! Map)) {
         final serverMsg = data is Map
             ? (data['error']?['message'] as String? ??
-               data['message'] as String? ??
-               '')
+                data['message'] as String? ??
+                '')
             : '';
 
         SecureLogger.e('SESSION INVALIDATED: 409 Conflict — $serverMsg');

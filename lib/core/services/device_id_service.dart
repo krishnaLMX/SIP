@@ -104,8 +104,8 @@ class DeviceIdService {
   // In-memory cache for device info
   static Map<String, String>? _cachedDeviceInfo;
 
-  /// Returns device metadata: model, name, OS, OS version.
-  /// Cached after the first call for performance.
+  /// Returns device metadata: model, name, OS, OS version, manufacturer, brand,
+  /// and hardware ID.  Cached after the first call for performance.
   static Future<Map<String, String>> getDeviceInfo() async {
     if (_cachedDeviceInfo != null) return _cachedDeviceInfo!;
 
@@ -113,22 +113,31 @@ class DeviceIdService {
     String deviceName = 'unknown';
     String os = 'unknown';
     String osVersion = 'unknown';
+    String manufacturer = 'unknown';
+    String brand = 'unknown';
+    String hardwareId = 'unknown';  // e.g. "SM-S928B" or "iPhone15,2"
 
     try {
       if (!kIsWeb) {
         final plugin = DeviceInfoPlugin();
         if (Platform.isAndroid) {
           final info = await plugin.androidInfo;
-          deviceModel = info.model;           // e.g. "Pixel 7"
-          deviceName = info.device;           // e.g. "panther"
+          deviceModel = info.model;           // e.g. "Galaxy S24 Ultra"
+          deviceName = info.device;           // e.g. "e3q"
           os = 'Android';
           osVersion = info.version.release;   // e.g. "14"
+          manufacturer = info.manufacturer;   // e.g. "Samsung Electronics"
+          brand = info.brand;                 // e.g. "samsung"
+          hardwareId = info.product;          // e.g. "SM-S928B"
         } else if (Platform.isIOS) {
           final info = await plugin.iosInfo;
-          deviceModel = info.utsname.machine; // e.g. "iPhone15,2"
+          deviceModel = info.model;           // e.g. "iPhone"
           deviceName = info.name;             // e.g. "John's iPhone"
           os = 'iOS';
-          osVersion = info.systemVersion;     // e.g. "17.2"
+          osVersion = info.systemVersion;     // e.g. "17.4"
+          manufacturer = 'Apple';
+          brand = 'Apple';
+          hardwareId = info.utsname.machine;  // e.g. "iPhone15,2"
         }
       }
     } catch (e) {
@@ -140,6 +149,9 @@ class DeviceIdService {
       'device_name': deviceName,
       'os': os,
       'os_version': osVersion,
+      'manufacturer': manufacturer,
+      'brand': brand,
+      'hardware_id': hardwareId,
     };
     return _cachedDeviceInfo!;
   }

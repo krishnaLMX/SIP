@@ -5,14 +5,13 @@ import '../../routes/app_router.dart';
 import '../../main.dart' show navigatorKey;
 import '../widgets/offline_banner.dart';
 import '../widgets/app_alert_banner.dart';
+import '../widgets/app_update_dialog.dart';
 
 /// Root-level wrapper that injects global runtime controls:
 ///   • Offline / slow network banner
 ///   • Backend-driven alert banner
 ///   • Maintenance redirect (pushes /maintenance when flag becomes enabled while in-app)
-///
-/// NOTE: Version update dialog is handled exclusively by SplashScreen at
-/// app startup. The 5-minute polling here is only for alerts and maintenance.
+///   • Version update dialog (shows blocking update when detected mid-session)
 ///
 /// IMPORTANT: This widget sits ABOVE the Navigator (inside MaterialApp.builder),
 /// so we must use [navigatorKey] to get a context that has a Navigator ancestor
@@ -27,6 +26,7 @@ class AppControlWrapper extends ConsumerStatefulWidget {
 
 class _AppControlWrapperState extends ConsumerState<AppControlWrapper> {
   bool _maintenanceRedirected = false;
+  bool _updateDialogShown = false;
 
   @override
   void initState() {
@@ -64,6 +64,42 @@ class _AppControlWrapperState extends ConsumerState<AppControlWrapper> {
     // Reset so it can re-trigger if maintenance toggles again
     if (!appControl.isMaintenance) {
       _maintenanceRedirected = false;
+    }
+
+    // ── Version update dialog (shows on ANY page when detected) ────────────
+    // Skip if already shown, or if we're still on the splash screen
+    // (splash handles its own dialog to avoid double-showing).
+    if (appControl.updateRequired && !_updateDialogShown) {
+      _updateDialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final navContext = navigatorKey.currentContext;
+        if (!mounted || navContext == null) {
+          _updateDialogShown = false;
+          return;
+        }
+
+        // Don't show if user is still on splash (splash has its own dialog)
+        final currentRoute = ModalRoute.of(navContext)?.settings.name;
+        if (currentRoute == AppRouter.splash) {
+          _updateDialogShown = false;
+          return;
+        }
+
+        final versionInfo = appControl.versionInfo;
+        if (versionInfo != null) {
+          AppUpdateDialog.show(
+            navContext,
+            versionInfo: versionInfo,
+            forceUpdate: appControl.forceUpdate,
+          );
+        } else {
+          _updateDialogShown = false;
+        }
+      });
+    }
+    // Reset flag if update is no longer required (e.g. user updated)
+    if (!appControl.updateRequired) {
+      _updateDialogShown = false;
     }
 
     return Stack(

@@ -133,11 +133,15 @@ class NotificationService {
         'device_name': deviceInfo['device_name'],
         'os': deviceInfo['os'],
         'os_version': deviceInfo['os_version'],
+        'manufacturer': deviceInfo['manufacturer'],
+        'brand': deviceInfo['brand'],
+        'hardware_id': deviceInfo['hardware_id'],
       });
 
       await SecureStorageService.saveFcmToken(token);
       debugPrint('[FCM] Token registered — device: $deviceId ($deviceType) '
-          'model: ${deviceInfo['device_model']} '
+          'manufacturer: ${deviceInfo['manufacturer']} '
+          'model: ${deviceInfo['device_model']} (${deviceInfo['hardware_id']}) '
           'os: ${deviceInfo['os']} ${deviceInfo['os_version']}');
     } catch (e) {
       debugPrint('[FCM] Token registration failed: $e');
@@ -229,8 +233,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
     try {
       await _service.deleteNotification(id);
       // Success: remove from list
-      final updated =
-          state.notifications.where((n) => n.id != id).toList();
+      final updated = state.notifications.where((n) => n.id != id).toList();
       state = state.copyWith(
         notifications: updated,
         unreadCount: updated.where((n) => !n.isRead).length,

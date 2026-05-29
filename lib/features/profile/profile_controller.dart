@@ -224,7 +224,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final success = await _profileService.updateProfile(
+      final result = await _profileService.updateProfile(
         customerId: _customerId,
         name: name,
         email: email,
@@ -238,7 +238,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         idCity: state.user.idCity,
       );
 
-      if (success) {
+      if (result['success'] == true) {
         final updatedUser = state.user.copyWith(
           name: name,
           email: email,
@@ -255,7 +255,12 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         );
         return true;
       } else {
-        throw Exception('Server failed to update');
+        state = state.copyWith(
+          isLoading: false,
+          error: result['message']?.toString() ??
+              'Failed to update profile. Please try again.',
+        );
+        return false;
       }
     } catch (e) {
       state = state.copyWith(

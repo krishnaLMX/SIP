@@ -59,22 +59,31 @@ class ApiFailureMapper {
         if (status == 409) {
           return SessionInvalidatedFailure();
         }
-        if (status == 401 || status == 403) {
-          return AuthenticationFailure();
-        }
-        if (status != null && status >= 500) {
-          return ServerFailure(statusCode: status);
-        }
-        // Extract message from nested error structures:
-        // { "error": { "message": "..." } } or { "data": { "message": "..." } }
+
+        // Always try to extract the real server message first,
+        // regardless of status code — the server always sends useful context.
         final responseData = err.response?.data;
         String? serverMessage;
         if (responseData is Map<String, dynamic>) {
           serverMessage = responseData['message']?.toString() ??
               (responseData['error'] as Map<String, dynamic>?)?['message']
                   ?.toString() ??
+              (responseData['validation_errors'] as Map<String, dynamic>?)?['detail']
+                  ?.toString() ??
               (responseData['data'] as Map<String, dynamic>?)?['message']
                   ?.toString();
+        }
+
+        if (status == 401 || status == 403) {
+          // Use real server message; fall back to generic only if absent.
+          return AuthenticationFailure(
+              serverMessage ?? 'Authentication credentials were not provided.');
+        }
+        if (status != null && status >= 500) {
+          return ServerFailure(
+            message: serverMessage ?? 'Server temporarily unavailable',
+            statusCode: status,
+          );
         }
         return ServerFailure(
           message: serverMessage ?? 'Server error code: $status',

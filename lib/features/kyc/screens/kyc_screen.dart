@@ -171,8 +171,13 @@ class _KycScreenState extends ConsumerState<KycScreen> {
       if (mounted) {
         Navigator.pop(context); // Close dialog
         if (widget.requestFrom == 'instant') {
-          Navigator.pushReplacementNamed(context, '/payment-methods',
-              arguments: widget.extraData);
+          // [LEGACY — kept for reference]
+          // Navigator.pushReplacementNamed(context, '/payment-methods',
+          //     arguments: widget.extraData);
+          //
+          // NEW: Return true to InvestScreen so it can continue payment
+          // directly via PaymentHandler.startPayment() without an extra screen.
+          Navigator.pop(context, true);
         } else if (widget.requestFrom == 'withdraw') {
           Navigator.pushReplacementNamed(context, '/upi-selection');
         } else {

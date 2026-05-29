@@ -55,7 +55,7 @@
     double sSell = previous?.silverSell ?? 0.0;
 
     for (var line in lines) {
-      // Use pipe delimiter for KJPL native websocket
+      // Use pipe delimiter for native websocket
       final parts = line.split('|');
 
       if (parts.length >= 5 && parts[0] == '3') {

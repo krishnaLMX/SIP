@@ -479,15 +479,19 @@ class PurchaseSuccessScreen extends ConsumerWidget {
         svgIconPath: 'assets/buttons/back-home.svg',
         onPressed: () {
           if (isSuccess) {
+            // "Back to Home" — navigate to home tab on main screen.
+            //
+            // PaymentHandler pushes PurchaseSuccessScreen via pushReplacement
+            // with an anonymous MaterialPageRoute (no route name), so
+            // popUntil's name checks always evaluate null and never match.
+            // Fix: pushNamedAndRemoveUntil clears the stack unconditionally.
             final container = ProviderScope.containerOf(context);
-            Navigator.of(context).popUntil(
-              (route) =>
-                  route.settings.name == AppRouter.main ||
-                  route.settings.name == AppRouter.home ||
-                  route.isFirst,
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              AppRouter.main,
+              (route) => false, // remove ALL routes
             );
             Future.delayed(const Duration(milliseconds: 350), () {
-              container.read(selectedTabProvider.notifier).state = 0;
+              container.read(selectedTabProvider.notifier).state = 0; // Home tab
             });
             Future.delayed(const Duration(milliseconds: 650), () {
               container.read(portfolioProvider.notifier).fetchPortfolio();
@@ -495,15 +499,22 @@ class PurchaseSuccessScreen extends ConsumerWidget {
               container.invalidate(profileProvider);
             });
           } else {
+            // "Try Again" — go back to InvestScreen (Invest tab on main screen).
+            //
+            // PaymentHandler uses Navigator.pushReplacement with an anonymous
+            // MaterialPageRoute, so route.settings.name is null for this screen.
+            // popUntil's name check never matched, leaving the user stuck here.
+            //
+            // Fix: use pushNamedAndRemoveUntil to unconditionally clear the
+            // entire back stack and land cleanly on the main screen, then
+            // switch to the Invest tab so the user can retry immediately.
             final container = ProviderScope.containerOf(context);
-            Navigator.of(context).popUntil(
-              (route) =>
-                  route.settings.name == AppRouter.main ||
-                  route.settings.name == AppRouter.home ||
-                  route.isFirst,
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              AppRouter.main,
+              (route) => false, // remove ALL routes
             );
             Future.delayed(const Duration(milliseconds: 350), () {
-              container.read(selectedTabProvider.notifier).state = 1;
+              container.read(selectedTabProvider.notifier).state = 1; // Invest tab
             });
           }
         },

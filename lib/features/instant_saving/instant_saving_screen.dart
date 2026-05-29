@@ -18,11 +18,13 @@ import '../market/models/market_rates.dart';
 import '../main/main_screen.dart';
 
 import '../../shared/widgets/app_toast.dart';
-import '../../shared/widgets/custom_button.dart';
+
 import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/loaders.dart';
 import '../../core/security/secure_logger.dart';
+import '../../core/error/failures.dart';
 import '../../shared/utils/no_leading_zeros_formatter.dart';
+import 'payment_handler.dart';
 
 class InstantSavingScreen extends ConsumerStatefulWidget {
   const InstantSavingScreen({super.key});
@@ -38,7 +40,7 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
   late AnimationController _pulseController;
   String _selectedAmount = '';
   bool _isAmountMode = true;
-  bool _isBreakdownExpanded = false;
+
   bool _isProcessing = false;
 
   @override
@@ -340,8 +342,6 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
                   SizedBox(height: 10.h),
                   _buildAmountInputCard(isDark, type, marketState, configAsync,
                       amountDenoms, weightDenoms),
-                  SizedBox(height: 10.h),
-                  _buildTotalAmountCard(isDark, marketState, type, configAsync),
                   SizedBox(height: 16.h),
                 ],
               ),
@@ -987,132 +987,65 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     );
   }
 
-  Widget _buildTotalAmountCard(bool isDark, AsyncValue<dynamic> market,
+  // ── Breakdown helpers (used in bottom sheet) ────────────────────
+  Map<String, double> _computeBreakdown(AsyncValue<dynamic> market,
       CommodityType type, AsyncValue<SavingConfig> configAsync) {
     final config = configAsync.valueOrNull;
-    if (config == null || !market.hasValue) return const SizedBox.shrink();
-
-    var inputVal = double.tryParse(_selectedAmount) ?? 0.0;
+    if (config == null || !market.hasValue) {
+      return {'total': 0, 'metalValue': 0, 'gst': 0, 'grams': 0, 'gstRate': 3};
+    }
+    final inputVal = double.tryParse(_selectedAmount) ?? 0.0;
     final double gstRate = config.gst / 100;
     final rate = type == CommodityType.gold
         ? market.value.goldSell
         : market.value.silverSell;
-
-    double totalPayable = 0.0;
-    double goldValueWithoutTax = 0.0;
-    double gstAmount = 0.0;
-    double grams = 0.0;
-
+    double totalPayable, metalValue, gstAmount, grams;
     if (_isAmountMode) {
       totalPayable = inputVal;
-      goldValueWithoutTax = totalPayable / (1 + gstRate);
-      gstAmount = totalPayable - goldValueWithoutTax;
-      grams = rate > 0 ? goldValueWithoutTax / rate : 0.0;
+      metalValue = totalPayable / (1 + gstRate);
+      gstAmount = totalPayable - metalValue;
+      grams = rate > 0 ? metalValue / rate : 0.0;
     } else {
       grams = inputVal;
-      goldValueWithoutTax = grams * rate;
-      gstAmount = goldValueWithoutTax * gstRate;
-      totalPayable = goldValueWithoutTax + gstAmount;
+      metalValue = grams * rate;
+      gstAmount = metalValue * gstRate;
+      totalPayable = metalValue + gstAmount;
     }
-
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 24.w),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
-        ),
-        child: Column(
-          children: [
-            GestureDetector(
-              onTap: () =>
-                  setState(() => _isBreakdownExpanded = !_isBreakdownExpanded),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Total Amount',
-                            style: TextStyle(
-                                fontSize: 16.sp,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black)),
-                        Text('Incl. Taxes',
-                            style: TextStyle(
-                                fontSize: 13.sp,
-                                color: Colors.black38,
-                                fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Text('₹${totalPayable.toStringAsFixed(2)}',
-                            style: GoogleFonts.lora(
-                                fontSize: 16.sp,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black)),
-                        SizedBox(width: 8.w),
-                        Icon(
-                          _isBreakdownExpanded
-                              ? Icons.keyboard_arrow_up
-                              : Icons.keyboard_arrow_down,
-                          color: Colors.black,
-                          size: 24.sp,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (_isBreakdownExpanded) ...[
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.w),
-                child: const Divider(height: 1, color: Color(0xFFF1F5F9)),
-              ),
-              _buildBreakdownRow(
-                  type == CommodityType.gold ? 'Gold Value' : 'Silver Value',
-                  '₹${goldValueWithoutTax.toStringAsFixed(2)}'),
-              _buildBreakdownRow('GST (${config.gst.toStringAsFixed(2)}%)',
-                  '₹${gstAmount.toStringAsFixed(2)}'),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.w),
-                child: const Divider(height: 1, color: Color(0xFFF1F5F9)),
-              ),
-              _buildBreakdownRow('Quantity', '${grams.toStringAsFixed(4)}gm'),
-              SizedBox(height: 8.h),
-            ],
-          ],
-        ),
-      ),
-    );
+    return {
+      'total': totalPayable,
+      'metalValue': metalValue,
+      'gst': gstAmount,
+      'grams': grams,
+      'gstRate': config.gst,
+    };
   }
 
-  Widget _buildBreakdownRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 10.h),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          NumericStyledText(
-            label,
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
-          Text(
-            value,
-            style: GoogleFonts.lora(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w800,
-              color: Colors.black,
-            ),
-          ),
-        ],
+  void _showBreakdownSheet(AsyncValue<dynamic> market, CommodityType type,
+      AsyncValue<SavingConfig> configAsync) {
+    final b = _computeBreakdown(market, type, configAsync);
+    final metalLabel =
+        type == CommodityType.gold ? 'Gold Value' : 'Silver Value';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _BreakdownSheet(
+        totalPayable: b['total']!,
+        metalValue: b['metalValue']!,
+        gstAmount: b['gst']!,
+        grams: b['grams']!,
+        gstRate: b['gstRate']!,
+        metalLabel: metalLabel,
+        isInvalid: b['total']! <= 0 ||
+            b['total']! < (configAsync.valueOrNull?.minAmount ?? 0) ||
+            b['total']! >
+                (configAsync.valueOrNull?.maxAmount ?? double.infinity),
+        isProcessing: _isProcessing,
+        onPayNow: () {
+          Navigator.pop(context); // close sheet
+          final config = configAsync.valueOrNull!;
+          _handleConfirmOrder(market, type, b['total']!, config, b['grams']!);
+        },
       ),
     );
   }
@@ -1136,113 +1069,145 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
     );
   }
  */
+  // ── Wise-style pinned footer ─────────────────────────────────────
   Widget _buildBottomAction(bool isDark, AsyncValue<dynamic> market,
       CommodityType type, AsyncValue<SavingConfig> configAsync) {
     final config = configAsync.valueOrNull;
     if (config == null || !market.hasValue) return const SizedBox.shrink();
 
-    var inputVal = double.tryParse(_selectedAmount) ?? 0.0;
-    final double gstRate = config.gst / 100;
-    // For AMOUNT mode: grams derived from amount / rate (net of GST).
-    // For GRAMS  mode: inputVal IS the grams directly.
-    final liveRate = (type == CommodityType.gold
-            ? market.valueOrNull?.goldSell
-            : market.valueOrNull?.silverSell) ??
-        0.0;
-    final double grams = _isAmountMode
-        ? (liveRate > 0 ? (inputVal / (1 + gstRate)) / liveRate : 0.0)
-        : inputVal;
-    double totalPayable = _isAmountMode
-        ? inputVal
-        : (inputVal *
-            (type == CommodityType.gold
-                ? market.value.goldSell
-                : market.value.silverSell) *
-            (1 + gstRate));
-
+    final b = _computeBreakdown(market, type, configAsync);
+    final totalPayable = b['total']!;
+    final grams = b['grams']!;
     final isInvalid = (totalPayable < config.minAmount ||
         totalPayable > config.maxAmount ||
         totalPayable <= 0);
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: EdgeInsets.fromLTRB(
-          24.w,
-          12.h,
-          24.w,
-          // When keyboard is open the floating navbar is hidden,
-          // so no need to reserve 100.h for it.
-          MediaQuery.of(context).viewInsets.bottom > 0 ? 24.h : 100.h,
-        ),
-        decoration: const BoxDecoration(color: Colors.transparent),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Amber info note — above Confirm Order
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(14.r),
-                border: Border.all(
-                  color: const Color(0xFFF59E0B).withOpacity(0.35),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Security badge — floats above the white footer strip ────────────
+        Padding(
+          padding: EdgeInsets.only(bottom: 6.h),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.shield_outlined,
+                  color: const Color(0xFF91411D), size: 14.sp),
+              SizedBox(width: 6.w),
+              Text(
+                '100% Secure Transaction & Bank Grade Storage',
+                style: TextStyle(
+                  fontSize: 11.sp,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF91411D).withOpacity(0.75),
                 ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Icon(Icons.lightbulb_outline_rounded,
-                      size: 16.sp, color: const Color(0xFFD97706)),
-                  SizedBox(width: 10.w),
-                  Expanded(
-                    child: Text(
-                      '100% Secure Transaction & Bank Grade Storage',
-                      style: TextStyle(
-                        fontSize: 11.sp,
-                        color: const Color(0xFF92400E),
-                        height: 1.5,
-                        fontWeight: FontWeight.w500,
-                      ),
+            ],
+          ),
+        ),
+        // ── White footer strip ───────────────────────────────────────────────
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 16.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                  top: BorderSide(color: Colors.black.withOpacity(0.06))),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // ── Left: ₹Amount dropdown ──
+                GestureDetector(
+                  onTap: totalPayable > 0
+                      ? () => _showBreakdownSheet(market, type, configAsync)
+                      : null,
+                  child: Padding(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 4.w, vertical: 10.h),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '₹${totalPayable > 0 ? totalPayable.toStringAsFixed(0) : '0'}',
+                          style: GoogleFonts.lora(
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black,
+                          ),
+                        ),
+                        SizedBox(width: 4.w),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 20.sp, color: Colors.black54),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            SizedBox(height: 10.h),
-            CustomButton(
-              text: 'Confirm Order',
-              svgIconPath: 'assets/buttons/tick.svg',
-              isLoading: _isProcessing,
-              loadingText: 'Processing...',
-              onPressed: (isInvalid || _isProcessing)
-                  ? null
-                  : () => _handleConfirmOrder(
-                      market, type, totalPayable, config, grams),
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: isInvalid
-                    ? [
-                        const Color(0xFF1B882C).withOpacity(0.45),
-                        const Color(0xFF003716).withOpacity(0.45),
-                      ]
-                    : const [Color(0xFF1B882C), Color(0xFF003716)],
-              ),
-              boxShadow: isInvalid
-                  ? []
-                  : [
-                      BoxShadow(
-                        color: const Color(0xFF1B882C).withOpacity(0.35),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                ),
+                // ── Right: Pay Now pill ──
+                GestureDetector(
+                  onTap: (isInvalid || _isProcessing)
+                      ? null
+                      : () => _handleConfirmOrder(
+                          market, type, totalPayable, config, grams),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 48.h,
+                    padding: EdgeInsets.symmetric(horizontal: 32.w),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isInvalid
+                            ? [
+                                const Color(0xFF1B882C).withOpacity(0.4),
+                                const Color(0xFF003716).withOpacity(0.4)
+                              ]
+                            : const [Color(0xFF1B882C), Color(0xFF003716)],
                       ),
-                    ],
-              textColor: Colors.white,
+                      borderRadius: BorderRadius.circular(50.r),
+                      boxShadow: isInvalid
+                          ? []
+                          : [
+                              BoxShadow(
+                                color: const Color(0xFF1B882C).withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_isProcessing)
+                          SizedBox(
+                            width: 18.sp,
+                            height: 18.sp,
+                            child: const CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        else ...[
+                          Icon(Icons.check_circle,
+                              color: Colors.white, size: 20.sp),
+                          SizedBox(width: 8.w),
+                          Text(
+                            'Pay Now',
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -1293,23 +1258,64 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
       if (mounted) setState(() => _isProcessing = false);
 
       if (eligibility.nextStep == 'KYC_REQUIRED') {
-        Navigator.pushNamed(context, '/kyc', arguments: {
-          'request_from': 'instant',
-          'amount': totalPayable,
-          'metal_id': metalId,
-          'rate': rate,
-          'buy_type': _isAmountMode ? 1 : 2,
-          'weight': grams,
-        });
+        // Push KYC and AWAIT the result (true = KYC completed successfully).
+        // KycScreen now does Navigator.pop(context, true) on 'instant' flow
+        // instead of navigating to PaymentMethodsScreen.
+        //
+        // [LEGACY — kept for reference]
+        // Navigator.pushNamed(context, '/kyc', arguments: {...});
+        //   └─ previously KycScreen did pushReplacementNamed('/payment-methods')
+        final kycDone = await Navigator.pushNamed(
+          context,
+          '/kyc',
+          arguments: {
+            'request_from': 'instant',
+            'amount': totalPayable,
+            'metal_id': metalId,
+            'rate': rate,
+            'buy_type': _isAmountMode ? 1 : 2,
+            'weight': grams,
+          },
+        );
+
+        if (kycDone == true && mounted) {
+          SecureLogger.d(
+              'ORDER FLOW: KYC completed → continuing to PaymentHandler');
+          // KYC done — continue to Cashfree payment directly from here.
+          final handler = PaymentHandler(ref: ref, context: context);
+          await handler.startPayment(
+            amount: totalPayable,
+            metalId: metalId,
+            rate: rate,
+            buyType: _isAmountMode ? 1 : 2,
+            weight: grams,
+            onLoadingStart: () => setState(() => _isProcessing = true),
+            onLoadingEnd: () {
+              if (mounted) setState(() => _isProcessing = false);
+            },
+          );
+        }
       } else if (eligibility.nextStep == 'PAYMENT') {
-        Navigator.pushNamed(context, AppRouter.paymentMethods, arguments: {
-          'amount': totalPayable,
-          'metal_id': metalId,
-          'rate': rate,
-          'buy_type': _isAmountMode ? 1 : 2,
-          'weight': grams,
-        });
+        // No KYC required — go straight to payment via the centralized handler.
+        //
+        // [LEGACY — kept for reference]
+        // Navigator.pushNamed(context, AppRouter.paymentMethods, arguments: {...});
+        SecureLogger.d(
+            'ORDER FLOW: Eligibility PAYMENT → calling PaymentHandler');
+        final handler = PaymentHandler(ref: ref, context: context);
+        await handler.startPayment(
+          amount: totalPayable,
+          metalId: metalId,
+          rate: rate,
+          buyType: _isAmountMode ? 1 : 2,
+          weight: grams,
+          onLoadingStart: () => setState(() => _isProcessing = true),
+          onLoadingEnd: () {
+            if (mounted) setState(() => _isProcessing = false);
+          },
+        );
       } else if (eligibility.nextStep == 'UPI_LIST') {
+        // UPI selection flow — unchanged.
         Navigator.pushNamed(context, AppRouter.upiSelection, arguments: {
           'amount': totalPayable,
           'metal_id': metalId,
@@ -1318,22 +1324,226 @@ class _InstantSavingScreenState extends ConsumerState<InstantSavingScreen>
           'weight': grams,
         });
       } else {
-        Navigator.pushNamed(context, AppRouter.paymentMethods, arguments: {
-          'amount': totalPayable,
-          'metal_id': metalId,
-          'rate': rate,
-          'buy_type': _isAmountMode ? 1 : 2,
-          'weight': grams,
-        });
+        // Fallback — treat as direct payment via PaymentHandler.
+        //
+        // [LEGACY — kept for reference]
+        // Navigator.pushNamed(context, AppRouter.paymentMethods, arguments: {...});
+        SecureLogger.d(
+            'ORDER FLOW: Unknown nextStep → defaulting to PaymentHandler');
+        final handler = PaymentHandler(ref: ref, context: context);
+        await handler.startPayment(
+          amount: totalPayable,
+          metalId: metalId,
+          rate: rate,
+          buyType: _isAmountMode ? 1 : 2,
+          weight: grams,
+          onLoadingStart: () => setState(() => _isProcessing = true),
+          onLoadingEnd: () {
+            if (mounted) setState(() => _isProcessing = false);
+          },
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        AppToast.show(
-            context, 'Something went wrong. Please try again later.',
+        // Show real server message when available (Failure.message),
+        // otherwise fall back to a generic user-friendly string.
+        final msg = (e is Failure)
+            ? e.message
+            : 'Something went wrong. Please try again later.';
+        AppToast.show(context, msg,
             type: ToastType.error, position: ToastPosition.center);
       }
     }
+  }
+}
+
+/// Wise-style breakdown bottom sheet
+class _BreakdownSheet extends StatelessWidget {
+  final double totalPayable;
+  final double metalValue;
+  final double gstAmount;
+  final double grams;
+  final double gstRate;
+  final String metalLabel;
+  final bool isInvalid;
+  final bool isProcessing;
+  final VoidCallback onPayNow;
+
+  const _BreakdownSheet({
+    required this.totalPayable,
+    required this.metalValue,
+    required this.gstAmount,
+    required this.grams,
+    required this.gstRate,
+    required this.metalLabel,
+    required this.isInvalid,
+    required this.isProcessing,
+    required this.onPayNow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20.w, 8.h, 20.w, 20.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag handle
+              Container(
+                width: 40.w,
+                height: 4.h,
+                margin: EdgeInsets.only(bottom: 16.h),
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(2.r),
+                ),
+              ),
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Breakdown',
+                      style: GoogleFonts.lora(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                      )),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: EdgeInsets.all(6.w),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black.withOpacity(0.05),
+                      ),
+                      child:
+                          Icon(Icons.close, size: 18.sp, color: Colors.black54),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16.h),
+              // Breakdown card
+              Container(
+                padding: EdgeInsets.all(16.w),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(16.r),
+                  border: Border.all(color: Colors.black.withOpacity(0.06)),
+                ),
+                child: Column(
+                  children: [
+                    _row('Total Amount', '₹${totalPayable.toStringAsFixed(0)}',
+                        subtitle: 'Incl. GST', isBold: true),
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10.h),
+                      child: Divider(
+                          height: 1, color: Colors.black.withOpacity(0.06)),
+                    ),
+                    _row(metalLabel, '₹${metalValue.toStringAsFixed(2)}'),
+                    SizedBox(height: 12.h),
+                    _row('GST (${gstRate.toStringAsFixed(0)}%)',
+                        '₹${gstAmount.toStringAsFixed(2)}'),
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10.h),
+                      child: Divider(
+                          height: 1, color: Colors.black.withOpacity(0.06)),
+                    ),
+                    _row('Quantity', '${grams.toStringAsFixed(4)}gm'),
+                  ],
+                ),
+              ),
+              SizedBox(height: 20.h),
+              // Pay Now CTA
+              GestureDetector(
+                onTap: (isInvalid || isProcessing) ? null : onPayNow,
+                child: Container(
+                  width: double.infinity,
+                  height: 56.h,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isInvalid
+                          ? [
+                              const Color(0xFF1B882C).withOpacity(0.4),
+                              const Color(0xFF003716).withOpacity(0.4)
+                            ]
+                          : const [Color(0xFF1B882C), Color(0xFF003716)],
+                    ),
+                    borderRadius: BorderRadius.circular(50.r),
+                    boxShadow: isInvalid
+                        ? []
+                        : [
+                            BoxShadow(
+                              color: const Color(0xFF1B882C).withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.check_circle,
+                          color: Colors.white, size: 22.sp),
+                      SizedBox(width: 10.w),
+                      Text('Pay Now',
+                          style: TextStyle(
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
+                          )),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _row(String label, String value,
+      {String? subtitle, bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: TextStyle(
+                  fontSize: isBold ? 16.sp : 14.sp,
+                  fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
+                  color: Colors.black,
+                )),
+            if (subtitle != null)
+              Text(subtitle,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: Colors.black38,
+                    fontWeight: FontWeight.w500,
+                  )),
+          ],
+        ),
+        Text(value,
+            style: GoogleFonts.lora(
+              fontSize: isBold ? 16.sp : 14.sp,
+              fontWeight: FontWeight.w700,
+              color: Colors.black,
+            )),
+      ],
+    );
   }
 }
 
